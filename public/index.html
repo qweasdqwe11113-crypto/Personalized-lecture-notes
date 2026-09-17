@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>知课 AI · VLM + RAG 教学助手</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">知</span><div><strong>知课 AI</strong><small>VLM + RAG 教学助手</small></div></div>
+      <nav>
+        <button class="nav-item active" data-view="chat"><span>✦</span>教学工作台</button>
+        <button class="nav-item" data-view="knowledge"><span>▱</span>课程知识库</button>
+      </nav>
+      <div class="profile-card">
+        <div class="eyebrow">当前教学对象</div>
+        <label>学习水平<select id="level"><option>基础</option><option selected>中等</option><option>提高</option></select></label>
+        <label>薄弱知识点<input id="weakness" value="公式应用与单位换算" /></label>
+        <p>生成内容会根据学生情况调整讲解深度与练习难度。</p>
+      </div>
+      <div class="user"><span class="avatar">林</span><div><strong>林老师</strong><small>高中物理 · 教师端</small></div><span class="status-dot"></span></div>
+    </aside>
+
+    <main>
+      <header>
+        <div><div class="eyebrow">教学智能体工作空间</div><h1 id="page-title">教学工作台</h1></div>
+        <div class="header-actions"><span class="online"><i></i>服务正常</span><button id="new-chat" class="ghost">＋ 新对话</button></div>
+      </header>
+
+      <section id="chat-view" class="view active">
+        <div class="workspace">
+          <section class="chat-panel">
+            <div id="messages" class="messages">
+              <div class="message assistant">
+                <div class="bot-icon">✦</div>
+                <div class="bubble"><div class="message-meta">教学助理</div><h2>下午好，林老师</h2><p>我可以基于课程知识库生成讲义、练习题和评分参考。先试试下面的快捷任务，或者直接描述你的教学需求。</p></div>
+              </div>
+              <div class="quick-actions">
+                <button data-prompt="根据牛顿第二定律生成一份中等难度课堂讲义"><span>讲</span><div><strong>生成课堂讲义</strong><small>结合教材与学生水平</small></div></button>
+                <button data-prompt="根据牛顿第二定律出题，包含选择题和简答题"><span>题</span><div><strong>智能生成试题</strong><small>答案、解析与评分点</small></div></button>
+                <button data-prompt="介绍一下当前知识库资料"><span>库</span><div><strong>查看知识依据</strong><small>检索资料与引用来源</small></div></button>
+              </div>
+            </div>
+            <div class="composer-wrap">
+              <div id="upload-chip" class="upload-chip hidden"></div>
+              <div class="composer">
+                <label class="attach" title="上传资料">＋<input id="chat-file" type="file" hidden /></label>
+                <textarea id="prompt" rows="1" placeholder="例如：根据牛顿第二定律生成一份适合基础学生的课堂讲义"></textarea>
+                <button id="send" class="send">发送 <span>↑</span></button>
+              </div>
+              <p class="hint">生成内容由演示规则引擎完成，正式项目可在后端接入大模型与 Embedding 服务。</p>
+            </div>
+          </section>
+
+          <aside class="context-panel">
+            <div class="context-head"><div><div class="eyebrow">RAG CONTEXT</div><h3>知识来源</h3></div><span id="doc-count" class="count">0</span></div>
+            <div id="source-list" class="source-list"></div>
+            <div class="divider"></div>
+            <div class="context-head"><h3>联网补充</h3><span class="experimental">实验功能</span></div>
+            <p class="muted">搜索公开资料并自动写入临时知识库。</p>
+            <div class="search-row"><input id="web-topic" value="牛顿第二定律" /><button id="web-search">搜索入库</button></div>
+            <div id="web-status" class="web-status"></div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="knowledge-view" class="view">
+        <div class="knowledge-header">
+          <div><h2>课程知识库</h2><p>上传教材、教案或题库。文本类文件将被切分为可检索片段。</p></div>
+          <label class="primary">＋ 上传教学资料<input id="kb-file" type="file" hidden multiple /></label>
+        </div>
+        <div class="stats">
+          <div><span>资料总数</span><strong id="stat-docs">0</strong></div>
+          <div><span>知识片段</span><strong id="stat-chunks">0</strong></div>
+          <div><span>主要来源</span><strong id="stat-sources">0</strong></div>
+        </div>
+        <div class="table-card">
+          <div class="table-title"><h3>已入库资料</h3><span>自动保存到本地 JSON 数据库</span></div>
+          <div id="documents-table"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div id="toast" class="toast"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

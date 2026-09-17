@@ -1,0 +1,13 @@
+{
+  "name": "vlm-rag-teaching-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "VLM + RAG 个性化教学 Agent 简易原型",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
