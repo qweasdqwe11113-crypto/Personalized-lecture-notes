@@ -1,0 +1,28 @@
+{
+ "students": [
+  {"id":1,"name":"小林","subtitle":"基础补充","profile":"虚拟学生。希望每一步都有理由，先用简单整数例子理解等式，再解两步方程。"},
+  {"id":2,"name":"小周","subtitle":"易错点巩固","profile":"虚拟学生。能做基本计算，但常将移项理解为任意变号，需要对比正确与错误步骤。"},
+  {"id":3,"name":"小陈","subtitle":"迁移应用","profile":"虚拟学生。基础步骤已掌握，希望减少重复解释，关注含括号或未知数在两边的变式。"}
+ ],
+ "knowledge_points":[
+  {"id":1,"name":"等式的加减性质"},
+  {"id":2,"name":"等式的乘除性质"},
+  {"id":3,"name":"两步方程与移项"}
+ ],
+ "states":[
+  [1,1,"needs_support","模拟诊断：解 x + 6 = 14 时，只在左边减 6。"],
+  [1,2,"partial","模拟诊断：能解 4x = 20，但说不清两边同除的理由。"],
+  [1,3,"unknown","尚无两步方程的诊断记录。"],
+  [2,1,"mastered","模拟诊断：能正确解释等式两边同加同减。"],
+  [2,2,"partial","模拟诊断：负系数方程偶有符号错误。"],
+  [2,3,"needs_support","模拟诊断：将 2x + 5 = 17 错写为 2x = 17 + 5。"],
+  [3,1,"mastered","模拟诊断：基本加减变形均正确。"],
+  [3,2,"mastered","模拟诊断：能正确处理非零负系数并代入检查。"],
+  [3,3,"mastered","模拟诊断：两步方程求解正确，能够解释每一步。"]
+ ],
+ "materials":[
+  {"id":1,"knowledge_id":1,"title":"等式两边保持平衡","content":"等式两边同时加上或减去同一个数，等式仍成立。解方程是找出代入后能使等式成立的未知数值。自编例：x + 6 = 14，两边同减 6，得 x = 8；代入检查 8 + 6 = 14。不能只改变一边。","source_title":"OpenStax · Prealgebra 2e","source_url":"https://openstax.org/books/prealgebra-2e/pages/8-1-solve-equations-using-the-subtraction-and-addition-properties-of-equality","section":"8.1 加减性质；中文整理，例题自编"},
+  {"id":2,"knowledge_id":2,"title":"把未知数的系数化为 1","content":"等式两边同乘或同除以一个非零数，等式仍成立。自编例：4x = 20，两边同除以 4，得 x = 5；-3x = 12，两边同除以 -3，得 x = -4。除数不能为 0，负数运算要保留符号，结果应代入原式检查。","source_title":"OpenStax · Prealgebra 2e","source_url":"https://openstax.org/books/prealgebra-2e/pages/8-2-solve-equations-using-the-division-and-multiplication-properties-of-equality","section":"8.2 乘除性质；中文整理，例题自编"},
+  {"id":3,"knowledge_id":3,"title":"两步方程与移项的依据","content":"移项可以用等式两边同加或同减解释。自编例：2x + 5 = 17，两边同减 5 得 2x = 12，再同除以 2 得 x = 6。变式 4x + 3 = 2x + 11，两边同减 2x，再同减 3，得 2x = 8，因此 x = 4；代入原式两边都为 19。","source_title":"OpenStax · Prealgebra 2e","source_url":"https://openstax.org/books/prealgebra-2e/pages/8-3-solve-equations-with-variables-and-constants-on-both-sides","section":"8.3 两边含未知数的方程；中文整理，例题自编"}
+ ]
+}
