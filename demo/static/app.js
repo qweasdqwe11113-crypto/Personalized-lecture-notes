@@ -1,24 +1,78 @@
 const $ = id => document.getElementById(id);
 let topics = {}, current = null, lastResult = null, busy = false, contextVersion = 0;
-const el = (tag, text, cls) => { const n=document.createElement(tag); if(text!==undefined)n.textContent=text; if(cls)n.className=cls; return n; };
-function error(message){$('error').textContent=message||'';$('error').hidden=!message;}
-async function api(url, options){const r=await fetch(url, options);let d;try{d=await r.json();}catch{throw new Error('服务未返回有效响应，请确认本地服务仍在运行。');}if(!r.ok)throw new Error(d.error||'请求失败，请重试。');return d;}
-function drawContext(ctx){
- current=ctx; $('student-profile').textContent=ctx.student.profile;
- $('states').replaceChildren(...ctx.states.map(s=>{const box=el('div');const top=el('div',undefined,'state-top');top.append(el('span',s.name),el('span',s.label,'badge '+s.state));box.append(top,el('p',s.evidence,'evidence'),el('p',s.strategy,'strategy'));return box;}));
- drawSources(ctx.materials);
+const el = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
+function error(message) { $('error').textContent = message || ''; $('error').hidden = !message; }
+async function api(url, options) { const r = await fetch(url, options); let d; try { d = await r.json(); } catch { throw new Error('服务未返回有效响应，请确认本地服务仍在运行。'); } if (!r.ok) throw new Error(d.error || '请求失败，请重试。'); return d; }
+function drawContext(ctx) {
+  current = ctx; $('student-profile').textContent = ctx.student.profile;
+  $('states').replaceChildren(...ctx.states.map(s => { const box = el('div'); const top = el('div', undefined, 'state-top'); top.append(el('span', s.name), el('span', s.label, 'badge ' + s.state)); box.append(top, el('p', s.evidence, 'evidence'), el('p', s.strategy, 'strategy')); return box; }));
+  drawSources(ctx.materials);
 }
-function drawSources(materials){$('source-count').textContent=materials.length+' 条材料';$('sources').replaceChildren(...materials.map(m=>{const d=el('details',undefined,'source');const s=el('summary');s.append(el('span','M'+m.id),document.createTextNode(m.title));const a=el('a',m.source_title+' · 查看原始资料 ↗');a.href=m.source_url;a.target='_blank';a.rel='noopener noreferrer';d.append(s,el('p',m.content),a,el('p',m.section,'source-location'));return d;}));}
-function clearResult(){lastResult=null;$('download').disabled=true;$('empty').hidden=false;$('lecture').hidden=true;$('lecture-meta').hidden=true;$('review-note').hidden=true;$('result-label').textContent='讲义预览';}
-async function loadContext(){const version=++contextVersion;error('');$('generate').disabled=true;clearResult();try{const c=await api(`/api/context?student_id=${$('student').value}&topic=${$('topic').value}`);if(version!==contextVersion)return;drawContext(c);$('generate').disabled=false;}catch(e){if(version===contextVersion)error(e.message);}}
+function drawSources(materials) { $('source-count').textContent = materials.length + ' 条材料'; $('sources').replaceChildren(...materials.map(m => { const d = el('details', undefined, 'source'); const s = el('summary'); s.append(el('span', 'M' + m.id), document.createTextNode(m.title)); const a = el('a', m.source_title + ' · 查看原始资料 ↗'); a.href = m.source_url; a.target = '_blank'; a.rel = 'noopener noreferrer'; d.append(s, el('p', m.content), a, el('p', m.section, 'source-location')); return d; })); }
+function clearResult() {
+  lastResult = null;
+  $('download').disabled = true;
+  $('download-format').disabled = true;
+  $('print-lecture').disabled = true;
+  $('empty').hidden = false;
+  $('lecture').hidden = true;
+  $('lecture-meta').hidden = true;
+  $('review-note').hidden = true;
+  $('result-label').textContent = '讲义预览';
+}
+async function loadContext() { const version = ++contextVersion; error(''); $('generate').disabled = true; clearResult(); try { const c = await api(`/api/context?student_id=${$('student').value}&topic=${$('topic').value}`); if (version !== contextVersion) return; drawContext(c); $('generate').disabled = false; } catch (e) { if (version === contextVersion) error(e.message); } }
 // Small Markdown renderer: all model text is inserted as text nodes, never raw HTML.
-function inline(node,text){const parts=text.split(/(\*\*[^*]+\*\*|\[M\d+\])/g);for(const p of parts){if(p.startsWith('**')&&p.endsWith('**'))node.append(el('strong',p.slice(2,-2)));else if(/^\[M\d+\]$/.test(p))node.append(el('span',p,'citation'));else node.append(document.createTextNode(p));}}
-function renderMarkdown(text){const frag=document.createDocumentFragment();let list=null;for(const raw of text.split('\n')){const line=raw.trim();if(!line){list=null;continue;}const heading=line.match(/^(#{1,3})\s+(.+)$/);const item=line.match(/^([-*]|\d+[.、])\s+(.+)$/);if(heading){list=null;const h=el('h'+heading[1].length);inline(h,heading[2]);frag.append(h);}else if(item){const tag=/\d/.test(item[1])?'ol':'ul';if(!list||list.tagName.toLowerCase()!==tag){list=el(tag);frag.append(list);}const li=el('li');if(tag==='ol')li.value=parseInt(item[1],10);inline(li,item[2]);list.append(li);}else{list=null;const p=el('p');inline(p,line);frag.append(p);}}return frag;}
-function showResult(r){lastResult=r;$('empty').hidden=true;$('loading').hidden=true;$('lecture').hidden=false;$('lecture-meta').hidden=false;$('review-note').hidden=false;$('lecture').replaceChildren(renderMarkdown(r.content));$('result-label').textContent=r.context.student.name+'的讲义';$('lecture-meta').textContent=`${r.context.topic.title} · ${r.model} · ${Number(r.elapsed_seconds).toFixed(1)} 秒 · 已保存 #${r.id}`;$('review-note').textContent=(r.citation_check.review_warning ? r.citation_check.review_warning+' ' : '')+(r.citation_check.has_citations?'引用编号已核对。':'本次未检测到材料引用，请重点检查。')+' 内容正确性与引用支持关系仍需教师复核。';drawSources(r.context.materials);$('download').disabled=false;}
-function drawHistory(history){$('history').replaceChildren();if(!history.length){$('history').append(el('p','暂无已保存讲义','helper'));return;}for(const h of history){const b=el('button',`#${h.id} ${h.name} · ${h.topic}`);b.type='button';b.disabled=busy;b.onclick=async()=>{if(busy)return;error('');try{const r=await api('/api/lectures/'+h.id);contextVersion++;$('student').value=String(r.student_id);const key=Object.keys(topics).find(k=>topics[k].title===r.topic);if(key)$('topic').value=key;$('goal').value=r.goal;drawContext(r.context);showResult(r);$('generate').disabled=false;}catch(e){error(e.message);}};$('history').append(b);}}
-async function refreshHistory(){const d=await api('/api/bootstrap');drawHistory(d.history);}
-function setBusy(value){busy=value;for(const id of ['student','topic','goal','generate'])$(id).disabled=value;for(const b of $('history').querySelectorAll('button'))b.disabled=value;$('generate').replaceChildren(document.createTextNode(value?'正在生成…':'生成个性化讲义'),el('span',value?'':'↗'));}
-$('student').onchange=loadContext;$('topic').onchange=()=>{$('goal').value=topics[$('topic').value].goal;loadContext();};
-$('generate-form').onsubmit=async e=>{e.preventDefault();if(busy||!current)return;error('');setBusy(true);$('progress').textContent='正在读取课程证据并请求模型…';clearResult();$('empty').hidden=true;$('loading').hidden=false;const start=Date.now();const timer=setInterval(()=>{$('progress').textContent=`正在生成 · 已等待 ${Math.floor((Date.now()-start)/1000)} 秒`;},1000);try{const r=await api('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:Number($('student').value),topic:$('topic').value,goal:$('goal').value})});showResult(r);$('progress').textContent='讲义已生成并保存到 PostgreSQL。';try{await refreshHistory();}catch{$('progress').textContent='讲义已保存，历史列表暂未刷新。';}}catch(err){error(err.message);$('empty').hidden=false;$('progress').textContent='未生成完整讲义，可以重试。';}finally{clearInterval(timer);$('loading').hidden=true;setBusy(false);}};
-$('download').onclick=()=>{if(!lastResult)return;const a=el('a');a.href='/api/lectures/'+lastResult.id+'/download';a.download='lecture-'+lastResult.id+'.md';document.body.append(a);a.click();a.remove();};
-(async()=>{try{const d=await api('/api/bootstrap');topics=d.topics;$('connection').textContent=d.database;$('model-label').textContent=d.model;$('student').replaceChildren(...d.students.map(s=>{const o=el('option',s.name+' · '+s.subtitle);o.value=s.id;return o;}));$('topic').replaceChildren(...Object.entries(topics).map(([key,t])=>{const o=el('option',t.title);o.value=key;return o;}));$('topic').value='linear';$('goal').value=topics.linear.goal;$('student').disabled=false;$('topic').disabled=false;drawHistory(d.history);await loadContext();if(!d.configured){error('请先在本地 .env 配置模型密钥。');$('generate').disabled=true;}}catch(e){$('connection').textContent='连接失败';error(e.message);}})();
+function inline(node, text) { const parts = text.split(/(\*\*[^*]+\*\*|\[M\d+\])/g); for (const p of parts) { if (p.startsWith('**') && p.endsWith('**')) node.append(el('strong', p.slice(2, -2))); else if (/^\[M\d+\]$/.test(p)) node.append(el('span', p, 'citation')); else node.append(document.createTextNode(p)); } }
+function renderMarkdown(text) { const frag = document.createDocumentFragment(); let list = null; for (const raw of text.split('\n')) { const line = raw.trim(); if (!line) { list = null; continue; } const heading = line.match(/^(#{1,3})\s+(.+)$/); const item = line.match(/^([-*]|\d+[.、])\s+(.+)$/); if (heading) { list = null; const h = el('h' + heading[1].length); inline(h, heading[2]); frag.append(h); } else if (item) { const tag = /\d/.test(item[1]) ? 'ol' : 'ul'; if (!list || list.tagName.toLowerCase() !== tag) { list = el(tag); frag.append(list); } const li = el('li'); if (tag === 'ol') li.value = parseInt(item[1], 10); inline(li, item[2]); list.append(li); } else { list = null; const p = el('p'); inline(p, line); frag.append(p); } } return frag; }
+function showResult(r) {
+  lastResult = r;
+  $('empty').hidden = true;
+  $('loading').hidden = true;
+  $('lecture').hidden = false;
+  $('lecture-meta').hidden = false;
+  $('review-note').hidden = false;
+  $('lecture').replaceChildren(renderMarkdown(r.content));
+  $('result-label').textContent = r.context.student.name + '的讲义';
+  $('lecture-meta').textContent = `${r.context.topic.title} · ${r.model} · ${Number(r.elapsed_seconds).toFixed(1)} 秒 · 已保存 #${r.id}`;
+  $('review-note').textContent = (r.citation_check.review_warning ? r.citation_check.review_warning + ' ' : '') + (r.citation_check.has_citations ? '引用编号已核对。' : '本次未检测到材料引用，请重点检查。') + ' 内容正确性与引用支持关系仍需教师复核。';
+  drawSources(r.context.materials);
+  $('download').disabled = false;
+  $('download-format').disabled = false;
+  $('print-lecture').disabled = false;
+}
+function drawHistory(history) { $('history').replaceChildren(); if (!history.length) { $('history').append(el('p', '暂无已保存讲义', 'helper')); return; } for (const h of history) { const b = el('button', `#${h.id} ${h.name} · ${h.topic}`); b.type = 'button'; b.disabled = busy; b.onclick = async () => { if (busy) return; error(''); try { const r = await api('/api/lectures/' + h.id); contextVersion++; $('student').value = String(r.student_id); const key = Object.keys(topics).find(k => topics[k].title === r.topic); if (key) $('topic').value = key; $('goal').value = r.goal; drawContext(r.context); showResult(r); $('generate').disabled = false; } catch (e) { error(e.message); } }; $('history').append(b); } }
+async function refreshHistory() { const d = await api('/api/bootstrap'); drawHistory(d.history); }
+function setBusy(value) { busy = value; for (const id of ['student', 'topic', 'goal', 'generate']) $(id).disabled = value; for (const b of $('history').querySelectorAll('button')) b.disabled = value; $('generate').replaceChildren(document.createTextNode(value ? '正在生成…' : '生成个性化讲义'), el('span', value ? '' : '↗')); }
+$('student').onchange = loadContext;
+$('topic').onchange = () => { $('goal').value = topics[$('topic').value].goal; loadContext(); };
+$('generate-form').onsubmit = async e => { e.preventDefault(); if (busy || !current) return; error(''); setBusy(true); $('progress').textContent = '正在读取课程证据并请求模型…'; clearResult(); $('empty').hidden = true; $('loading').hidden = false; const start = Date.now(); const timer = setInterval(() => { $('progress').textContent = `正在生成 · 已等待 ${Math.floor((Date.now() - start) / 1000)} 秒`; }, 1000); try { const r = await api('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ student_id: Number($('student').value), topic: $('topic').value, goal: $('goal').value }) }); showResult(r); $('progress').textContent = '讲义已生成并保存到 PostgreSQL。'; try { await refreshHistory(); } catch { $('progress').textContent = '讲义已保存，历史列表暂未刷新。'; } } catch (err) { error(err.message); $('empty').hidden = false; $('progress').textContent = '未生成完整讲义，可以重试。'; } finally { clearInterval(timer); $('loading').hidden = true; setBusy(false); } };
+$('download').onclick = () => {
+  if (!lastResult) return;
+  const format = $('download-format').value || 'md';
+  const a = el('a');
+  a.href = '/api/lectures/' + lastResult.id + '/download?format=' + encodeURIComponent(format);
+  a.download = 'lecture-' + lastResult.id + '.' + format;
+  document.body.append(a);
+  a.click();
+  a.remove();
+};
+$('print-lecture').onclick = () => {
+  if (!lastResult) return;
+  window.open('/api/lectures/' + lastResult.id + '/download?format=html', '_blank');
+};
+(async () => {
+  try {
+    const d = await api('/api/bootstrap');
+    topics = d.topics;
+    $('connection').textContent = d.database;
+    $('student').replaceChildren(...d.students.map(s => { const o = el('option', s.name + ' · ' + s.subtitle); o.value = s.id; return o; }));
+    $('topic').replaceChildren(...Object.entries(topics).map(([key, t]) => { const o = el('option', t.title); o.value = key; return o; }));
+    $('topic').value = 'linear';
+    $('goal').value = topics.linear.goal;
+    $('student').disabled = false;
+    $('topic').disabled = false;
+    drawHistory(d.history);
+    await loadContext();
+    if (!d.configured) { error('请先在本地 .env 配置模型密钥。'); $('generate').disabled = true; }
+  } catch (e) { $('connection').textContent = '连接失败'; error(e.message); }
+})();

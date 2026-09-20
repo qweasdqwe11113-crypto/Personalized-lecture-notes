@@ -1,36 +1,95 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>知页 · 个性化讲义 Demo</title><link rel="stylesheet" href="/static/style.css"><script defer src="/static/app.js"></script></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>知页 · 个性化讲义 Demo</title>
+<link rel="stylesheet" href="/static/style.css">
+<script defer src="/static/app.js"></script>
+</head>
 <body>
-<header class="topbar"><div class="brand"><span class="brand-icon">知</span><div><strong>知页</strong><span>个性化讲义工作台</span></div></div><span class="demo-tag">文字版 · 本地 DEMO</span></header>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-icon">知</span>
+    <div><strong>知页</strong><span>个性化讲义工作台</span></div>
+  </div>
+  <span class="demo-tag">文字版 · 本地 DEMO</span>
+</header>
 <main>
- <div class="page-heading"><div><p class="eyebrow">备课工作台 / 初中数学</p><h1>同一个知识点，不同的讲法。</h1><p>根据学生知识状态，从课程材料生成一份有依据的讲义。</p></div><div class="connection" id="connection">正在连接数据库…</div></div>
+ <div class="page-heading">
+  <div>
+   <p class="eyebrow">备课工作台 / 初中数学</p>
+   <h1>同一个知识点，不同的讲法。</h1>
+   <p>根据学生知识状态，从课程材料生成一份有依据的讲义。</p>
+  </div>
+  <div class="connection" id="connection">正在连接数据库…</div>
+ </div>
  <div id="error" class="error" role="alert" hidden></div>
  <div class="workspace">
   <aside>
-   <section class="panel setup"><div class="section-heading"><h2>讲义设置</h2><span class="small-label">01</span></div>
+   <section class="panel setup">
+    <div class="section-heading"><h2>讲义设置</h2><span class="small-label">01</span></div>
     <form id="generate-form">
-     <label for="student">选择学生 <span>虚拟数据</span></label><select id="student" disabled></select>
+     <label for="student">选择学生 <span>虚拟数据</span></label>
+     <select id="student" disabled></select>
      <div id="student-profile" class="profile"></div>
-     <label for="topic">教学主题</label><select id="topic" disabled></select>
-     <label for="goal">本次教学目标</label><textarea id="goal" rows="3" maxlength="400"></textarea>
+     <label for="topic">教学主题</label>
+     <select id="topic" disabled></select>
+     <label for="goal">本次教学目标</label>
+     <textarea id="goal" rows="3" maxlength="400"></textarea>
      <button class="primary" id="generate" type="submit" disabled>生成个性化讲义 <span>↗</span></button>
      <p id="progress" class="helper" role="status" aria-live="polite">读取学生状态与课程证据后生成。</p>
     </form>
    </section>
-   <section class="panel"><div class="section-heading"><h2>知识点掌握情况</h2><span class="small-label">02</span></div><div id="states" class="states"><p class="helper">正在读取…</p></div><p class="footnote">诊断记录为演示数据。生成讲义不会改变掌握状态。</p></section>
-   <section class="panel"><div class="section-heading"><h2>最近生成</h2></div><div id="history" class="history"><p class="helper">暂无已保存讲义</p></div></section>
+   <section class="panel">
+    <div class="section-heading"><h2>知识点掌握情况</h2><span class="small-label">02</span></div>
+    <div id="states" class="states"><p class="helper">正在读取…</p></div>
+    <p class="footnote">诊断记录为演示数据。生成讲义不会改变掌握状态。</p>
+   </section>
+   <section class="panel">
+    <div class="section-heading"><h2>最近生成</h2></div>
+    <div id="history" class="history"><p class="helper">暂无已保存讲义</p></div>
+   </section>
   </aside>
   <div class="result-column">
-   <section class="paper"><div class="paper-toolbar"><div><span class="paper-dot"></span><strong id="result-label">讲义预览</strong></div><button id="download" class="secondary" disabled>下载 Markdown</button></div>
-    <div id="empty" class="empty"><div class="page-symbol">Aa<span>＋</span></div><h2>从学生的起点出发</h2><p>选择一名学生，查看知识状态，<br>生成针对当前学习需要的讲义。</p><div class="steps"><span>学生状态</span><i>→</i><span>课程证据</span><i>→</i><span>专属讲义</span></div></div>
-    <div id="loading" class="empty" hidden><div class="spinner"></div><h2>正在组织这份讲义</h2><p>Qwen 正在结合学生状态与课程材料生成。<br>完成后会自动保存到本地数据库。</p></div>
-    <div id="lecture-meta" class="lecture-meta" hidden></div><article id="lecture" class="lecture" hidden></article>
+   <section class="paper">
+    <div class="paper-toolbar">
+     <div><span class="paper-dot"></span><strong id="result-label">讲义预览</strong></div>
+     <div class="download-group">
+       <select id="download-format" disabled>
+         <option value="md">Markdown (.md)</option>
+         <option value="txt">纯文本 (.txt)</option>
+         <option value="html">网页 (.html)</option>
+         <option value="docx">Word 文档 (.docx)</option>
+       </select>
+       <button id="download" class="secondary" disabled>下载</button>
+       <button id="print-lecture" class="secondary" disabled>打印 / PDF</button>
+     </div>
+    </div>
+    <div id="empty" class="empty">
+     <div class="page-symbol">Aa<span>＋</span></div>
+     <h2>从学生的起点出发</h2>
+     <p>选择一名学生，查看知识状态，<br>生成针对当前学习需要的讲义。</p>
+     <div class="steps"><span>学生状态</span><i>→</i><span>课程证据</span><i>→</i><span>专属讲义</span></div>
+    </div>
+    <div id="loading" class="empty" hidden>
+     <div class="spinner"></div>
+     <h2>正在组织这份讲义</h2>
+     <p>Qwen 正在结合学生状态与课程材料生成。<br>完成后会自动保存到本地数据库。</p>
+    </div>
+    <div id="lecture-meta" class="lecture-meta" hidden></div>
+    <article id="lecture" class="lecture" hidden></article>
     <div id="review-note" class="review-note" hidden></div>
    </section>
-   <section class="panel sources-panel"><div class="section-heading"><div><h2>本次课程证据</h2><p class="helper">按主题知识点从 PostgreSQL 查询 · 中文整理，例题自编</p></div><span id="source-count" class="count">—</span></div><div id="sources" class="sources"></div></section>
+   <section class="panel sources-panel">
+    <div class="section-heading">
+     <div><h2>本次课程证据</h2><p class="helper">按主题知识点从 PostgreSQL 查询 · 中文整理，例题自编</p></div>
+     <span id="source-count" class="count">—</span>
+    </div>
+    <div id="sources" class="sources"></div>
+   </section>
   </div>
  </div>
- <footer><span>小规模验证：学生状态 → SQL 查询 → Qwen → 讲义</span><span id="model-label"></span></footer>
 </main>
-</body></html>
+</body>
+</html>
