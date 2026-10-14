@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>知页 · 教学工作空间</title><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/layout.css"><script defer src="/static/app.js"></script><script defer src="/static/profiles.js"></script><script defer src="/static/traces.js"></script><script defer src="/static/reviews.js"></script><script defer src="/static/jobs.js"></script><script defer src="/static/profile-comparison.js"></script><script defer src="/static/lecture-comparison.js"></script><script defer src="/static/layout.js"></script><script defer src="/static/navigation.js"></script><link rel="stylesheet" href="/static/workspace.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>知页 · 教学工作空间</title><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/layout.css"><script defer src="/static/app.js"></script><script defer src="/static/profiles.js"></script><script defer src="/static/traces.js"></script><script defer src="/static/reviews.js"></script><script defer src="/static/jobs.js"></script><script defer src="/static/profile-comparison.js"></script><script defer src="/static/lecture-comparison.js"></script><script defer src="/static/layout.js"></script><script defer src="/static/navigation.js"></script><link rel="stylesheet" href="/static/workspace.css"><script defer src="/static/uploads.js"></script></head>
 <body>
 <aside class="app-sidebar" aria-label="主导航">
  <a class="brand" href="#workbench"><span class="brand-icon">知</span><div><strong>知页</strong><span>教学工作空间</span></div></a>
@@ -9,6 +9,7 @@
   <a href="#workbench" data-page="workbench" aria-current="page"><span class="nav-icon" aria-hidden="true">▦</span>讲义工作台</a>
   <a href="#profiles" data-page="profiles"><span class="nav-icon" aria-hidden="true">◎</span>学生画像</a>
   <a href="#materials" data-page="materials"><span class="nav-icon" aria-hidden="true">▤</span>课程材料</a>
+  <a href="#uploads" data-page="uploads"><span class="nav-icon" aria-hidden="true">↥</span>上传资料</a>
   <a href="#records" data-page="records"><span class="nav-icon" aria-hidden="true">◷</span>生成记录</a>
   <a href="#settings" data-page="settings"><span class="nav-icon" aria-hidden="true">⚙</span>系统设置</a>
  </nav>
@@ -59,6 +60,29 @@
   <div class="panel context-selector"><div><label for="material-topic-select">课程任务</label><select id="material-topic-select" disabled></select></div><p class="helper">切换课程任务后，展示对应材料；已打开讲义使用生成时的材料快照。</p></div>
    <section class="panel sources-panel"><div class="section-heading"><div><h2>本次课程证据</h2><p class="helper">按主题知识点从 PostgreSQL 查询 · 中文整理，例题自编</p></div><span id="source-count" class="count">—</span></div><div id="sources" class="sources"></div></section>
  </section>
+ <section class="workspace-page" id="page-uploads" hidden>
+  <div class="upload-grid">
+   <section class="panel upload-panel">
+    <div class="section-heading"><div><h2>添加教学资料</h2><p class="helper">选择一种方式，将资料保存到本地工作空间。</p></div><span class="count">资料导入</span></div>
+    <div class="upload-tabs" role="tablist" aria-label="资料上传模式"><button id="upload-file-tab" role="tab" aria-selected="true" aria-controls="upload-file-pane" type="button">本地上传</button><button id="upload-url-tab" role="tab" aria-selected="false" aria-controls="upload-url-pane" tabindex="-1" type="button">网址上传</button></div>
+    <form id="upload-file-pane" role="tabpanel" aria-labelledby="upload-file-tab">
+     <label for="upload-file-title">资料名称 <span>选填，默认使用文件名</span></label><input id="upload-file-title" maxlength="120" placeholder="例如：一元一次方程教学参考">
+     <label class="upload-dropzone" id="upload-dropzone" for="upload-file"><span class="upload-symbol" aria-hidden="true">↥</span><strong>点击选择文件，或拖拽到这里</strong><span>支持 TXT、MD、PDF、DOCX · 单个文件不超过 10 MB</span><input id="upload-file" type="file" accept=".txt,.md,.pdf,.docx" required></label>
+     <p id="upload-file-selection" class="helper" role="status">尚未选择文件</p>
+     <button id="upload-file-submit" type="submit" class="primary">上传并解析资料 <span>↗</span></button>
+    </form>
+    <form id="upload-url-pane" role="tabpanel" aria-labelledby="upload-url-tab" hidden>
+     <label for="upload-url-title">资料名称 <span>选填，默认使用网页标题</span></label><input id="upload-url-title" maxlength="120" placeholder="例如：课程参考资料">
+     <label for="upload-url">资料网址</label><input id="upload-url" type="url" maxlength="2048" required placeholder="https://example.com/article">
+     <div class="url-import-hint"><span aria-hidden="true">↗</span><div><strong>通过链接导入网页正文</strong><p>支持公开网页、文本、PDF 和 Word 文档直链。需要登录或动态加载的页面可能无法读取。</p></div></div>
+     <button id="upload-url-submit" type="submit" class="primary">导入网址资料 <span>↗</span></button>
+    </form>
+    <p id="upload-status" class="upload-status" role="status" aria-live="polite" hidden></p>
+   </section>
+   <aside class="panel upload-guide"><span class="intro-icon" aria-hidden="true">▤</span><h2>让教学资料井然有序</h2><p>上传资料后，系统会提取文字并保存原文件，方便预览和再次下载。</p><ul><li>本地上传：教案、参考材料和文字版讲义</li><li>网址上传：公开文章与文档链接</li><li>扫描版 PDF 需先进行文字识别</li></ul><p class="footnote">资料保存到本地上传库。当前讲义生成仍使用「课程材料」中的教学证据。</p></aside>
+  </div>
+  <section class="panel upload-library"><div class="section-heading"><div><h2>已上传资料</h2><p class="helper">最近 100 条资料 · 保存原文件与提取正文</p></div><button id="refresh-uploads" type="button" class="secondary">刷新列表</button></div><div id="upload-list"><p class="helper">正在读取资料…</p></div></section>
+ </section>
  <section class="workspace-page" id="page-records" hidden>
   <div class="records-grid"><section class="panel"><div class="section-heading"><h2>最近生成</h2></div><div id="history" class="history"><p class="helper">暂无已保存讲义</p></div></section><section class="panel"><div class="section-heading"><h2>后台任务</h2><button id="refresh-jobs" class="secondary" type="button">刷新任务</button></div><p class="helper">1 个任务处理，最多 3 个等待；仅本机单进程。提交时固定输入，刷新页面后可从任务恢复查看。</p><div id="jobs-list" class="history"></div></section></div>
 <section class="panel"><div class="section-heading"><h2>生成记录</h2><button id="refresh-runs" type="button" class="secondary">刷新</button></div><p class="helper">最近 10 次请求 · 包含失败记录</p><div id="generation-runs" class="history"><p class="helper">正在读取…</p></div></section>
@@ -70,6 +94,7 @@
  </section>
  <footer><span>知页 · 让教学更有针对性</span><span id="model-label"></span></footer>
 </main>
+<dialog id="upload-preview-dialog" aria-labelledby="upload-preview-title"><div class="editor-top"><div class="editor-heading"><div><h2 id="upload-preview-title">资料预览</h2><p id="upload-preview-meta" class="helper"></p></div><button id="close-upload-preview" class="secondary" type="button">关闭</button></div></div><div class="dialog-body"><pre id="upload-preview-content" class="upload-preview-text"></pre></div></dialog>
 <dialog id="lecture-comparison-dialog" aria-labelledby="lecture-comparison-title">
  <div class="editor-top"><div class="editor-heading"><div><h2 id="lecture-comparison-title">同目标讲义比较</h2><p id="lecture-comparison-status" class="helper" role="status" aria-live="polite"></p></div><button id="close-lecture-comparison" class="secondary" type="button">关闭</button></div><div id="lecture-comparison-error" class="error" role="alert" hidden></div></div>
  <div class="dialog-body" id="lecture-comparison-content">

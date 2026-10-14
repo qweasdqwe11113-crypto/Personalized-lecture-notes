@@ -157,3 +157,7 @@ python3 -m pip --python .venv/bin/python install -r requirements.txt
 打开 <http://127.0.0.1:5056>，模型为约 10 秒的明确测试响应。两页可验证排队；目标包含“模拟失败”会对该输入首次返回测试超时，再按原输入重试成功。Ctrl+C 停止后清理测试 schema。正常 5055 使用真实 Qwen；不要把测试响应当课程输出。
 
 完整证据见 [VERIFICATION](demo/VERIFICATION.md)、[最终统计](demo/verification-2026-10-12.json)。
+
+## 上传资料
+
+导航中的「上传资料」支持本地 TXT / MD / PDF / DOCX（每份最多 10 MB、20 万字符，PDF 最多 200 页）和公开 HTTP / HTTPS 网页、文本或文档直链。原文件与提取正文保存到 `.runtime/uploads.sqlite3`，列表可预览和下载，刷新页面后仍保留。扫描版 PDF 需先完成 OCR；登录或动态网页可能无法读取。网址导入不发送登录凭据，不读取内网地址。上传库目前独立于 PostgreSQL 课程材料，不自动用于讲义生成。

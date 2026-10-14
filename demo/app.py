@@ -23,11 +23,13 @@ from reviews import (ReviewError, STATUS_LABELS, add_issue, lecture_row,
 from courses import TOPICS, REFERENCE_EXAMPLES
 from comparisons import comparison_options, compare_lectures
 from jobs import JobError, JobQueue
+from uploads import register_uploads
 
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / '.env')
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 131072
+app.config['MAX_CONTENT_LENGTH'] = 11 * 1024 * 1024
+register_uploads(app, ROOT)
 DSN = os.environ.get('DATABASE_URL', 'postgresql:///lecture_demo_prototype')
 MODEL = os.environ.get('QWEN_MODEL', 'qwen3.8-27b')
 GENERATION_LOCK = Lock()
@@ -77,6 +79,8 @@ def get_context(student_id, topic_key, mode='profile'):
 @app.before_request
 def local_origin_only():
     # Keep the local generation endpoint unavailable to cross-origin web pages.
+    if request.method == 'POST' and request.path != '/api/uploads' and request.content_length and request.content_length > 131072:
+        return jsonify(error='提交内容过长，请缩短后重试。'), 413
     origin = request.headers.get('Origin')
     if request.method == 'POST' and origin and origin != request.host_url.rstrip('/'):
         return jsonify(error='请从本地 demo 页面发起请求。'), 403
