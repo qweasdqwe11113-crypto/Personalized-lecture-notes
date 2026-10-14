@@ -2,8 +2,6 @@
 (() => {
   const workspace = document.getElementById('workspace');
   const separator = document.getElementById('layout-resizer');
-  const support = document.getElementById('support-modules');
-  const aside = document.getElementById('settings-column');
   const desktop = window.matchMedia('(min-width: 68.75rem)');
   const storageKey = 'lecture-demo-sidebar-width-v1';
   let preferred = 330;
@@ -73,18 +71,7 @@
     }
   });
 
-  function placeModules() {
-    const destination = desktop.matches ? aside : workspace;
-    if (support.parentElement !== destination) {
-      const focused = document.activeElement;
-      const restoreFocus = support.contains(focused);
-      destination.append(support);
-      if (restoreFocus) focused.focus({preventScroll: true});
-    }
-  }
-
   function resize() {
-    placeModules();
     if (drag) finish(null, false);
     apply(preferred);
   }
@@ -115,6 +102,5 @@
     observer.observe(dialog, {attributes: true, attributeFilter: ['open']});
     observer.observe(content, {attributes: true, attributeFilter: ['hidden']});
   }
-  placeModules();
   apply(preferred);
 })();

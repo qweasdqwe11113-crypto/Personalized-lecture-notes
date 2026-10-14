@@ -18,6 +18,7 @@ async function checkHealth(){
  }catch(e){$('health-summary').textContent=e.message;}
 }
 async function watchJob(id){
+ if(typeof openWorkspacePage==="function")openWorkspacePage("workbench");
  const session=++watchSession;
  setBusy(true);error('');clearResult();$('empty').hidden=true;$('loading').hidden=false;
  try{

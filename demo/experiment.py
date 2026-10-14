@@ -50,11 +50,11 @@ def build_manifest():
 
 
 def run_manifest(directory):
-    manifest = json.loads((directory / 'manifest.json').read_text())
+    manifest = json.loads((directory / 'manifest.json').read_text(encoding='utf-8'))
     if manifest['experiment_version'] != 'bayes-paired-v1':
         raise ValueError('Unsupported experiment version.')
     path = directory / 'results.json'
-    results = json.loads(path.read_text()) if path.exists() else []
+    results = json.loads(path.read_text(encoding='utf-8')) if path.exists() else []
     (directory / 'outputs').mkdir(exist_ok=True)
     for cell in manifest['cells']:
         if any(item['cell'] == cell['cell'] for item in results):

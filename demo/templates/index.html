@@ -1,12 +1,26 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>知页 · 个性化讲义 Demo</title><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/layout.css"><script defer src="/static/app.js"></script><script defer src="/static/profiles.js"></script><script defer src="/static/traces.js"></script><script defer src="/static/reviews.js"></script><script defer src="/static/jobs.js"></script><script defer src="/static/profile-comparison.js"></script><script defer src="/static/lecture-comparison.js"></script><script defer src="/static/layout.js"></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>知页 · 教学工作空间</title><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/layout.css"><script defer src="/static/app.js"></script><script defer src="/static/profiles.js"></script><script defer src="/static/traces.js"></script><script defer src="/static/reviews.js"></script><script defer src="/static/jobs.js"></script><script defer src="/static/profile-comparison.js"></script><script defer src="/static/lecture-comparison.js"></script><script defer src="/static/layout.js"></script><script defer src="/static/navigation.js"></script><link rel="stylesheet" href="/static/workspace.css"></head>
 <body>
-<header class="topbar"><div class="brand"><span class="brand-icon">知</span><div><strong>知页</strong><span>个性化讲义工作台</span></div></div><span class="demo-tag">文字版 · 本地 DEMO</span></header>
+<aside class="app-sidebar" aria-label="主导航">
+ <a class="brand" href="#workbench"><span class="brand-icon">知</span><div><strong>知页</strong><span>教学工作空间</span></div></a>
+ <div class="workspace-label">教学管理</div>
+ <nav class="app-nav" aria-label="页面导航">
+  <a href="#workbench" data-page="workbench" aria-current="page"><span class="nav-icon" aria-hidden="true">▦</span>讲义工作台</a>
+  <a href="#profiles" data-page="profiles"><span class="nav-icon" aria-hidden="true">◎</span>学生画像</a>
+  <a href="#materials" data-page="materials"><span class="nav-icon" aria-hidden="true">▤</span>课程材料</a>
+  <a href="#records" data-page="records"><span class="nav-icon" aria-hidden="true">◷</span>生成记录</a>
+  <a href="#settings" data-page="settings"><span class="nav-icon" aria-hidden="true">⚙</span>系统设置</a>
+ </nav>
+ <div class="sidebar-note"><span class="status-dot"></span>本地工作空间<p>学生画像驱动的个性化教学</p></div>
+ <div class="sidebar-user"><span class="user-avatar">教</span><div><strong>教师工作空间</strong><span>本地演示环境</span></div></div>
+</aside>
+<header class="topbar"><div class="breadcrumb">工作空间 <span>/</span> <strong id="breadcrumb-page">讲义工作台</strong></div><span class="demo-tag">个性化教学 · 本地版</span></header>
 <main>
- <div class="page-heading"><div><p class="eyebrow" id="course-label">备课工作台</p><h1>同一个知识点，不同的讲法。</h1><p>根据学生知识状态，从课程材料生成一份有依据的讲义。</p></div><div class="connection" id="connection">正在连接数据库…</div></div>
- <nav class="workspace-nav" aria-label="工作区导航"><a class="secondary" href="#lecture-results">阅读讲义</a><a class="secondary" href="#support-modules">画像与记录</a></nav>
+ <div class="page-heading"><div><p class="eyebrow" id="course-label">备课工作台</p><h1 id="page-title" tabindex="-1">讲义工作台</h1><p id="page-description">从学生的学习起点出发，让每一份讲义更有针对性。</p></div><div class="connection" id="connection" role="status">正在连接数据库…</div></div>
  <div id="error" class="error" role="alert" hidden></div>
+ <section class="workspace-page" id="page-workbench" aria-labelledby="page-title">
+ <div class="workflow-strip"><span class="workflow-number">01</span><strong>设定教学任务</strong><span class="workflow-line"></span><span class="workflow-number">02</span><strong>生成专属讲义</strong><span class="workflow-line"></span><a href="#materials">查看课程依据 ↗</a></div>
  <div class="workspace" id="workspace">
   <aside id="settings-column" aria-label="讲义设置与状态">
    <section class="panel setup"><div class="section-heading"><h2>讲义设置</h2><span class="small-label">01</span></div>
@@ -20,13 +34,6 @@
      <p id="progress" class="helper" role="status" aria-live="polite">读取学生状态与课程证据后生成。</p>
     </form>
    </section>
-   <div class="support-modules" id="support-modules">
-   <section class="panel"><div class="section-heading"><h2>本地配置</h2><button id="check-health" class="secondary" type="button">检测配置</button></div><p id="health-summary" class="helper" role="status">读取配置状态…</p></section>
-   <section class="panel"><div class="section-heading"><h2>后台任务</h2><button id="refresh-jobs" class="secondary" type="button">刷新任务</button></div><p class="helper">1 个任务处理，最多 3 个等待；仅本机单进程。提交时固定输入，刷新页面后可从任务恢复查看。</p><div id="jobs-list" class="history"></div></section>
-   <section class="panel"><div class="section-heading"><h2>知识点掌握情况</h2><button id="edit-profile" type="button" class="secondary" disabled>维护画像</button></div><p id="profile-view-note" class="helper"></p><div id="states" class="states"><p class="helper">正在读取…</p></div><p class="footnote">诊断记录为演示数据。状态由教师确认；生成讲义不会改变掌握状态。</p></section>
-   <section class="panel"><div class="section-heading"><h2>最近生成</h2></div><div id="history" class="history"><p class="helper">暂无已保存讲义</p></div></section>
-   <section class="panel"><div class="section-heading"><h2>生成记录</h2><button id="refresh-runs" type="button" class="secondary">刷新</button></div><p class="helper">最近 10 次请求 · 包含失败记录</p><div id="generation-runs" class="history"><p class="helper">正在读取…</p></div></section>
-   </div>
   </aside>
   <div id="layout-resizer" class="layout-resizer" role="separator" tabindex="0" aria-label="调整设置栏宽度" aria-orientation="vertical" aria-controls="settings-column lecture-results" aria-valuemin="280" aria-valuemax="440" aria-valuenow="330" aria-valuetext="设置栏宽度 330 像素" title="拖动调整宽度；左右方向键微调，Home/End 调到最小/最大，双击恢复默认"></div>
   <div class="result-column" id="lecture-results">
@@ -39,10 +46,29 @@
     <div id="review-note" class="review-note" hidden></div>
    </section>
    <section id="quality-panel" class="panel" hidden><div class="section-heading"><h2>输出检查与问题记录</h2><span id="quality-version" class="helper"></span></div><p id="quality-summary" class="current-summary"></p><h3>程序检查</h3><div id="automatic-checks"></div><h3 id="teacher-checks-title">待教师复核</h3><div id="teacher-checks"></div><details class="trace-section"><summary>逐处引用与对应材料</summary><div id="citation-checks"></div></details><h3>已记录的问题</h3><div id="lecture-issues"></div><p class="helper">自动检查不能证明数学正确性。问题记录指向明确的已保存版本；处理说明是修订记录者的判断。</p></section>
-   <section class="panel sources-panel"><div class="section-heading"><div><h2>本次课程证据</h2><p class="helper">按主题知识点从 PostgreSQL 查询 · 中文整理，例题自编</p></div><span id="source-count" class="count">—</span></div><div id="sources" class="sources"></div></section>
+   <div class="evidence-link"><div><strong>每一份讲义，都有课程依据</strong><p>查阅当前任务的材料与知识点来源。</p></div><a href="#materials" class="secondary">查看课程材料 ↗</a></div>
   </div>
  </div>
- <footer><span>小规模验证：学生状态 → SQL 查询 → Qwen → 讲义</span><span id="model-label"></span></footer>
+ </section>
+ <section class="workspace-page" id="page-profiles" hidden>
+  <div class="panel context-selector"><div><label for="profile-topic-select">课程任务</label><select id="profile-topic-select" disabled></select></div><div><label for="profile-student-select">选择学生</label><select id="profile-student-select" disabled></select></div><button class="secondary" id="view-current-profile" type="button">查看当前画像</button></div>
+  <div class="page-intro"><span class="intro-icon">◎</span><div><h2>用学习证据，了解每一位学生</h2><p>查看知识点状态与讲解建议，维护诊断证据和教师判断。</p></div></div>
+<section class="panel"><div class="section-heading"><h2>知识点掌握情况</h2><button id="edit-profile" type="button" class="secondary" disabled>维护画像</button></div><p id="profile-view-note" class="helper"></p><div id="states" class="states"><p class="helper">正在读取…</p></div><p class="footnote">诊断记录为演示数据。状态由教师确认；生成讲义不会改变掌握状态。</p></section>
+ </section>
+ <section class="workspace-page" id="page-materials" hidden>
+  <div class="panel context-selector"><div><label for="material-topic-select">课程任务</label><select id="material-topic-select" disabled></select></div><p class="helper">切换课程任务后，展示对应材料；已打开讲义使用生成时的材料快照。</p></div>
+   <section class="panel sources-panel"><div class="section-heading"><div><h2>本次课程证据</h2><p class="helper">按主题知识点从 PostgreSQL 查询 · 中文整理，例题自编</p></div><span id="source-count" class="count">—</span></div><div id="sources" class="sources"></div></section>
+ </section>
+ <section class="workspace-page" id="page-records" hidden>
+  <div class="records-grid"><section class="panel"><div class="section-heading"><h2>最近生成</h2></div><div id="history" class="history"><p class="helper">暂无已保存讲义</p></div></section><section class="panel"><div class="section-heading"><h2>后台任务</h2><button id="refresh-jobs" class="secondary" type="button">刷新任务</button></div><p class="helper">1 个任务处理，最多 3 个等待；仅本机单进程。提交时固定输入，刷新页面后可从任务恢复查看。</p><div id="jobs-list" class="history"></div></section></div>
+<section class="panel"><div class="section-heading"><h2>生成记录</h2><button id="refresh-runs" type="button" class="secondary">刷新</button></div><p class="helper">最近 10 次请求 · 包含失败记录</p><div id="generation-runs" class="history"><p class="helper">正在读取…</p></div></section>
+ </section>
+ <section class="workspace-page" id="page-settings" hidden>
+  <div class="page-intro"><span class="intro-icon">⚙</span><div><h2>工作空间连接与配置</h2><p>查看数据库与模型配置状态，确保讲义生成服务可以使用。</p></div></div>
+<section class="panel"><div class="section-heading"><h2>服务连接</h2><button id="check-health" class="secondary" type="button">检测配置</button></div><p id="health-summary" class="helper" role="status">读取配置状态…</p></section>
+  <section class="panel configuration-note"><h2>配置说明</h2><p>在项目的 .env 文件中维护数据库和模型配置，修改后重启本地服务。</p><p>检测配置检查数据库连接、密钥是否配置和服务地址格式。模型服务实际可用性以生成结果为准。</p></section>
+ </section>
+ <footer><span>知页 · 让教学更有针对性</span><span id="model-label"></span></footer>
 </main>
 <dialog id="lecture-comparison-dialog" aria-labelledby="lecture-comparison-title">
  <div class="editor-top"><div class="editor-heading"><div><h2 id="lecture-comparison-title">同目标讲义比较</h2><p id="lecture-comparison-status" class="helper" role="status" aria-live="polite"></p></div><button id="close-lecture-comparison" class="secondary" type="button">关闭</button></div><div id="lecture-comparison-error" class="error" role="alert" hidden></div></div>

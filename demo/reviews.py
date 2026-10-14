@@ -103,7 +103,7 @@ def add_issue(conn, lecture_id, data):
 
 def retain_feedback_issues(conn):
     """Only import feedback if its exact excerpt matches that original lecture."""
-    catalog = json.loads(Path(__file__).with_name('feedback_issues.json').read_text())
+    catalog = json.loads(Path(__file__).with_name('feedback_issues.json').read_text(encoding='utf-8'))
     for issue in catalog:
         lecture = conn.execute('SELECT * FROM lectures WHERE id=%s FOR UPDATE', (issue['lecture_id'],)).fetchone()
         if (not lecture or issue['excerpt'] not in lecture['content'] or
