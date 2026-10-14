@@ -1,0 +1,41 @@
+{
+  "verified_at": "2026-10-12T01:06:05.486090+08:00",
+  "database": "lecture_demo_prototype",
+  "preserved_pre_T05_rows": {
+    "generation_runs": 2,
+    "knowledge_points": 3,
+    "knowledge_state_history": 9,
+    "learning_evidence": 9,
+    "lecture_issues": 4,
+    "lecture_revisions": 2,
+    "lectures": 7,
+    "materials": 3,
+    "student_knowledge": 9,
+    "student_profile_history": 0,
+    "students": 3
+  },
+  "final_counts": {
+    "generation_runs": 16,
+    "knowledge_points": 6,
+    "knowledge_state_history": 18,
+    "learning_evidence": 18,
+    "lecture_issues": 45,
+    "lecture_revisions": 16,
+    "lectures": 21,
+    "materials": 6,
+    "student_knowledge": 18,
+    "student_profile_history": 0,
+    "students": 6,
+    "generation_jobs": 2
+  },
+  "repeated_initialization_identical": true,
+  "temporary_test_schemas": 0,
+  "input_hashes_valid": 16,
+  "revision_status_counts": [
+    {
+      "status": "draft",
+      "count": 16
+    }
+  ],
+  "note": "初始行逐条一致，包括原讲义、旧输入及旧修订；新增课堂与对照样例另存。"
+}

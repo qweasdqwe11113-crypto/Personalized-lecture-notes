@@ -1,0 +1,42 @@
+[
+  {
+    "key": "feedback-20260920-2-brackets",
+    "lecture_id": 2,
+    "category": "math",
+    "excerpt": "括号前是负号或系数时，括号内每一项都要变号。",
+    "detail": "正系数不使各项符号全部改变，例如 3(x - 2)=3x - 6；应分别说明分配律与负系数的符号变化。",
+    "material_id": null,
+    "support": "not_applicable",
+    "content_sha256": "baba9306fedaabe10f84bbaea747ea587cc5e6fa7d1753d0461994c7a7b433ed"
+  },
+  {
+    "key": "feedback-20260920-2-terminology",
+    "lecture_id": 2,
+    "category": "terminology",
+    "excerpt": "独立求解未知数在两边或含括号的复杂两步方程。",
+    "detail": "原例题 1 有三次求解变形，例题 2 有四次；应将这些命名为多步变式，不能把课程中的两步基础目标扩张成任意复杂两步方程。",
+    "material_id": null,
+    "support": "not_applicable",
+    "content_sha256": "baba9306fedaabe10f84bbaea747ea587cc5e6fa7d1753d0461994c7a7b433ed"
+  },
+  {
+    "key": "feedback-20260920-4-citation",
+    "lecture_id": 4,
+    "category": "citation_support",
+    "excerpt": "若方程含括号，应先利用分配律去括号，注意系数需乘括号内每一项，若系数为负，括号内各项符号均需改变，然后再进行移项和系数化 1 [M2]。",
+    "detail": "该讲义的 M2 快照说明等式乘除性质、非零除数与负系数，不包含分配律或去括号规则；编号存在，但不足以支持这句内容。应补充相应材料或缩小讲义范围。",
+    "material_id": 2,
+    "support": "unsupported",
+    "content_sha256": "2d08627e5ca78ad16c71ca1c8fbcbd9e109f235fe35c6c27f3fda977aaf6e2fd"
+  },
+  {
+    "key": "feedback-20260920-4-terminology",
+    "lecture_id": 4,
+    "category": "terminology",
+    "excerpt": "独立求解含括号或未知数在两边的两步方程。",
+    "detail": "原例题 1 经过三次求解变形，例题 2 经过四次；应区分 ax+b=c 的两步求解和多步变式，代入检验另记。",
+    "material_id": null,
+    "support": "not_applicable",
+    "content_sha256": "2d08627e5ca78ad16c71ca1c8fbcbd9e109f235fe35c6c27f3fda977aaf6e2fd"
+  }
+]

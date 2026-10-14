@@ -1,0 +1,2233 @@
+[
+  {
+    "cell": 1,
+    "student_id": 11,
+    "mode": "profile",
+    "repeat": 1,
+    "sha256": "a79b2092a8cf439a40be45154f6d74635d5fb21dfc2c603802ecf1c25b9b597f",
+    "http_status": 200,
+    "generation_run_id": 3,
+    "lecture_id": 8,
+    "elapsed_seconds": 40.28,
+    "usage": {
+      "completion_tokens": 1231,
+      "prompt_tokens": 2913,
+      "total_tokens": 4144,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      }
+    },
+    "error": null,
+    "quality_report": {
+      "version": "probability-text-check-v1",
+      "metrics": {
+        "chinese_characters": 619,
+        "line_count": 45
+      },
+      "scope": {
+        "version": "probability-text-check-v1",
+        "goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "default_goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "custom_goal": false,
+        "coverage": [
+          {
+            "knowledge_id": 11,
+            "scope": "条件概率、交集、方向与正分母",
+            "material_ids": [
+              11
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 12,
+            "scope": "有限互斥完备划分与全概率",
+            "material_ids": [
+              12
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 13,
+            "scope": "贝叶斯推导、后验归一及先验变化",
+            "material_ids": [
+              13
+            ],
+            "has_material": true
+          }
+        ],
+        "warnings": [],
+        "note": "材料关联表示已提供该知识点资料，不证明材料支持讲义每个结论。"
+      },
+      "automatic": [
+        {
+          "code": "title",
+          "label": "讲义标题",
+          "status": "pass",
+          "detail": "应有一个一级标题。"
+        },
+        {
+          "code": "sections",
+          "label": "约定章节",
+          "status": "pass",
+          "detail": "五个约定章节均已出现；不代表章节内容充分。"
+        },
+        {
+          "code": "length",
+          "label": "篇幅",
+          "status": "warning",
+          "detail": "检测到 619 个汉字；当前模板建议 900—1400，含标题，不计标点、数字和字母。"
+        },
+        {
+          "code": "citations",
+          "label": "引用标记",
+          "status": "pass",
+          "detail": "检测到材料编号。"
+        },
+        {
+          "code": "citation_ids",
+          "label": "引用编号有效性",
+          "status": "pass",
+          "detail": "未检测到无效编号；仍需检查引用支持关系。"
+        },
+        {
+          "code": "materials",
+          "label": "知识点资料关联",
+          "status": "pass",
+          "detail": "仅检查所选知识点是否有关联材料，材料内容充分性需人工判断。"
+        },
+        {
+          "code": "bracket_evidence",
+          "label": "去括号的资料依据",
+          "status": "pass",
+          "detail": "未触发当前含括号关键词规则；不表示证明了范围完整。"
+        },
+        {
+          "code": "goal_scope",
+          "label": "目标范围提示",
+          "status": "pass",
+          "detail": "使用主题默认目标，关联范围已列明；完整覆盖仍需教师复核。"
+        },
+        {
+          "code": "probability_conditions",
+          "label": "概率公式条件提示",
+          "status": "pass",
+          "detail": "仅匹配互斥、完备及正分母提示词；不证明每次公式使用都满足条件。"
+        }
+      ],
+      "citation_locations": [
+        {
+          "line": 13,
+          "excerpt": "设事件 A、B。当 P(B)>0 时，定义 P(A|B) = P(A∩B) / P(B)。这里 B 是已知发生的条件，样本空间被限定在 B 内，因此分母是 P(B) 而非 P(A)。反之，P(B|A) = P(B∩A) / P(A)，要求 P(A)>0。二者一般不相等，混淆方向是常见错误 [M11]。",
+          "material_ids": [
+            "11"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 18,
+          "excerpt": "注意：划分互斥不等于事件独立，不能省略任何来源 [M12]。",
+          "material_ids": [
+            "12"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 23,
+          "excerpt": "其中 P(Ak) 为先验，P(B|Ak) 为似然，P(Ak|B) 为后验。后验各项非负且和为 1 [M13]。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 39,
+          "excerpt": "4. 比较：A1 的后验从 0.375 降至 0.091。说明先验变化会显著影响后验，但推理逻辑与适用条件（互斥完备、正分母）保持不变 [M13]。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        }
+      ],
+      "teacher_review": [
+        {
+          "code": "goal",
+          "label": "共同目标、知识范围与材料覆盖",
+          "status": "needs_review"
+        },
+        {
+          "code": "math",
+          "label": "数学推导、适用条件与术语",
+          "status": "needs_review"
+        },
+        {
+          "code": "examples",
+          "label": "例题运算与代入检验",
+          "status": "needs_review"
+        },
+        {
+          "code": "citations",
+          "label": "引用材料是否支持对应表述",
+          "status": "needs_review"
+        },
+        {
+          "code": "personalization",
+          "label": "调整是否对应诊断且不擅自改变状态",
+          "status": "needs_review"
+        }
+      ],
+      "note": "程序只检查文本结构、篇幅、标记和关联；不能判定任意数学结论或来源支持。"
+    },
+    "output_file": "outputs/cell-01-lecture-8.md"
+  },
+  {
+    "cell": 2,
+    "student_id": 11,
+    "mode": "none",
+    "repeat": 1,
+    "sha256": "1058ce737e5a3f961ed2940c1f1ec2c531342f25d7f7d05323afd9f9e44ee13e",
+    "http_status": 200,
+    "generation_run_id": 4,
+    "lecture_id": 9,
+    "elapsed_seconds": 21.46,
+    "usage": {
+      "completion_tokens": 1114,
+      "prompt_tokens": 1873,
+      "total_tokens": 2987,
+      "prompt_tokens_details": {
+        "cached_tokens": 509
+      }
+    },
+    "error": null,
+    "quality_report": {
+      "version": "probability-text-check-v1",
+      "metrics": {
+        "chinese_characters": 598,
+        "line_count": 35
+      },
+      "scope": {
+        "version": "probability-text-check-v1",
+        "goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "default_goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "custom_goal": false,
+        "coverage": [
+          {
+            "knowledge_id": 11,
+            "scope": "条件概率、交集、方向与正分母",
+            "material_ids": [
+              11
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 12,
+            "scope": "有限互斥完备划分与全概率",
+            "material_ids": [
+              12
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 13,
+            "scope": "贝叶斯推导、后验归一及先验变化",
+            "material_ids": [
+              13
+            ],
+            "has_material": true
+          }
+        ],
+        "warnings": [],
+        "note": "材料关联表示已提供该知识点资料，不证明材料支持讲义每个结论。"
+      },
+      "automatic": [
+        {
+          "code": "title",
+          "label": "讲义标题",
+          "status": "pass",
+          "detail": "应有一个一级标题。"
+        },
+        {
+          "code": "sections",
+          "label": "约定章节",
+          "status": "pass",
+          "detail": "五个约定章节均已出现；不代表章节内容充分。"
+        },
+        {
+          "code": "length",
+          "label": "篇幅",
+          "status": "warning",
+          "detail": "检测到 598 个汉字；当前模板建议 900—1400，含标题，不计标点、数字和字母。"
+        },
+        {
+          "code": "citations",
+          "label": "引用标记",
+          "status": "pass",
+          "detail": "检测到材料编号。"
+        },
+        {
+          "code": "citation_ids",
+          "label": "引用编号有效性",
+          "status": "pass",
+          "detail": "未检测到无效编号；仍需检查引用支持关系。"
+        },
+        {
+          "code": "materials",
+          "label": "知识点资料关联",
+          "status": "pass",
+          "detail": "仅检查所选知识点是否有关联材料，材料内容充分性需人工判断。"
+        },
+        {
+          "code": "bracket_evidence",
+          "label": "去括号的资料依据",
+          "status": "pass",
+          "detail": "未触发当前含括号关键词规则；不表示证明了范围完整。"
+        },
+        {
+          "code": "goal_scope",
+          "label": "目标范围提示",
+          "status": "pass",
+          "detail": "使用主题默认目标，关联范围已列明；完整覆盖仍需教师复核。"
+        },
+        {
+          "code": "probability_conditions",
+          "label": "概率公式条件提示",
+          "status": "pass",
+          "detail": "仅匹配互斥、完备及正分母提示词；不证明每次公式使用都满足条件。"
+        }
+      ],
+      "citation_locations": [
+        {
+          "line": 9,
+          "excerpt": "本讲义基于通用适中讲解，不预设学生基础。内容涵盖条件概率基础、全概率推导、贝叶斯公式应用及先验敏感性分析。所有例题数据均为自编假设模型，仅用于逻辑推演，不代表真实工业数据 [M11]。",
+          "material_ids": [
+            "11"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 12,
+          "excerpt": "设事件 A、B，当 P(B)>0 时，条件概率定义为 P(A|B) = P(A∩B) / P(B)。由此可得乘法公式 P(A∩B) = P(B) × P(A|B) [M11]。注意 P(A|B) 与 P(B|A) 方向不同，一般不相等，后者需 P(A)>0。",
+          "material_ids": [
+            "11"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 14,
+          "excerpt": "若 A1, …, An 构成样本空间的有限划分，即两两互斥且合并覆盖整个空间，且每个 P(Ai)>0，则事件 B 可分解为互不相交的 B∩Ai 之并。根据可加性，P(B) = Σi P(Ai) × P(B|Ai)，此即全概率公式 [M12]。划分互斥不等于事件独立，不可混淆。",
+          "material_ids": [
+            "12"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 16,
+          "excerpt": "在 P(B)>0 条件下，贝叶斯公式为 P(Ak|B) = P(Ak) × P(B|Ak) / Σi P(Ai) × P(B|Ai) [M13]。其中 P(Ak) 为先验，P(B|Ak) 为似然，P(Ak|B) 为后验。后验各项非负且和为 1。改变先验通常改变后验，但这不构成因果结论。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 28,
+          "excerpt": "对比：A1 后验从 0.375 降至 0.091。先验变化显著影响后验，推理仍需满足 P(B)>0 等条件 [M13]。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        }
+      ],
+      "teacher_review": [
+        {
+          "code": "goal",
+          "label": "共同目标、知识范围与材料覆盖",
+          "status": "needs_review"
+        },
+        {
+          "code": "math",
+          "label": "数学推导、适用条件与术语",
+          "status": "needs_review"
+        },
+        {
+          "code": "examples",
+          "label": "例题运算与代入检验",
+          "status": "needs_review"
+        },
+        {
+          "code": "citations",
+          "label": "引用材料是否支持对应表述",
+          "status": "needs_review"
+        },
+        {
+          "code": "personalization",
+          "label": "调整是否对应诊断且不擅自改变状态",
+          "status": "needs_review"
+        }
+      ],
+      "note": "程序只检查文本结构、篇幅、标记和关联；不能判定任意数学结论或来源支持。"
+    },
+    "output_file": "outputs/cell-02-lecture-9.md"
+  },
+  {
+    "cell": 3,
+    "student_id": 12,
+    "mode": "profile",
+    "repeat": 1,
+    "sha256": "46c078ec7ae32e2cebb38e5a12e561c003ba8a2e614d557242a1583dd684f9df",
+    "http_status": 200,
+    "generation_run_id": 5,
+    "lecture_id": 10,
+    "elapsed_seconds": 28.36,
+    "usage": {
+      "completion_tokens": 1424,
+      "prompt_tokens": 2924,
+      "total_tokens": 4348,
+      "prompt_tokens_details": {
+        "cached_tokens": 509
+      }
+    },
+    "error": null,
+    "quality_report": {
+      "version": "probability-text-check-v1",
+      "metrics": {
+        "chinese_characters": 712,
+        "line_count": 56
+      },
+      "scope": {
+        "version": "probability-text-check-v1",
+        "goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "default_goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "custom_goal": false,
+        "coverage": [
+          {
+            "knowledge_id": 11,
+            "scope": "条件概率、交集、方向与正分母",
+            "material_ids": [
+              11
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 12,
+            "scope": "有限互斥完备划分与全概率",
+            "material_ids": [
+              12
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 13,
+            "scope": "贝叶斯推导、后验归一及先验变化",
+            "material_ids": [
+              13
+            ],
+            "has_material": true
+          }
+        ],
+        "warnings": [],
+        "note": "材料关联表示已提供该知识点资料，不证明材料支持讲义每个结论。"
+      },
+      "automatic": [
+        {
+          "code": "title",
+          "label": "讲义标题",
+          "status": "pass",
+          "detail": "应有一个一级标题。"
+        },
+        {
+          "code": "sections",
+          "label": "约定章节",
+          "status": "pass",
+          "detail": "五个约定章节均已出现；不代表章节内容充分。"
+        },
+        {
+          "code": "length",
+          "label": "篇幅",
+          "status": "warning",
+          "detail": "检测到 712 个汉字；当前模板建议 900—1400，含标题，不计标点、数字和字母。"
+        },
+        {
+          "code": "citations",
+          "label": "引用标记",
+          "status": "pass",
+          "detail": "检测到材料编号。"
+        },
+        {
+          "code": "citation_ids",
+          "label": "引用编号有效性",
+          "status": "pass",
+          "detail": "未检测到无效编号；仍需检查引用支持关系。"
+        },
+        {
+          "code": "materials",
+          "label": "知识点资料关联",
+          "status": "pass",
+          "detail": "仅检查所选知识点是否有关联材料，材料内容充分性需人工判断。"
+        },
+        {
+          "code": "bracket_evidence",
+          "label": "去括号的资料依据",
+          "status": "pass",
+          "detail": "未触发当前含括号关键词规则；不表示证明了范围完整。"
+        },
+        {
+          "code": "goal_scope",
+          "label": "目标范围提示",
+          "status": "pass",
+          "detail": "使用主题默认目标，关联范围已列明；完整覆盖仍需教师复核。"
+        },
+        {
+          "code": "probability_conditions",
+          "label": "概率公式条件提示",
+          "status": "pass",
+          "detail": "仅匹配互斥、完备及正分母提示词；不证明每次公式使用都满足条件。"
+        }
+      ],
+      "citation_locations": [
+        {
+          "line": 13,
+          "excerpt": "设事件 A、B，当 P(B)>0 时，定义 P(A|B) = P(A∩B) / P(B) [M11]。",
+          "material_ids": [
+            "11"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 18,
+          "excerpt": "设 A1, A2 为样本空间的互斥完备划分（两两互斥且并集为全集），且 P(Ai)>0 [M12]。",
+          "material_ids": [
+            "12"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 22,
+          "excerpt": "P(D) = P(A1)P(D|A1) + P(A2)P(D|A2) [M12]。",
+          "material_ids": [
+            "12"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 27,
+          "excerpt": "在 P(D)>0 条件下，P(Ak|D) = P(Ak)P(D|Ak) / P(D) [M13]。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 30,
+          "excerpt": "后验 P(A1|D) + P(A2|D) 恒等于 1，体现了概率归一性 [M13]。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 50,
+          "excerpt": "3. 对比：A1 后验从 0.375 降至 0.091。说明先验变化显著影响后验，但推理逻辑与适用条件（互斥完备、正分母）保持不变 [M13]。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        }
+      ],
+      "teacher_review": [
+        {
+          "code": "goal",
+          "label": "共同目标、知识范围与材料覆盖",
+          "status": "needs_review"
+        },
+        {
+          "code": "math",
+          "label": "数学推导、适用条件与术语",
+          "status": "needs_review"
+        },
+        {
+          "code": "examples",
+          "label": "例题运算与代入检验",
+          "status": "needs_review"
+        },
+        {
+          "code": "citations",
+          "label": "引用材料是否支持对应表述",
+          "status": "needs_review"
+        },
+        {
+          "code": "personalization",
+          "label": "调整是否对应诊断且不擅自改变状态",
+          "status": "needs_review"
+        }
+      ],
+      "note": "程序只检查文本结构、篇幅、标记和关联；不能判定任意数学结论或来源支持。"
+    },
+    "output_file": "outputs/cell-03-lecture-10.md"
+  },
+  {
+    "cell": 4,
+    "student_id": 12,
+    "mode": "none",
+    "repeat": 1,
+    "sha256": "1058ce737e5a3f961ed2940c1f1ec2c531342f25d7f7d05323afd9f9e44ee13e",
+    "http_status": 200,
+    "generation_run_id": 6,
+    "lecture_id": 11,
+    "elapsed_seconds": 23.05,
+    "usage": {
+      "completion_tokens": 1289,
+      "prompt_tokens": 1873,
+      "total_tokens": 3162,
+      "prompt_tokens_details": {
+        "cached_tokens": 1869
+      }
+    },
+    "error": null,
+    "quality_report": {
+      "version": "probability-text-check-v1",
+      "metrics": {
+        "chinese_characters": 708,
+        "line_count": 38
+      },
+      "scope": {
+        "version": "probability-text-check-v1",
+        "goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "default_goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "custom_goal": false,
+        "coverage": [
+          {
+            "knowledge_id": 11,
+            "scope": "条件概率、交集、方向与正分母",
+            "material_ids": [
+              11
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 12,
+            "scope": "有限互斥完备划分与全概率",
+            "material_ids": [
+              12
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 13,
+            "scope": "贝叶斯推导、后验归一及先验变化",
+            "material_ids": [
+              13
+            ],
+            "has_material": true
+          }
+        ],
+        "warnings": [],
+        "note": "材料关联表示已提供该知识点资料，不证明材料支持讲义每个结论。"
+      },
+      "automatic": [
+        {
+          "code": "title",
+          "label": "讲义标题",
+          "status": "pass",
+          "detail": "应有一个一级标题。"
+        },
+        {
+          "code": "sections",
+          "label": "约定章节",
+          "status": "pass",
+          "detail": "五个约定章节均已出现；不代表章节内容充分。"
+        },
+        {
+          "code": "length",
+          "label": "篇幅",
+          "status": "warning",
+          "detail": "检测到 708 个汉字；当前模板建议 900—1400，含标题，不计标点、数字和字母。"
+        },
+        {
+          "code": "citations",
+          "label": "引用标记",
+          "status": "pass",
+          "detail": "检测到材料编号。"
+        },
+        {
+          "code": "citation_ids",
+          "label": "引用编号有效性",
+          "status": "pass",
+          "detail": "未检测到无效编号；仍需检查引用支持关系。"
+        },
+        {
+          "code": "materials",
+          "label": "知识点资料关联",
+          "status": "pass",
+          "detail": "仅检查所选知识点是否有关联材料，材料内容充分性需人工判断。"
+        },
+        {
+          "code": "bracket_evidence",
+          "label": "去括号的资料依据",
+          "status": "pass",
+          "detail": "未触发当前含括号关键词规则；不表示证明了范围完整。"
+        },
+        {
+          "code": "goal_scope",
+          "label": "目标范围提示",
+          "status": "pass",
+          "detail": "使用主题默认目标，关联范围已列明；完整覆盖仍需教师复核。"
+        },
+        {
+          "code": "probability_conditions",
+          "label": "概率公式条件提示",
+          "status": "pass",
+          "detail": "仅匹配互斥、完备及正分母提示词；不证明每次公式使用都满足条件。"
+        }
+      ],
+      "citation_locations": [
+        {
+          "line": 13,
+          "excerpt": "设事件 A、B，当 P(B)>0 时，条件概率定义为 P(A|B) = P(A∩B) / P(B) [M11]。由此可得乘法公式 P(A∩B) = P(B) × P(A|B)。注意，P(A|B) 与 P(B|A) 一般不相等，前者以 B 为条件限定范围，分母为 P(B)；后者以 A 为条件，分母为 P(A) [M11]。",
+          "material_ids": [
+            "11",
+            "11"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 15,
+          "excerpt": "若有限事件 A1, …, An 构成样本空间的划分，即两两互斥且合并覆盖整个空间，且每个 P(Ai)>0，则事件 B 可分解为互不相交的 B∩Ai 的并。根据概率可加性与乘法公式，全概率公式为 P(B) = Σi P(Ai) × P(B|Ai) [M12]。推导中需强调，划分互斥不等于事件独立，不可混淆。",
+          "material_ids": [
+            "12"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 18,
+          "excerpt": "P(Ak|B) = [P(Ak) × P(B|Ak)] / Σi [P(Ai) × P(B|Ai)] [M13]",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 31,
+          "excerpt": "3. 对比：A1 后验从 0.375 降至 0.091。说明在似然不变时，先验比例的变化会显著改变后验分布，但推理仍需满足划分互斥完备及正分母条件 [M13]。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        }
+      ],
+      "teacher_review": [
+        {
+          "code": "goal",
+          "label": "共同目标、知识范围与材料覆盖",
+          "status": "needs_review"
+        },
+        {
+          "code": "math",
+          "label": "数学推导、适用条件与术语",
+          "status": "needs_review"
+        },
+        {
+          "code": "examples",
+          "label": "例题运算与代入检验",
+          "status": "needs_review"
+        },
+        {
+          "code": "citations",
+          "label": "引用材料是否支持对应表述",
+          "status": "needs_review"
+        },
+        {
+          "code": "personalization",
+          "label": "调整是否对应诊断且不擅自改变状态",
+          "status": "needs_review"
+        }
+      ],
+      "note": "程序只检查文本结构、篇幅、标记和关联；不能判定任意数学结论或来源支持。"
+    },
+    "output_file": "outputs/cell-04-lecture-11.md"
+  },
+  {
+    "cell": 5,
+    "student_id": 13,
+    "mode": "profile",
+    "repeat": 1,
+    "sha256": "580075284688878931919f4f12beaae50dfbc77d58fb15ce584616f4e3b81fe2",
+    "http_status": 200,
+    "generation_run_id": 7,
+    "lecture_id": 12,
+    "elapsed_seconds": 24.99,
+    "usage": {
+      "completion_tokens": 1155,
+      "prompt_tokens": 2922,
+      "total_tokens": 4077,
+      "prompt_tokens_details": {
+        "cached_tokens": 509
+      }
+    },
+    "error": null,
+    "quality_report": {
+      "version": "probability-text-check-v1",
+      "metrics": {
+        "chinese_characters": 631,
+        "line_count": 31
+      },
+      "scope": {
+        "version": "probability-text-check-v1",
+        "goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "default_goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "custom_goal": false,
+        "coverage": [
+          {
+            "knowledge_id": 11,
+            "scope": "条件概率、交集、方向与正分母",
+            "material_ids": [
+              11
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 12,
+            "scope": "有限互斥完备划分与全概率",
+            "material_ids": [
+              12
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 13,
+            "scope": "贝叶斯推导、后验归一及先验变化",
+            "material_ids": [
+              13
+            ],
+            "has_material": true
+          }
+        ],
+        "warnings": [],
+        "note": "材料关联表示已提供该知识点资料，不证明材料支持讲义每个结论。"
+      },
+      "automatic": [
+        {
+          "code": "title",
+          "label": "讲义标题",
+          "status": "pass",
+          "detail": "应有一个一级标题。"
+        },
+        {
+          "code": "sections",
+          "label": "约定章节",
+          "status": "pass",
+          "detail": "五个约定章节均已出现；不代表章节内容充分。"
+        },
+        {
+          "code": "length",
+          "label": "篇幅",
+          "status": "warning",
+          "detail": "检测到 631 个汉字；当前模板建议 900—1400，含标题，不计标点、数字和字母。"
+        },
+        {
+          "code": "citations",
+          "label": "引用标记",
+          "status": "pass",
+          "detail": "检测到材料编号。"
+        },
+        {
+          "code": "citation_ids",
+          "label": "引用编号有效性",
+          "status": "pass",
+          "detail": "未检测到无效编号；仍需检查引用支持关系。"
+        },
+        {
+          "code": "materials",
+          "label": "知识点资料关联",
+          "status": "pass",
+          "detail": "仅检查所选知识点是否有关联材料，材料内容充分性需人工判断。"
+        },
+        {
+          "code": "bracket_evidence",
+          "label": "去括号的资料依据",
+          "status": "pass",
+          "detail": "未触发当前含括号关键词规则；不表示证明了范围完整。"
+        },
+        {
+          "code": "goal_scope",
+          "label": "目标范围提示",
+          "status": "pass",
+          "detail": "使用主题默认目标，关联范围已列明；完整覆盖仍需教师复核。"
+        },
+        {
+          "code": "probability_conditions",
+          "label": "概率公式条件提示",
+          "status": "pass",
+          "detail": "仅匹配互斥、完备及正分母提示词；不证明每次公式使用都满足条件。"
+        }
+      ],
+      "citation_locations": [
+        {
+          "line": 12,
+          "excerpt": "推导起点是条件概率。当 P(B)>0 时，P(A|B) = P(A∩B) / P(B)，由此得 P(A∩B) = P(B) × P(A|B) [M11]。注意 P(A|B) 与 P(B|A) 分母不同，一般不相等。",
+          "material_ids": [
+            "11"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 14,
+          "excerpt": "设 A1, A2 为样本空间的有限划分，需满足两两互斥、合并完备，且各 P(Ai)>0 [M12]。事件 B 可分解为互不相交的 B∩A1 与 B∩A2 之并。根据加法公式与乘法公式，P(B) = P(A1)P(B|A1) + P(A2)P(B|A2)。此即全概率公式，要求划分完备以避免遗漏或重复 [M12]。",
+          "material_ids": [
+            "12",
+            "12"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 16,
+          "excerpt": "在 P(B)>0 的前提下，贝叶斯公式为 P(Ak|B) = P(Ak)P(B|Ak) / P(B) [M13]。其中 P(Ak) 为先验，P(B|Ak) 为似然，分母 P(B) 由全概率公式给出。后验各项非负且和为 1，这是概率公理的自然结果，也是数值计算的校验标准 [M13]。",
+          "material_ids": [
+            "13",
+            "13"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 28,
+          "excerpt": "3. 比较：A1 的后验从 0.375 降至 0.091。说明在似然不变时，先验比例直接主导后验分布，但推理仍依赖相同的互斥完备划分及正分母条件 [M13]。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        }
+      ],
+      "teacher_review": [
+        {
+          "code": "goal",
+          "label": "共同目标、知识范围与材料覆盖",
+          "status": "needs_review"
+        },
+        {
+          "code": "math",
+          "label": "数学推导、适用条件与术语",
+          "status": "needs_review"
+        },
+        {
+          "code": "examples",
+          "label": "例题运算与代入检验",
+          "status": "needs_review"
+        },
+        {
+          "code": "citations",
+          "label": "引用材料是否支持对应表述",
+          "status": "needs_review"
+        },
+        {
+          "code": "personalization",
+          "label": "调整是否对应诊断且不擅自改变状态",
+          "status": "needs_review"
+        }
+      ],
+      "note": "程序只检查文本结构、篇幅、标记和关联；不能判定任意数学结论或来源支持。"
+    },
+    "output_file": "outputs/cell-05-lecture-12.md"
+  },
+  {
+    "cell": 6,
+    "student_id": 13,
+    "mode": "none",
+    "repeat": 1,
+    "sha256": "1058ce737e5a3f961ed2940c1f1ec2c531342f25d7f7d05323afd9f9e44ee13e",
+    "http_status": 200,
+    "generation_run_id": 8,
+    "lecture_id": 13,
+    "elapsed_seconds": 20.73,
+    "usage": {
+      "completion_tokens": 1186,
+      "prompt_tokens": 1873,
+      "total_tokens": 3059,
+      "prompt_tokens_details": {
+        "cached_tokens": 1869
+      }
+    },
+    "error": null,
+    "quality_report": {
+      "version": "probability-text-check-v1",
+      "metrics": {
+        "chinese_characters": 629,
+        "line_count": 33
+      },
+      "scope": {
+        "version": "probability-text-check-v1",
+        "goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "default_goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "custom_goal": false,
+        "coverage": [
+          {
+            "knowledge_id": 11,
+            "scope": "条件概率、交集、方向与正分母",
+            "material_ids": [
+              11
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 12,
+            "scope": "有限互斥完备划分与全概率",
+            "material_ids": [
+              12
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 13,
+            "scope": "贝叶斯推导、后验归一及先验变化",
+            "material_ids": [
+              13
+            ],
+            "has_material": true
+          }
+        ],
+        "warnings": [],
+        "note": "材料关联表示已提供该知识点资料，不证明材料支持讲义每个结论。"
+      },
+      "automatic": [
+        {
+          "code": "title",
+          "label": "讲义标题",
+          "status": "pass",
+          "detail": "应有一个一级标题。"
+        },
+        {
+          "code": "sections",
+          "label": "约定章节",
+          "status": "pass",
+          "detail": "五个约定章节均已出现；不代表章节内容充分。"
+        },
+        {
+          "code": "length",
+          "label": "篇幅",
+          "status": "warning",
+          "detail": "检测到 629 个汉字；当前模板建议 900—1400，含标题，不计标点、数字和字母。"
+        },
+        {
+          "code": "citations",
+          "label": "引用标记",
+          "status": "pass",
+          "detail": "检测到材料编号。"
+        },
+        {
+          "code": "citation_ids",
+          "label": "引用编号有效性",
+          "status": "pass",
+          "detail": "未检测到无效编号；仍需检查引用支持关系。"
+        },
+        {
+          "code": "materials",
+          "label": "知识点资料关联",
+          "status": "pass",
+          "detail": "仅检查所选知识点是否有关联材料，材料内容充分性需人工判断。"
+        },
+        {
+          "code": "bracket_evidence",
+          "label": "去括号的资料依据",
+          "status": "pass",
+          "detail": "未触发当前含括号关键词规则；不表示证明了范围完整。"
+        },
+        {
+          "code": "goal_scope",
+          "label": "目标范围提示",
+          "status": "pass",
+          "detail": "使用主题默认目标，关联范围已列明；完整覆盖仍需教师复核。"
+        },
+        {
+          "code": "probability_conditions",
+          "label": "概率公式条件提示",
+          "status": "pass",
+          "detail": "仅匹配互斥、完备及正分母提示词；不证明每次公式使用都满足条件。"
+        }
+      ],
+      "citation_locations": [
+        {
+          "line": 10,
+          "excerpt": "设事件 A、B，当 P(B)>0 时，定义条件概率 P(A|B) = P(A∩B) / P(B) [M11]。由此可得乘法公式 P(A∩B) = P(B) × P(A|B)。注意 P(A|B) 与 P(B|A) 一般不相等，前者以 B 为条件，分母为 P(B)；后者以 A 为条件，分母为 P(A)，且需 P(A)>0 [M11]。",
+          "material_ids": [
+            "11",
+            "11"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 12,
+          "excerpt": "若有限事件 A1, …, An 构成样本空间的划分，即两两互斥且合并覆盖整个空间，且每个 P(Ai)>0，则事件 B 可分解为互不相交的 B∩Ai 之并。根据可加性与乘法公式，全概率公式为 P(B) = Σi P(Ai) × P(B|Ai) [M12]。此处划分互斥不等于事件独立，不可混淆。",
+          "material_ids": [
+            "12"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 15,
+          "excerpt": "P(Ak|B) = P(Ak∩B) / P(B) = P(Ak) × P(B|Ak) / Σi P(Ai) × P(B|Ai) [M13]",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 16,
+          "excerpt": "其中 P(Ak) 为先验，P(B|Ak) 为似然，P(Ak|B) 为后验。后验各项非负且和为 1 [M13]。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 30,
+          "excerpt": "比较发现，A1 后验从 0.375 降至 0.091。说明先验变化显著影响后验，但推理逻辑及适用条件（正分母、互斥完备）保持不变 [M13]。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        }
+      ],
+      "teacher_review": [
+        {
+          "code": "goal",
+          "label": "共同目标、知识范围与材料覆盖",
+          "status": "needs_review"
+        },
+        {
+          "code": "math",
+          "label": "数学推导、适用条件与术语",
+          "status": "needs_review"
+        },
+        {
+          "code": "examples",
+          "label": "例题运算与代入检验",
+          "status": "needs_review"
+        },
+        {
+          "code": "citations",
+          "label": "引用材料是否支持对应表述",
+          "status": "needs_review"
+        },
+        {
+          "code": "personalization",
+          "label": "调整是否对应诊断且不擅自改变状态",
+          "status": "needs_review"
+        }
+      ],
+      "note": "程序只检查文本结构、篇幅、标记和关联；不能判定任意数学结论或来源支持。"
+    },
+    "output_file": "outputs/cell-06-lecture-13.md"
+  },
+  {
+    "cell": 7,
+    "student_id": 11,
+    "mode": "profile",
+    "repeat": 2,
+    "sha256": "a79b2092a8cf439a40be45154f6d74635d5fb21dfc2c603802ecf1c25b9b597f",
+    "http_status": 200,
+    "generation_run_id": 9,
+    "lecture_id": 14,
+    "elapsed_seconds": 22.13,
+    "usage": {
+      "completion_tokens": 1309,
+      "prompt_tokens": 2913,
+      "total_tokens": 4222,
+      "prompt_tokens_details": {
+        "cached_tokens": 2909
+      }
+    },
+    "error": null,
+    "quality_report": {
+      "version": "probability-text-check-v1",
+      "metrics": {
+        "chinese_characters": 694,
+        "line_count": 34
+      },
+      "scope": {
+        "version": "probability-text-check-v1",
+        "goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "default_goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "custom_goal": false,
+        "coverage": [
+          {
+            "knowledge_id": 11,
+            "scope": "条件概率、交集、方向与正分母",
+            "material_ids": [
+              11
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 12,
+            "scope": "有限互斥完备划分与全概率",
+            "material_ids": [
+              12
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 13,
+            "scope": "贝叶斯推导、后验归一及先验变化",
+            "material_ids": [
+              13
+            ],
+            "has_material": true
+          }
+        ],
+        "warnings": [],
+        "note": "材料关联表示已提供该知识点资料，不证明材料支持讲义每个结论。"
+      },
+      "automatic": [
+        {
+          "code": "title",
+          "label": "讲义标题",
+          "status": "pass",
+          "detail": "应有一个一级标题。"
+        },
+        {
+          "code": "sections",
+          "label": "约定章节",
+          "status": "pass",
+          "detail": "五个约定章节均已出现；不代表章节内容充分。"
+        },
+        {
+          "code": "length",
+          "label": "篇幅",
+          "status": "warning",
+          "detail": "检测到 694 个汉字；当前模板建议 900—1400，含标题，不计标点、数字和字母。"
+        },
+        {
+          "code": "citations",
+          "label": "引用标记",
+          "status": "pass",
+          "detail": "检测到材料编号。"
+        },
+        {
+          "code": "citation_ids",
+          "label": "引用编号有效性",
+          "status": "pass",
+          "detail": "未检测到无效编号；仍需检查引用支持关系。"
+        },
+        {
+          "code": "materials",
+          "label": "知识点资料关联",
+          "status": "pass",
+          "detail": "仅检查所选知识点是否有关联材料，材料内容充分性需人工判断。"
+        },
+        {
+          "code": "bracket_evidence",
+          "label": "去括号的资料依据",
+          "status": "pass",
+          "detail": "未触发当前含括号关键词规则；不表示证明了范围完整。"
+        },
+        {
+          "code": "goal_scope",
+          "label": "目标范围提示",
+          "status": "pass",
+          "detail": "使用主题默认目标，关联范围已列明；完整覆盖仍需教师复核。"
+        },
+        {
+          "code": "probability_conditions",
+          "label": "概率公式条件提示",
+          "status": "pass",
+          "detail": "仅匹配互斥、完备及正分母提示词；不证明每次公式使用都满足条件。"
+        }
+      ],
+      "citation_locations": [
+        {
+          "line": 10,
+          "excerpt": "首先明确条件概率方向。设事件 A、B，当 P(B)>0 时，P(A|B) = P(A∩B) / P(B)。此处分母 P(B) 代表已知 B 发生后的条件样本空间大小，而非 P(A)。反向 P(B|A) 需 P(A)>0，二者一般不等 [M11]。",
+          "material_ids": [
+            "11"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 12,
+          "excerpt": "接着推导全概率。设有限事件 A1, …, An 构成样本空间划分，即两两互斥且合并覆盖整个空间，且每个 P(Ai)>0。事件 B 可分解为互不相交的 B∩Ai 的并集。根据加法公式与乘法公式，P(B) = Σi P(Ai∩Bi) = Σi P(Ai)P(B|Ai)。注意，划分互斥不等于事件独立 [M12]。",
+          "material_ids": [
+            "12"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 14,
+          "excerpt": "最后推导贝叶斯公式。在上述划分条件及 P(B)>0 下，由条件概率定义 P(Ak|B) = P(Ak∩B) / P(B)。分子利用乘法公式得 P(Ak)P(B|Ak)，分母利用全概率公式得 Σi P(Ai)P(B|Ai)。因此 P(Ak|B) = P(Ak)P(B|Ak) / Σi P(Ai)P(B|Ai)。其中 P(Ak) 为先验，P(B|Ak) 为似然，P(Ak|B) 为后验。后验各项非负且和为 1 [M13]。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 28,
+          "excerpt": "4. 比较：A1 后验从 0.375 降至 0.091。说明先验变化会改变后验，但推理仍需满足 P(B)>0 等适用条件 [M13]。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        }
+      ],
+      "teacher_review": [
+        {
+          "code": "goal",
+          "label": "共同目标、知识范围与材料覆盖",
+          "status": "needs_review"
+        },
+        {
+          "code": "math",
+          "label": "数学推导、适用条件与术语",
+          "status": "needs_review"
+        },
+        {
+          "code": "examples",
+          "label": "例题运算与代入检验",
+          "status": "needs_review"
+        },
+        {
+          "code": "citations",
+          "label": "引用材料是否支持对应表述",
+          "status": "needs_review"
+        },
+        {
+          "code": "personalization",
+          "label": "调整是否对应诊断且不擅自改变状态",
+          "status": "needs_review"
+        }
+      ],
+      "note": "程序只检查文本结构、篇幅、标记和关联；不能判定任意数学结论或来源支持。"
+    },
+    "output_file": "outputs/cell-07-lecture-14.md"
+  },
+  {
+    "cell": 8,
+    "student_id": 11,
+    "mode": "none",
+    "repeat": 2,
+    "sha256": "1058ce737e5a3f961ed2940c1f1ec2c531342f25d7f7d05323afd9f9e44ee13e",
+    "http_status": 200,
+    "generation_run_id": 10,
+    "lecture_id": 15,
+    "elapsed_seconds": 18.18,
+    "usage": {
+      "completion_tokens": 1069,
+      "prompt_tokens": 1873,
+      "total_tokens": 2942,
+      "prompt_tokens_details": {
+        "cached_tokens": 1869
+      }
+    },
+    "error": null,
+    "quality_report": {
+      "version": "probability-text-check-v1",
+      "metrics": {
+        "chinese_characters": 531,
+        "line_count": 34
+      },
+      "scope": {
+        "version": "probability-text-check-v1",
+        "goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "default_goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "custom_goal": false,
+        "coverage": [
+          {
+            "knowledge_id": 11,
+            "scope": "条件概率、交集、方向与正分母",
+            "material_ids": [
+              11
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 12,
+            "scope": "有限互斥完备划分与全概率",
+            "material_ids": [
+              12
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 13,
+            "scope": "贝叶斯推导、后验归一及先验变化",
+            "material_ids": [
+              13
+            ],
+            "has_material": true
+          }
+        ],
+        "warnings": [],
+        "note": "材料关联表示已提供该知识点资料，不证明材料支持讲义每个结论。"
+      },
+      "automatic": [
+        {
+          "code": "title",
+          "label": "讲义标题",
+          "status": "pass",
+          "detail": "应有一个一级标题。"
+        },
+        {
+          "code": "sections",
+          "label": "约定章节",
+          "status": "pass",
+          "detail": "五个约定章节均已出现；不代表章节内容充分。"
+        },
+        {
+          "code": "length",
+          "label": "篇幅",
+          "status": "warning",
+          "detail": "检测到 531 个汉字；当前模板建议 900—1400，含标题，不计标点、数字和字母。"
+        },
+        {
+          "code": "citations",
+          "label": "引用标记",
+          "status": "pass",
+          "detail": "检测到材料编号。"
+        },
+        {
+          "code": "citation_ids",
+          "label": "引用编号有效性",
+          "status": "pass",
+          "detail": "未检测到无效编号；仍需检查引用支持关系。"
+        },
+        {
+          "code": "materials",
+          "label": "知识点资料关联",
+          "status": "pass",
+          "detail": "仅检查所选知识点是否有关联材料，材料内容充分性需人工判断。"
+        },
+        {
+          "code": "bracket_evidence",
+          "label": "去括号的资料依据",
+          "status": "pass",
+          "detail": "未触发当前含括号关键词规则；不表示证明了范围完整。"
+        },
+        {
+          "code": "goal_scope",
+          "label": "目标范围提示",
+          "status": "pass",
+          "detail": "使用主题默认目标，关联范围已列明；完整覆盖仍需教师复核。"
+        },
+        {
+          "code": "probability_conditions",
+          "label": "概率公式条件提示",
+          "status": "pass",
+          "detail": "仅匹配互斥、完备及正分母提示词；不证明每次公式使用都满足条件。"
+        }
+      ],
+      "citation_locations": [
+        {
+          "line": 12,
+          "excerpt": "设事件 A、B，当 P(B)>0 时，条件概率定义为 P(A|B) = P(A∩B) / P(B)。由此得乘法公式 P(A∩B) = P(B) × P(A|B) [M11]。注意 P(A|B) 与 P(B|A) 方向不同，一般不相等。",
+          "material_ids": [
+            "11"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 14,
+          "excerpt": "设 A1, …, An 构成样本空间的有限划分，即两两互斥且并集为全集。若每个 P(Ai)>0，则事件 B 可分解为互不相交的 B∩Ai 之并。根据可加性与乘法公式，全概率公式为 P(B) = Σi P(Ai) × P(B|Ai) [M12]。划分互斥不等于事件独立。",
+          "material_ids": [
+            "12"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 16,
+          "excerpt": "在 P(B)>0 条件下，由条件概率定义及上述推导，贝叶斯公式为 P(Ak|B) = P(Ak) × P(B|Ak) / Σi P(Ai) × P(B|Ai) [M13]。其中 P(Ak) 为先验，P(B|Ak) 为似然，P(Ak|B) 为后验。后验各项非负且和为 1。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 28,
+          "excerpt": "3. 对比：A1 后验从 0.375 降至 0.091。说明先验变化显著影响后验，但推理仍依赖相同的互斥完备划分与正概率条件 [M13]。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        }
+      ],
+      "teacher_review": [
+        {
+          "code": "goal",
+          "label": "共同目标、知识范围与材料覆盖",
+          "status": "needs_review"
+        },
+        {
+          "code": "math",
+          "label": "数学推导、适用条件与术语",
+          "status": "needs_review"
+        },
+        {
+          "code": "examples",
+          "label": "例题运算与代入检验",
+          "status": "needs_review"
+        },
+        {
+          "code": "citations",
+          "label": "引用材料是否支持对应表述",
+          "status": "needs_review"
+        },
+        {
+          "code": "personalization",
+          "label": "调整是否对应诊断且不擅自改变状态",
+          "status": "needs_review"
+        }
+      ],
+      "note": "程序只检查文本结构、篇幅、标记和关联；不能判定任意数学结论或来源支持。"
+    },
+    "output_file": "outputs/cell-08-lecture-15.md"
+  },
+  {
+    "cell": 9,
+    "student_id": 12,
+    "mode": "profile",
+    "repeat": 2,
+    "sha256": "46c078ec7ae32e2cebb38e5a12e561c003ba8a2e614d557242a1583dd684f9df",
+    "http_status": 200,
+    "generation_run_id": 11,
+    "lecture_id": 16,
+    "elapsed_seconds": 25.06,
+    "usage": {
+      "completion_tokens": 1463,
+      "prompt_tokens": 2924,
+      "total_tokens": 4387,
+      "prompt_tokens_details": {
+        "cached_tokens": 2920
+      }
+    },
+    "error": null,
+    "quality_report": {
+      "version": "probability-text-check-v1",
+      "metrics": {
+        "chinese_characters": 712,
+        "line_count": 64
+      },
+      "scope": {
+        "version": "probability-text-check-v1",
+        "goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "default_goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "custom_goal": false,
+        "coverage": [
+          {
+            "knowledge_id": 11,
+            "scope": "条件概率、交集、方向与正分母",
+            "material_ids": [
+              11
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 12,
+            "scope": "有限互斥完备划分与全概率",
+            "material_ids": [
+              12
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 13,
+            "scope": "贝叶斯推导、后验归一及先验变化",
+            "material_ids": [
+              13
+            ],
+            "has_material": true
+          }
+        ],
+        "warnings": [],
+        "note": "材料关联表示已提供该知识点资料，不证明材料支持讲义每个结论。"
+      },
+      "automatic": [
+        {
+          "code": "title",
+          "label": "讲义标题",
+          "status": "pass",
+          "detail": "应有一个一级标题。"
+        },
+        {
+          "code": "sections",
+          "label": "约定章节",
+          "status": "pass",
+          "detail": "五个约定章节均已出现；不代表章节内容充分。"
+        },
+        {
+          "code": "length",
+          "label": "篇幅",
+          "status": "warning",
+          "detail": "检测到 712 个汉字；当前模板建议 900—1400，含标题，不计标点、数字和字母。"
+        },
+        {
+          "code": "citations",
+          "label": "引用标记",
+          "status": "pass",
+          "detail": "检测到材料编号。"
+        },
+        {
+          "code": "citation_ids",
+          "label": "引用编号有效性",
+          "status": "pass",
+          "detail": "未检测到无效编号；仍需检查引用支持关系。"
+        },
+        {
+          "code": "materials",
+          "label": "知识点资料关联",
+          "status": "pass",
+          "detail": "仅检查所选知识点是否有关联材料，材料内容充分性需人工判断。"
+        },
+        {
+          "code": "bracket_evidence",
+          "label": "去括号的资料依据",
+          "status": "pass",
+          "detail": "未触发当前含括号关键词规则；不表示证明了范围完整。"
+        },
+        {
+          "code": "goal_scope",
+          "label": "目标范围提示",
+          "status": "pass",
+          "detail": "使用主题默认目标，关联范围已列明；完整覆盖仍需教师复核。"
+        },
+        {
+          "code": "probability_conditions",
+          "label": "概率公式条件提示",
+          "status": "pass",
+          "detail": "仅匹配互斥、完备及正分母提示词；不证明每次公式使用都满足条件。"
+        }
+      ],
+      "citation_locations": [
+        {
+          "line": 13,
+          "excerpt": "定义 P(A|B) = P(A∩B) / P(B)，要求 P(B) > 0 [M11]。",
+          "material_ids": [
+            "11"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 18,
+          "excerpt": "设 A1, A2 为样本空间的互斥完备划分，且 P(Ai) > 0 [M12]。",
+          "material_ids": [
+            "12"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 29,
+          "excerpt": "P(Ak|D) = P(Ak)P(D|Ak) / [P(A1)P(D|A1) + P(A2)P(D|A2)] [M13]",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        }
+      ],
+      "teacher_review": [
+        {
+          "code": "goal",
+          "label": "共同目标、知识范围与材料覆盖",
+          "status": "needs_review"
+        },
+        {
+          "code": "math",
+          "label": "数学推导、适用条件与术语",
+          "status": "needs_review"
+        },
+        {
+          "code": "examples",
+          "label": "例题运算与代入检验",
+          "status": "needs_review"
+        },
+        {
+          "code": "citations",
+          "label": "引用材料是否支持对应表述",
+          "status": "needs_review"
+        },
+        {
+          "code": "personalization",
+          "label": "调整是否对应诊断且不擅自改变状态",
+          "status": "needs_review"
+        }
+      ],
+      "note": "程序只检查文本结构、篇幅、标记和关联；不能判定任意数学结论或来源支持。"
+    },
+    "output_file": "outputs/cell-09-lecture-16.md"
+  },
+  {
+    "cell": 10,
+    "student_id": 12,
+    "mode": "none",
+    "repeat": 2,
+    "sha256": "1058ce737e5a3f961ed2940c1f1ec2c531342f25d7f7d05323afd9f9e44ee13e",
+    "http_status": 200,
+    "generation_run_id": 12,
+    "lecture_id": 17,
+    "elapsed_seconds": 23.26,
+    "usage": {
+      "completion_tokens": 1362,
+      "prompt_tokens": 1873,
+      "total_tokens": 3235,
+      "prompt_tokens_details": {
+        "cached_tokens": 1869
+      }
+    },
+    "error": null,
+    "quality_report": {
+      "version": "probability-text-check-v1",
+      "metrics": {
+        "chinese_characters": 619,
+        "line_count": 58
+      },
+      "scope": {
+        "version": "probability-text-check-v1",
+        "goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "default_goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "custom_goal": false,
+        "coverage": [
+          {
+            "knowledge_id": 11,
+            "scope": "条件概率、交集、方向与正分母",
+            "material_ids": [
+              11
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 12,
+            "scope": "有限互斥完备划分与全概率",
+            "material_ids": [
+              12
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 13,
+            "scope": "贝叶斯推导、后验归一及先验变化",
+            "material_ids": [
+              13
+            ],
+            "has_material": true
+          }
+        ],
+        "warnings": [],
+        "note": "材料关联表示已提供该知识点资料，不证明材料支持讲义每个结论。"
+      },
+      "automatic": [
+        {
+          "code": "title",
+          "label": "讲义标题",
+          "status": "pass",
+          "detail": "应有一个一级标题。"
+        },
+        {
+          "code": "sections",
+          "label": "约定章节",
+          "status": "pass",
+          "detail": "五个约定章节均已出现；不代表章节内容充分。"
+        },
+        {
+          "code": "length",
+          "label": "篇幅",
+          "status": "warning",
+          "detail": "检测到 619 个汉字；当前模板建议 900—1400，含标题，不计标点、数字和字母。"
+        },
+        {
+          "code": "citations",
+          "label": "引用标记",
+          "status": "pass",
+          "detail": "检测到材料编号。"
+        },
+        {
+          "code": "citation_ids",
+          "label": "引用编号有效性",
+          "status": "pass",
+          "detail": "未检测到无效编号；仍需检查引用支持关系。"
+        },
+        {
+          "code": "materials",
+          "label": "知识点资料关联",
+          "status": "pass",
+          "detail": "仅检查所选知识点是否有关联材料，材料内容充分性需人工判断。"
+        },
+        {
+          "code": "bracket_evidence",
+          "label": "去括号的资料依据",
+          "status": "pass",
+          "detail": "未触发当前含括号关键词规则；不表示证明了范围完整。"
+        },
+        {
+          "code": "goal_scope",
+          "label": "目标范围提示",
+          "status": "pass",
+          "detail": "使用主题默认目标，关联范围已列明；完整覆盖仍需教师复核。"
+        },
+        {
+          "code": "probability_conditions",
+          "label": "概率公式条件提示",
+          "status": "pass",
+          "detail": "仅匹配互斥、完备及正分母提示词；不证明每次公式使用都满足条件。"
+        }
+      ],
+      "citation_locations": [
+        {
+          "line": 10,
+          "excerpt": "本次为进阶任务，重点在于逻辑链条的完整性与数值计算的严谨性。我们将首先梳理理论推导，随后进行两组数值计算：基准案例与先验变化案例。所有数据均为自编假设模型，旨在验证公式逻辑而非反映真实工业数据 [M11]。",
+          "material_ids": [
+            "11"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 14,
+          "excerpt": "设事件 A、B，当 P(B) > 0 时，定义 P(A|B) = P(A∩B) / P(B)。由此可得乘法公式 P(A∩B) = P(B) × P(A|B) [M11]。注意，P(A|B) 与 P(B|A) 一般不相等，前者以 B 为条件限定范围，分母为 P(B)；后者以 A 为条件，分母为 P(A) [M11]。",
+          "material_ids": [
+            "11",
+            "11"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 18,
+          "excerpt": "P(B) = Σ P(B∩Ai) = Σ P(Ai) × P(B|Ai) [M12]",
+          "material_ids": [
+            "12"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 19,
+          "excerpt": "此推导要求划分完备且互斥，但互斥不等于独立 [M12]。",
+          "material_ids": [
+            "12"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 23,
+          "excerpt": "P(Ak|B) = P(Ak∩B) / P(B) = [P(Ak) × P(B|Ak)] / Σ P(Ai) × P(B|Ai) [M13]",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 24,
+          "excerpt": "其中 P(Ak) 为先验，P(B|Ak) 为似然，P(Ak|B) 为后验。后验各项非负且和为 1 [M13]。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 52,
+          "excerpt": "对比发现，A1 的后验从 0.375 降至 0.091，说明先验变化显著影响后验，但推理逻辑与适用条件不变 [M13]。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 55,
+          "excerpt": "1. **分母条件**：定义条件概率必须 P(B)>0；使用全概率需各 P(Ai)>0；贝叶斯后验需 P(B)>0 [M11][M12][M13]。",
+          "material_ids": [
+            "11",
+            "12",
+            "13"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 56,
+          "excerpt": "2. **方向混淆**：切勿将 P(A|B) 等同于 P(B|A)，二者分母不同，含义迥异 [M11]。",
+          "material_ids": [
+            "11"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 57,
+          "excerpt": "3. **互斥与独立**：划分互斥仅保证不重叠，不能推导出事件独立 [M12]。",
+          "material_ids": [
+            "12"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 58,
+          "excerpt": "4. **归一检查**：计算后务必验证后验之和为 1，这是检验计算错误的有效手段 [M13]。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        }
+      ],
+      "teacher_review": [
+        {
+          "code": "goal",
+          "label": "共同目标、知识范围与材料覆盖",
+          "status": "needs_review"
+        },
+        {
+          "code": "math",
+          "label": "数学推导、适用条件与术语",
+          "status": "needs_review"
+        },
+        {
+          "code": "examples",
+          "label": "例题运算与代入检验",
+          "status": "needs_review"
+        },
+        {
+          "code": "citations",
+          "label": "引用材料是否支持对应表述",
+          "status": "needs_review"
+        },
+        {
+          "code": "personalization",
+          "label": "调整是否对应诊断且不擅自改变状态",
+          "status": "needs_review"
+        }
+      ],
+      "note": "程序只检查文本结构、篇幅、标记和关联；不能判定任意数学结论或来源支持。"
+    },
+    "output_file": "outputs/cell-10-lecture-17.md"
+  },
+  {
+    "cell": 11,
+    "student_id": 13,
+    "mode": "profile",
+    "repeat": 2,
+    "sha256": "580075284688878931919f4f12beaae50dfbc77d58fb15ce584616f4e3b81fe2",
+    "http_status": 200,
+    "generation_run_id": 13,
+    "lecture_id": 18,
+    "elapsed_seconds": 20.39,
+    "usage": {
+      "completion_tokens": 1182,
+      "prompt_tokens": 2922,
+      "total_tokens": 4104,
+      "prompt_tokens_details": {
+        "cached_tokens": 2918
+      }
+    },
+    "error": null,
+    "quality_report": {
+      "version": "probability-text-check-v1",
+      "metrics": {
+        "chinese_characters": 636,
+        "line_count": 37
+      },
+      "scope": {
+        "version": "probability-text-check-v1",
+        "goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "default_goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "custom_goal": false,
+        "coverage": [
+          {
+            "knowledge_id": 11,
+            "scope": "条件概率、交集、方向与正分母",
+            "material_ids": [
+              11
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 12,
+            "scope": "有限互斥完备划分与全概率",
+            "material_ids": [
+              12
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 13,
+            "scope": "贝叶斯推导、后验归一及先验变化",
+            "material_ids": [
+              13
+            ],
+            "has_material": true
+          }
+        ],
+        "warnings": [],
+        "note": "材料关联表示已提供该知识点资料，不证明材料支持讲义每个结论。"
+      },
+      "automatic": [
+        {
+          "code": "title",
+          "label": "讲义标题",
+          "status": "pass",
+          "detail": "应有一个一级标题。"
+        },
+        {
+          "code": "sections",
+          "label": "约定章节",
+          "status": "pass",
+          "detail": "五个约定章节均已出现；不代表章节内容充分。"
+        },
+        {
+          "code": "length",
+          "label": "篇幅",
+          "status": "warning",
+          "detail": "检测到 636 个汉字；当前模板建议 900—1400，含标题，不计标点、数字和字母。"
+        },
+        {
+          "code": "citations",
+          "label": "引用标记",
+          "status": "pass",
+          "detail": "检测到材料编号。"
+        },
+        {
+          "code": "citation_ids",
+          "label": "引用编号有效性",
+          "status": "pass",
+          "detail": "未检测到无效编号；仍需检查引用支持关系。"
+        },
+        {
+          "code": "materials",
+          "label": "知识点资料关联",
+          "status": "pass",
+          "detail": "仅检查所选知识点是否有关联材料，材料内容充分性需人工判断。"
+        },
+        {
+          "code": "bracket_evidence",
+          "label": "去括号的资料依据",
+          "status": "pass",
+          "detail": "未触发当前含括号关键词规则；不表示证明了范围完整。"
+        },
+        {
+          "code": "goal_scope",
+          "label": "目标范围提示",
+          "status": "pass",
+          "detail": "使用主题默认目标，关联范围已列明；完整覆盖仍需教师复核。"
+        },
+        {
+          "code": "probability_conditions",
+          "label": "概率公式条件提示",
+          "status": "pass",
+          "detail": "仅匹配互斥、完备及正分母提示词；不证明每次公式使用都满足条件。"
+        }
+      ],
+      "citation_locations": [
+        {
+          "line": 12,
+          "excerpt": "推导起点是条件概率定义。当 P(B)>0 时，P(A|B) = P(A∩B) / P(B)，由此得 P(A∩B) = P(B) × P(A|B) [M11]。注意方向性：P(A|B) 与 P(B|A) 一般不等，后者需 P(A)>0。",
+          "material_ids": [
+            "11"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 14,
+          "excerpt": "对于有限事件 A1, …, An，若它们两两互斥且合并覆盖样本空间，且每个 P(Ai)>0，则事件 B 可分解为互不相交的 B∩Ai 之并。根据可加性，P(B) = Σi P(Ai)P(B|Ai) [M12]。此即全概率公式，要求划分完备且互斥，但互斥不意味着独立。",
+          "material_ids": [
+            "12"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 16,
+          "excerpt": "在 P(B)>0 条件下，贝叶斯公式为 P(Ak|B) = P(Ak)P(B|Ak) / Σi P(Ai)P(B|Ai) [M13]。分子是“先验×似然”，分母是全概率 P(B)。后验各项非负且和为 1，这是归一性的必然结果。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        }
+      ],
+      "teacher_review": [
+        {
+          "code": "goal",
+          "label": "共同目标、知识范围与材料覆盖",
+          "status": "needs_review"
+        },
+        {
+          "code": "math",
+          "label": "数学推导、适用条件与术语",
+          "status": "needs_review"
+        },
+        {
+          "code": "examples",
+          "label": "例题运算与代入检验",
+          "status": "needs_review"
+        },
+        {
+          "code": "citations",
+          "label": "引用材料是否支持对应表述",
+          "status": "needs_review"
+        },
+        {
+          "code": "personalization",
+          "label": "调整是否对应诊断且不擅自改变状态",
+          "status": "needs_review"
+        }
+      ],
+      "note": "程序只检查文本结构、篇幅、标记和关联；不能判定任意数学结论或来源支持。"
+    },
+    "output_file": "outputs/cell-11-lecture-18.md"
+  },
+  {
+    "cell": 12,
+    "student_id": 13,
+    "mode": "none",
+    "repeat": 2,
+    "sha256": "1058ce737e5a3f961ed2940c1f1ec2c531342f25d7f7d05323afd9f9e44ee13e",
+    "http_status": 200,
+    "generation_run_id": 14,
+    "lecture_id": 19,
+    "elapsed_seconds": 21.97,
+    "usage": {
+      "completion_tokens": 1277,
+      "prompt_tokens": 1873,
+      "total_tokens": 3150,
+      "prompt_tokens_details": {
+        "cached_tokens": 1869
+      }
+    },
+    "error": null,
+    "quality_report": {
+      "version": "probability-text-check-v1",
+      "metrics": {
+        "chinese_characters": 659,
+        "line_count": 39
+      },
+      "scope": {
+        "version": "probability-text-check-v1",
+        "goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "default_goal": "从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。",
+        "custom_goal": false,
+        "coverage": [
+          {
+            "knowledge_id": 11,
+            "scope": "条件概率、交集、方向与正分母",
+            "material_ids": [
+              11
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 12,
+            "scope": "有限互斥完备划分与全概率",
+            "material_ids": [
+              12
+            ],
+            "has_material": true
+          },
+          {
+            "knowledge_id": 13,
+            "scope": "贝叶斯推导、后验归一及先验变化",
+            "material_ids": [
+              13
+            ],
+            "has_material": true
+          }
+        ],
+        "warnings": [],
+        "note": "材料关联表示已提供该知识点资料，不证明材料支持讲义每个结论。"
+      },
+      "automatic": [
+        {
+          "code": "title",
+          "label": "讲义标题",
+          "status": "pass",
+          "detail": "应有一个一级标题。"
+        },
+        {
+          "code": "sections",
+          "label": "约定章节",
+          "status": "pass",
+          "detail": "五个约定章节均已出现；不代表章节内容充分。"
+        },
+        {
+          "code": "length",
+          "label": "篇幅",
+          "status": "warning",
+          "detail": "检测到 659 个汉字；当前模板建议 900—1400，含标题，不计标点、数字和字母。"
+        },
+        {
+          "code": "citations",
+          "label": "引用标记",
+          "status": "pass",
+          "detail": "检测到材料编号。"
+        },
+        {
+          "code": "citation_ids",
+          "label": "引用编号有效性",
+          "status": "pass",
+          "detail": "未检测到无效编号；仍需检查引用支持关系。"
+        },
+        {
+          "code": "materials",
+          "label": "知识点资料关联",
+          "status": "pass",
+          "detail": "仅检查所选知识点是否有关联材料，材料内容充分性需人工判断。"
+        },
+        {
+          "code": "bracket_evidence",
+          "label": "去括号的资料依据",
+          "status": "pass",
+          "detail": "未触发当前含括号关键词规则；不表示证明了范围完整。"
+        },
+        {
+          "code": "goal_scope",
+          "label": "目标范围提示",
+          "status": "pass",
+          "detail": "使用主题默认目标，关联范围已列明；完整覆盖仍需教师复核。"
+        },
+        {
+          "code": "probability_conditions",
+          "label": "概率公式条件提示",
+          "status": "pass",
+          "detail": "仅匹配互斥、完备及正分母提示词；不证明每次公式使用都满足条件。"
+        }
+      ],
+      "citation_locations": [
+        {
+          "line": 12,
+          "excerpt": "设事件 A、B，当 P(B)>0 时，定义条件概率 P(A|B) = P(A∩B) / P(B)。由此可得乘法公式 P(A∩B) = P(B) × P(A|B) [M11]。注意 P(B|A) 需 P(A)>0，且 P(A|B) 与 P(B|A) 一般不相等，前者以 B 为条件限定范围，分母为 P(B)。",
+          "material_ids": [
+            "11"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 14,
+          "excerpt": "设 A1, ..., An 为样本空间的一个有限划分，即两两互斥且并集为全集。若每个 P(Ai)>0，则事件 B 可表示为互不相交的 B∩Ai 的并。根据概率可加性与乘法公式，全概率公式为 P(B) = Σi P(Ai) × P(B|Ai) [M12]。此处划分互斥不等于事件独立。",
+          "material_ids": [
+            "12"
+          ],
+          "invalid_ids": []
+        },
+        {
+          "line": 16,
+          "excerpt": "在 P(B)>0 条件下，由条件概率定义 P(Ak|B) = P(Ak∩B) / P(B)。分子利用乘法公式展开为 P(Ak) × P(B|Ak)，分母利用全概率公式展开为 Σi P(Ai) × P(B|Ai)。因此贝叶斯公式为 P(Ak|B) = [P(Ak) × P(B|Ak)] / Σi P(Ai) × P(B|Ai) [M13]。其中 P(Ak) 为先验，P(B|Ak) 为似然，P(Ak|B) 为后验。后验各项非负且和为 1。改变先验通常改变后验，但这不意味着因果结论。",
+          "material_ids": [
+            "13"
+          ],
+          "invalid_ids": []
+        }
+      ],
+      "teacher_review": [
+        {
+          "code": "goal",
+          "label": "共同目标、知识范围与材料覆盖",
+          "status": "needs_review"
+        },
+        {
+          "code": "math",
+          "label": "数学推导、适用条件与术语",
+          "status": "needs_review"
+        },
+        {
+          "code": "examples",
+          "label": "例题运算与代入检验",
+          "status": "needs_review"
+        },
+        {
+          "code": "citations",
+          "label": "引用材料是否支持对应表述",
+          "status": "needs_review"
+        },
+        {
+          "code": "personalization",
+          "label": "调整是否对应诊断且不擅自改变状态",
+          "status": "needs_review"
+        }
+      ],
+      "note": "程序只检查文本结构、篇幅、标记和关联；不能判定任意数学结论或来源支持。"
+    },
+    "output_file": "outputs/cell-12-lecture-19.md"
+  }
+]

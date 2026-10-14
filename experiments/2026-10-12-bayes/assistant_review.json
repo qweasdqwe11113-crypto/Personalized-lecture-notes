@@ -1,0 +1,635 @@
+{
+  "rubric": {
+    "0": "发现错误或关键内容缺失",
+    "1": "主体可读，但需要补充条件/目标/支持",
+    "2": "在已核查范围未发现该项问题；非质量保证"
+  },
+  "review_scope": "逐份阅读原稿、固定例题精确有理数复核、目标及诊断对应、材料 M11—M13 支持；教师评审未完成。",
+  "review_finished_at": "2026-10-12T01:01:56.228419+08:00",
+  "ratings": [
+    {
+      "cell": 1,
+      "lecture_id": 8,
+      "mode": "profile",
+      "repeat": 1,
+      "student_id": 11,
+      "reviewer": "助手内容核查（非教师评审）",
+      "mathematics": 2,
+      "goal": 1,
+      "personalization": 2,
+      "citations": 2,
+      "notes": [
+        "原实验冻结建议 900—1400 个汉字，实测 619；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。",
+        "纯文本除号后是求和及乘积，未明确用括号包住整个分母，违反原模板显示约束。补上分母括号，减少读取歧义；不将此显示问题单独判为数值计算错误。",
+        "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+      ],
+      "issues": [
+        {
+          "id": 5,
+          "category": "structure",
+          "start_line": 1,
+          "end_line": 1,
+          "detail": "原实验冻结建议 900—1400 个汉字，实测 619；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。"
+        },
+        {
+          "id": 6,
+          "category": "structure",
+          "start_line": 22,
+          "end_line": 22,
+          "detail": "纯文本除号后是求和及乘积，未明确用括号包住整个分母，违反原模板显示约束。补上分母括号，减少读取歧义；不将此显示问题单独判为数值计算错误。"
+        },
+        {
+          "id": 7,
+          "category": "scope",
+          "start_line": 34,
+          "end_line": 39,
+          "detail": "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+        }
+      ],
+      "workload": {
+        "actual_assistant_revision_added_lines": 11,
+        "actual_assistant_revision_removed_lines": 1,
+        "teacher_review_seconds": null,
+        "assistant_effective_seconds": null,
+        "note": "行数来自实际已保存 R1 差异；没有记录有效人工用时，不推断节省。"
+      },
+      "draft_file": "outputs/cell-01-lecture-8-R1-draft.md",
+      "draft_chinese_characters": 1042,
+      "draft_warnings": []
+    },
+    {
+      "cell": 2,
+      "lecture_id": 9,
+      "mode": "none",
+      "repeat": 1,
+      "student_id": 11,
+      "reviewer": "助手内容核查（非教师评审）",
+      "mathematics": 2,
+      "goal": 1,
+      "personalization": 2,
+      "citations": 2,
+      "notes": [
+        "原实验冻结建议 900—1400 个汉字，实测 598；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。",
+        "纯文本除号后是求和及乘积，未明确用括号包住整个分母，违反原模板显示约束。补上分母括号，减少读取歧义；不将此显示问题单独判为数值计算错误。",
+        "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+      ],
+      "issues": [
+        {
+          "id": 8,
+          "category": "structure",
+          "start_line": 1,
+          "end_line": 1,
+          "detail": "原实验冻结建议 900—1400 个汉字，实测 598；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。"
+        },
+        {
+          "id": 9,
+          "category": "structure",
+          "start_line": 16,
+          "end_line": 16,
+          "detail": "纯文本除号后是求和及乘积，未明确用括号包住整个分母，违反原模板显示约束。补上分母括号，减少读取歧义；不将此显示问题单独判为数值计算错误。"
+        },
+        {
+          "id": 10,
+          "category": "scope",
+          "start_line": 25,
+          "end_line": 28,
+          "detail": "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+        }
+      ],
+      "workload": {
+        "actual_assistant_revision_added_lines": 11,
+        "actual_assistant_revision_removed_lines": 1,
+        "teacher_review_seconds": null,
+        "assistant_effective_seconds": null,
+        "note": "行数来自实际已保存 R1 差异；没有记录有效人工用时，不推断节省。"
+      },
+      "draft_file": "outputs/cell-02-lecture-9-R1-draft.md",
+      "draft_chinese_characters": 1021,
+      "draft_warnings": []
+    },
+    {
+      "cell": 3,
+      "lecture_id": 10,
+      "mode": "profile",
+      "repeat": 1,
+      "student_id": 12,
+      "reviewer": "助手内容核查（非教师评审）",
+      "mathematics": 1,
+      "goal": 1,
+      "personalization": 2,
+      "citations": 2,
+      "notes": [
+        "原实验冻结建议 900—1400 个汉字，实测 712；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。",
+        "反向条件概率虽提及分母 P(A)，没有明确写出该条件概率的 P(A)>0 前提。共同目标要求完整正分母条件；修订明确补充。",
+        "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+      ],
+      "issues": [
+        {
+          "id": 11,
+          "category": "structure",
+          "start_line": 1,
+          "end_line": 1,
+          "detail": "原实验冻结建议 900—1400 个汉字，实测 712；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。"
+        },
+        {
+          "id": 12,
+          "category": "math",
+          "start_line": 6,
+          "end_line": 6,
+          "detail": "反向条件概率虽提及分母 P(A)，没有明确写出该条件概率的 P(A)>0 前提。共同目标要求完整正分母条件；修订明确补充。"
+        },
+        {
+          "id": 13,
+          "category": "scope",
+          "start_line": 43,
+          "end_line": 50,
+          "detail": "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+        }
+      ],
+      "workload": {
+        "actual_assistant_revision_added_lines": 10,
+        "actual_assistant_revision_removed_lines": 0,
+        "teacher_review_seconds": null,
+        "assistant_effective_seconds": null,
+        "note": "行数来自实际已保存 R1 差异；没有记录有效人工用时，不推断节省。"
+      },
+      "draft_file": "outputs/cell-03-lecture-10-R1-draft.md",
+      "draft_chinese_characters": 1135,
+      "draft_warnings": []
+    },
+    {
+      "cell": 4,
+      "lecture_id": 11,
+      "mode": "none",
+      "repeat": 1,
+      "student_id": 12,
+      "reviewer": "助手内容核查（非教师评审）",
+      "mathematics": 1,
+      "goal": 1,
+      "personalization": 2,
+      "citations": 2,
+      "notes": [
+        "原实验冻结建议 900—1400 个汉字，实测 708；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。",
+        "反向条件概率虽提及分母 P(A)，没有明确写出该条件概率的 P(A)>0 前提。共同目标要求完整正分母条件；修订明确补充。",
+        "纯文本除号后是求和及乘积，未明确用括号包住整个分母，违反原模板显示约束。补上分母括号，减少读取歧义；不将此显示问题单独判为数值计算错误。",
+        "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+      ],
+      "issues": [
+        {
+          "id": 14,
+          "category": "structure",
+          "start_line": 1,
+          "end_line": 1,
+          "detail": "原实验冻结建议 900—1400 个汉字，实测 708；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。"
+        },
+        {
+          "id": 15,
+          "category": "math",
+          "start_line": 7,
+          "end_line": 7,
+          "detail": "反向条件概率虽提及分母 P(A)，没有明确写出该条件概率的 P(A)>0 前提。共同目标要求完整正分母条件；修订明确补充。"
+        },
+        {
+          "id": 16,
+          "category": "structure",
+          "start_line": 18,
+          "end_line": 18,
+          "detail": "纯文本除号后是求和及乘积，未明确用括号包住整个分母，违反原模板显示约束。补上分母括号，减少读取歧义；不将此显示问题单独判为数值计算错误。"
+        },
+        {
+          "id": 17,
+          "category": "scope",
+          "start_line": 28,
+          "end_line": 31,
+          "detail": "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+        }
+      ],
+      "workload": {
+        "actual_assistant_revision_added_lines": 11,
+        "actual_assistant_revision_removed_lines": 1,
+        "teacher_review_seconds": null,
+        "assistant_effective_seconds": null,
+        "note": "行数来自实际已保存 R1 差异；没有记录有效人工用时，不推断节省。"
+      },
+      "draft_file": "outputs/cell-04-lecture-11-R1-draft.md",
+      "draft_chinese_characters": 1131,
+      "draft_warnings": []
+    },
+    {
+      "cell": 5,
+      "lecture_id": 12,
+      "mode": "profile",
+      "repeat": 1,
+      "student_id": 13,
+      "reviewer": "助手内容核查（非教师评审）",
+      "mathematics": 1,
+      "goal": 1,
+      "personalization": 2,
+      "citations": 2,
+      "notes": [
+        "原实验冻结建议 900—1400 个汉字，实测 631；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。",
+        "反向条件概率虽提及分母 P(A)，没有明确写出该条件概率的 P(A)>0 前提。共同目标要求完整正分母条件；修订明确补充。",
+        "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+      ],
+      "issues": [
+        {
+          "id": 18,
+          "category": "structure",
+          "start_line": 1,
+          "end_line": 1,
+          "detail": "原实验冻结建议 900—1400 个汉字，实测 631；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。"
+        },
+        {
+          "id": 19,
+          "category": "math",
+          "start_line": 4,
+          "end_line": 4,
+          "detail": "反向条件概率虽提及分母 P(A)，没有明确写出该条件概率的 P(A)>0 前提。共同目标要求完整正分母条件；修订明确补充。"
+        },
+        {
+          "id": 20,
+          "category": "scope",
+          "start_line": 25,
+          "end_line": 28,
+          "detail": "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+        }
+      ],
+      "workload": {
+        "actual_assistant_revision_added_lines": 10,
+        "actual_assistant_revision_removed_lines": 0,
+        "teacher_review_seconds": null,
+        "assistant_effective_seconds": null,
+        "note": "行数来自实际已保存 R1 差异；没有记录有效人工用时，不推断节省。"
+      },
+      "draft_file": "outputs/cell-05-lecture-12-R1-draft.md",
+      "draft_chinese_characters": 1054,
+      "draft_warnings": []
+    },
+    {
+      "cell": 6,
+      "lecture_id": 13,
+      "mode": "none",
+      "repeat": 1,
+      "student_id": 13,
+      "reviewer": "助手内容核查（非教师评审）",
+      "mathematics": 2,
+      "goal": 1,
+      "personalization": 2,
+      "citations": 2,
+      "notes": [
+        "原实验冻结建议 900—1400 个汉字，实测 629；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。",
+        "纯文本除号后是求和及乘积，未明确用括号包住整个分母，违反原模板显示约束。补上分母括号，减少读取歧义；不将此显示问题单独判为数值计算错误。",
+        "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+      ],
+      "issues": [
+        {
+          "id": 21,
+          "category": "structure",
+          "start_line": 1,
+          "end_line": 1,
+          "detail": "原实验冻结建议 900—1400 个汉字，实测 629；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。"
+        },
+        {
+          "id": 22,
+          "category": "structure",
+          "start_line": 15,
+          "end_line": 15,
+          "detail": "纯文本除号后是求和及乘积，未明确用括号包住整个分母，违反原模板显示约束。补上分母括号，减少读取歧义；不将此显示问题单独判为数值计算错误。"
+        },
+        {
+          "id": 23,
+          "category": "scope",
+          "start_line": 26,
+          "end_line": 30,
+          "detail": "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+        }
+      ],
+      "workload": {
+        "actual_assistant_revision_added_lines": 11,
+        "actual_assistant_revision_removed_lines": 1,
+        "teacher_review_seconds": null,
+        "assistant_effective_seconds": null,
+        "note": "行数来自实际已保存 R1 差异；没有记录有效人工用时，不推断节省。"
+      },
+      "draft_file": "outputs/cell-06-lecture-13-R1-draft.md",
+      "draft_chinese_characters": 1052,
+      "draft_warnings": []
+    },
+    {
+      "cell": 7,
+      "lecture_id": 14,
+      "mode": "profile",
+      "repeat": 2,
+      "student_id": 11,
+      "reviewer": "助手内容核查（非教师评审）",
+      "mathematics": 0,
+      "goal": 1,
+      "personalization": 2,
+      "citations": 1,
+      "notes": [
+        "原实验冻结建议 900—1400 个汉字，实测 694；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。",
+        "Bi 未定义。该处应为同一个观测事件 B 与各来源 Ai 的交集，P(B)=Σi P(B∩Ai)，不能引入随 i 改变的 Bi。M12 支持的是 B∩Ai 分解。",
+        "纯文本除号后是求和及乘积，未明确用括号包住整个分母，违反原模板显示约束。补上分母括号，减少读取歧义；不将此显示问题单独判为数值计算错误。",
+        "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+      ],
+      "issues": [
+        {
+          "id": 24,
+          "category": "structure",
+          "start_line": 1,
+          "end_line": 1,
+          "detail": "原实验冻结建议 900—1400 个汉字，实测 694；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。"
+        },
+        {
+          "id": 25,
+          "category": "math",
+          "start_line": 12,
+          "end_line": 12,
+          "detail": "Bi 未定义。该处应为同一个观测事件 B 与各来源 Ai 的交集，P(B)=Σi P(B∩Ai)，不能引入随 i 改变的 Bi。M12 支持的是 B∩Ai 分解。"
+        },
+        {
+          "id": 26,
+          "category": "structure",
+          "start_line": 14,
+          "end_line": 14,
+          "detail": "纯文本除号后是求和及乘积，未明确用括号包住整个分母，违反原模板显示约束。补上分母括号，减少读取歧义；不将此显示问题单独判为数值计算错误。"
+        },
+        {
+          "id": 27,
+          "category": "scope",
+          "start_line": 24,
+          "end_line": 28,
+          "detail": "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+        }
+      ],
+      "workload": {
+        "actual_assistant_revision_added_lines": 14,
+        "actual_assistant_revision_removed_lines": 4,
+        "teacher_review_seconds": null,
+        "assistant_effective_seconds": null,
+        "note": "行数来自实际已保存 R1 差异；没有记录有效人工用时，不推断节省。"
+      },
+      "draft_file": "outputs/cell-07-lecture-14-R1-draft.md",
+      "draft_chinese_characters": 1127,
+      "draft_warnings": []
+    },
+    {
+      "cell": 8,
+      "lecture_id": 15,
+      "mode": "none",
+      "repeat": 2,
+      "student_id": 11,
+      "reviewer": "助手内容核查（非教师评审）",
+      "mathematics": 1,
+      "goal": 1,
+      "personalization": 2,
+      "citations": 2,
+      "notes": [
+        "原实验冻结建议 900—1400 个汉字，实测 531；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。",
+        "反向条件概率虽提及分母 P(A)，没有明确写出该条件概率的 P(A)>0 前提。共同目标要求完整正分母条件；修订明确补充。",
+        "纯文本除号后是求和及乘积，未明确用括号包住整个分母，违反原模板显示约束。补上分母括号，减少读取歧义；不将此显示问题单独判为数值计算错误。",
+        "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+      ],
+      "issues": [
+        {
+          "id": 28,
+          "category": "structure",
+          "start_line": 1,
+          "end_line": 1,
+          "detail": "原实验冻结建议 900—1400 个汉字，实测 531；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。"
+        },
+        {
+          "id": 29,
+          "category": "math",
+          "start_line": 6,
+          "end_line": 6,
+          "detail": "反向条件概率虽提及分母 P(A)，没有明确写出该条件概率的 P(A)>0 前提。共同目标要求完整正分母条件；修订明确补充。"
+        },
+        {
+          "id": 30,
+          "category": "structure",
+          "start_line": 16,
+          "end_line": 16,
+          "detail": "纯文本除号后是求和及乘积，未明确用括号包住整个分母，违反原模板显示约束。补上分母括号，减少读取歧义；不将此显示问题单独判为数值计算错误。"
+        },
+        {
+          "id": 31,
+          "category": "scope",
+          "start_line": 25,
+          "end_line": 28,
+          "detail": "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+        }
+      ],
+      "workload": {
+        "actual_assistant_revision_added_lines": 11,
+        "actual_assistant_revision_removed_lines": 1,
+        "teacher_review_seconds": null,
+        "assistant_effective_seconds": null,
+        "note": "行数来自实际已保存 R1 差异；没有记录有效人工用时，不推断节省。"
+      },
+      "draft_file": "outputs/cell-08-lecture-15-R1-draft.md",
+      "draft_chinese_characters": 954,
+      "draft_warnings": []
+    },
+    {
+      "cell": 9,
+      "lecture_id": 16,
+      "mode": "profile",
+      "repeat": 2,
+      "student_id": 12,
+      "reviewer": "助手内容核查（非教师评审）",
+      "mathematics": 0,
+      "goal": 1,
+      "personalization": 2,
+      "citations": 1,
+      "notes": [
+        "原实验冻结建议 900—1400 个汉字，实测 712；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。",
+        "反向条件概率虽提及分母 P(A)，没有明确写出该条件概率的 P(A)>0 前提。共同目标要求完整正分母条件；修订明确补充。",
+        "“仅在概率相等时相等”过强：两个正概率但互斥的事件，即使概率不同，两个方向的条件概率也都为 0。应区分交集为零和交集为正，并补全 P(A)>0、P(B)>0。",
+        "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+      ],
+      "issues": [
+        {
+          "id": 32,
+          "category": "structure",
+          "start_line": 1,
+          "end_line": 1,
+          "detail": "原实验冻结建议 900—1400 个汉字，实测 712；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。"
+        },
+        {
+          "id": 33,
+          "category": "math",
+          "start_line": 6,
+          "end_line": 6,
+          "detail": "反向条件概率虽提及分母 P(A)，没有明确写出该条件概率的 P(A)>0 前提。共同目标要求完整正分母条件；修订明确补充。"
+        },
+        {
+          "id": 34,
+          "category": "math",
+          "start_line": 15,
+          "end_line": 15,
+          "detail": "“仅在概率相等时相等”过强：两个正概率但互斥的事件，即使概率不同，两个方向的条件概率也都为 0。应区分交集为零和交集为正，并补全 P(A)>0、P(B)>0。"
+        },
+        {
+          "id": 35,
+          "category": "scope",
+          "start_line": 50,
+          "end_line": 58,
+          "detail": "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+        }
+      ],
+      "workload": {
+        "actual_assistant_revision_added_lines": 12,
+        "actual_assistant_revision_removed_lines": 2,
+        "teacher_review_seconds": null,
+        "assistant_effective_seconds": null,
+        "note": "行数来自实际已保存 R1 差异；没有记录有效人工用时，不推断节省。"
+      },
+      "draft_file": "outputs/cell-09-lecture-16-R1-draft.md",
+      "draft_chinese_characters": 1163,
+      "draft_warnings": []
+    },
+    {
+      "cell": 10,
+      "lecture_id": 17,
+      "mode": "none",
+      "repeat": 2,
+      "student_id": 12,
+      "reviewer": "助手内容核查（非教师评审）",
+      "mathematics": 1,
+      "goal": 2,
+      "personalization": 2,
+      "citations": 2,
+      "notes": [
+        "原实验冻结建议 900—1400 个汉字，实测 619；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。",
+        "反向条件概率虽提及分母 P(A)，没有明确写出该条件概率的 P(A)>0 前提。共同目标要求完整正分母条件；修订明确补充。",
+        "纯文本除号后是求和及乘积，未明确用括号包住整个分母，违反原模板显示约束。补上分母括号，减少读取歧义；不将此显示问题单独判为数值计算错误。"
+      ],
+      "issues": [
+        {
+          "id": 36,
+          "category": "structure",
+          "start_line": 1,
+          "end_line": 1,
+          "detail": "原实验冻结建议 900—1400 个汉字，实测 619；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。"
+        },
+        {
+          "id": 37,
+          "category": "math",
+          "start_line": 7,
+          "end_line": 7,
+          "detail": "反向条件概率虽提及分母 P(A)，没有明确写出该条件概率的 P(A)>0 前提。共同目标要求完整正分母条件；修订明确补充。"
+        },
+        {
+          "id": 38,
+          "category": "structure",
+          "start_line": 23,
+          "end_line": 23,
+          "detail": "纯文本除号后是求和及乘积，未明确用括号包住整个分母，违反原模板显示约束。补上分母括号，减少读取歧义；不将此显示问题单独判为数值计算错误。"
+        }
+      ],
+      "workload": {
+        "actual_assistant_revision_added_lines": 8,
+        "actual_assistant_revision_removed_lines": 1,
+        "teacher_review_seconds": null,
+        "assistant_effective_seconds": null,
+        "note": "行数来自实际已保存 R1 差异；没有记录有效人工用时，不推断节省。"
+      },
+      "draft_file": "outputs/cell-10-lecture-17-R1-draft.md",
+      "draft_chinese_characters": 1002,
+      "draft_warnings": []
+    },
+    {
+      "cell": 11,
+      "lecture_id": 18,
+      "mode": "profile",
+      "repeat": 2,
+      "student_id": 13,
+      "reviewer": "助手内容核查（非教师评审）",
+      "mathematics": 2,
+      "goal": 2,
+      "personalization": 2,
+      "citations": 2,
+      "notes": [
+        "原实验冻结建议 900—1400 个汉字，实测 636；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。",
+        "纯文本除号后是求和及乘积，未明确用括号包住整个分母，违反原模板显示约束。补上分母括号，减少读取歧义；不将此显示问题单独判为数值计算错误。"
+      ],
+      "issues": [
+        {
+          "id": 39,
+          "category": "structure",
+          "start_line": 1,
+          "end_line": 1,
+          "detail": "原实验冻结建议 900—1400 个汉字，实测 636；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。"
+        },
+        {
+          "id": 40,
+          "category": "structure",
+          "start_line": 16,
+          "end_line": 16,
+          "detail": "纯文本除号后是求和及乘积，未明确用括号包住整个分母，违反原模板显示约束。补上分母括号，减少读取歧义；不将此显示问题单独判为数值计算错误。"
+        }
+      ],
+      "workload": {
+        "actual_assistant_revision_added_lines": 8,
+        "actual_assistant_revision_removed_lines": 1,
+        "teacher_review_seconds": null,
+        "assistant_effective_seconds": null,
+        "note": "行数来自实际已保存 R1 差异；没有记录有效人工用时，不推断节省。"
+      },
+      "draft_file": "outputs/cell-11-lecture-18-R1-draft.md",
+      "draft_chinese_characters": 1019,
+      "draft_warnings": []
+    },
+    {
+      "cell": 12,
+      "lecture_id": 19,
+      "mode": "none",
+      "repeat": 2,
+      "student_id": 13,
+      "reviewer": "助手内容核查（非教师评审）",
+      "mathematics": 2,
+      "goal": 1,
+      "personalization": 2,
+      "citations": 2,
+      "notes": [
+        "原实验冻结建议 900—1400 个汉字，实测 659；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。",
+        "纯文本除号后是求和及乘积，未明确用括号包住整个分母，违反原模板显示约束。补上分母括号，减少读取歧义；不将此显示问题单独判为数值计算错误。",
+        "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+      ],
+      "issues": [
+        {
+          "id": 41,
+          "category": "structure",
+          "start_line": 1,
+          "end_line": 1,
+          "detail": "原实验冻结建议 900—1400 个汉字，实测 659；所有原实验报告保留该提示，不能以新阈值改写旧结果。修订补充条件、分解和核查理由。"
+        },
+        {
+          "id": 42,
+          "category": "structure",
+          "start_line": 16,
+          "end_line": 16,
+          "detail": "纯文本除号后是求和及乘积，未明确用括号包住整个分母，违反原模板显示约束。补上分母括号，减少读取歧义；不将此显示问题单独判为数值计算错误。"
+        },
+        {
+          "id": 43,
+          "category": "scope",
+          "start_line": 27,
+          "end_line": 32,
+          "detail": "先验变化例没有完整、显式地核对两项新后验之和；第 9 格还未列出第二项新后验。共同进阶目标需完成两例与归一检查，修订补齐。"
+        }
+      ],
+      "workload": {
+        "actual_assistant_revision_added_lines": 11,
+        "actual_assistant_revision_removed_lines": 1,
+        "teacher_review_seconds": null,
+        "assistant_effective_seconds": null,
+        "note": "行数来自实际已保存 R1 差异；没有记录有效人工用时，不推断节省。"
+      },
+      "draft_file": "outputs/cell-12-lecture-19-R1-draft.md",
+      "draft_chinese_characters": 1082,
+      "draft_warnings": []
+    }
+  ]
+}

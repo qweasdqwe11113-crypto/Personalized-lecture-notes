@@ -1,36 +1,163 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>知页 · 个性化讲义 Demo</title><link rel="stylesheet" href="/static/style.css"><script defer src="/static/app.js"></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>知页 · 个性化讲义 Demo</title><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/layout.css"><script defer src="/static/app.js"></script><script defer src="/static/profiles.js"></script><script defer src="/static/traces.js"></script><script defer src="/static/reviews.js"></script><script defer src="/static/jobs.js"></script><script defer src="/static/profile-comparison.js"></script><script defer src="/static/lecture-comparison.js"></script><script defer src="/static/layout.js"></script></head>
 <body>
 <header class="topbar"><div class="brand"><span class="brand-icon">知</span><div><strong>知页</strong><span>个性化讲义工作台</span></div></div><span class="demo-tag">文字版 · 本地 DEMO</span></header>
 <main>
- <div class="page-heading"><div><p class="eyebrow">备课工作台 / 初中数学</p><h1>同一个知识点，不同的讲法。</h1><p>根据学生知识状态，从课程材料生成一份有依据的讲义。</p></div><div class="connection" id="connection">正在连接数据库…</div></div>
+ <div class="page-heading"><div><p class="eyebrow" id="course-label">备课工作台</p><h1>同一个知识点，不同的讲法。</h1><p>根据学生知识状态，从课程材料生成一份有依据的讲义。</p></div><div class="connection" id="connection">正在连接数据库…</div></div>
+ <nav class="workspace-nav" aria-label="工作区导航"><a class="secondary" href="#lecture-results">阅读讲义</a><a class="secondary" href="#support-modules">画像与记录</a></nav>
  <div id="error" class="error" role="alert" hidden></div>
- <div class="workspace">
-  <aside>
+ <div class="workspace" id="workspace">
+  <aside id="settings-column" aria-label="讲义设置与状态">
    <section class="panel setup"><div class="section-heading"><h2>讲义设置</h2><span class="small-label">01</span></div>
     <form id="generate-form">
-     <label for="student">选择学生 <span>虚拟数据</span></label><select id="student" disabled></select>
-     <div id="student-profile" class="profile"></div>
-     <label for="topic">教学主题</label><select id="topic" disabled></select>
-     <label for="goal">本次教学目标</label><textarea id="goal" rows="3" maxlength="400"></textarea>
+     <div class="setup-field"><label for="topic">课程与教学任务</label><select id="topic" disabled></select><p id="task-level" class="helper"></p></div>
+     <div class="setup-field"><label for="student">选择学生 <span>虚拟数据</span></label><select id="student" disabled></select><div id="student-profile" class="profile"></div></div>
+     <div class="setup-field"><label for="personalization-mode">生成依据</label><select id="personalization-mode"><option value="profile">使用学生画像</option><option value="none">无画像对照 · 通用讲义</option></select></div>
+     <div class="setup-field setup-goal"><label for="goal">本次教学目标</label><textarea id="goal" rows="3" maxlength="400"></textarea></div>
+     <details class="scope-box"><summary>目标范围与材料覆盖</summary><div id="scope-check"><p class="helper">读取主题后展示。</p></div></details>
      <button class="primary" id="generate" type="submit" disabled>生成个性化讲义 <span>↗</span></button>
      <p id="progress" class="helper" role="status" aria-live="polite">读取学生状态与课程证据后生成。</p>
     </form>
    </section>
-   <section class="panel"><div class="section-heading"><h2>知识点掌握情况</h2><span class="small-label">02</span></div><div id="states" class="states"><p class="helper">正在读取…</p></div><p class="footnote">诊断记录为演示数据。生成讲义不会改变掌握状态。</p></section>
+   <div class="support-modules" id="support-modules">
+   <section class="panel"><div class="section-heading"><h2>本地配置</h2><button id="check-health" class="secondary" type="button">检测配置</button></div><p id="health-summary" class="helper" role="status">读取配置状态…</p></section>
+   <section class="panel"><div class="section-heading"><h2>后台任务</h2><button id="refresh-jobs" class="secondary" type="button">刷新任务</button></div><p class="helper">1 个任务处理，最多 3 个等待；仅本机单进程。提交时固定输入，刷新页面后可从任务恢复查看。</p><div id="jobs-list" class="history"></div></section>
+   <section class="panel"><div class="section-heading"><h2>知识点掌握情况</h2><button id="edit-profile" type="button" class="secondary" disabled>维护画像</button></div><p id="profile-view-note" class="helper"></p><div id="states" class="states"><p class="helper">正在读取…</p></div><p class="footnote">诊断记录为演示数据。状态由教师确认；生成讲义不会改变掌握状态。</p></section>
    <section class="panel"><div class="section-heading"><h2>最近生成</h2></div><div id="history" class="history"><p class="helper">暂无已保存讲义</p></div></section>
+   <section class="panel"><div class="section-heading"><h2>生成记录</h2><button id="refresh-runs" type="button" class="secondary">刷新</button></div><p class="helper">最近 10 次请求 · 包含失败记录</p><div id="generation-runs" class="history"><p class="helper">正在读取…</p></div></section>
+   </div>
   </aside>
-  <div class="result-column">
-   <section class="paper"><div class="paper-toolbar"><div><span class="paper-dot"></span><strong id="result-label">讲义预览</strong></div><button id="download" class="secondary" disabled>下载 Markdown</button></div>
+  <div id="layout-resizer" class="layout-resizer" role="separator" tabindex="0" aria-label="调整设置栏宽度" aria-orientation="vertical" aria-controls="settings-column lecture-results" aria-valuemin="280" aria-valuemax="440" aria-valuenow="330" aria-valuetext="设置栏宽度 330 像素" title="拖动调整宽度；左右方向键微调，Home/End 调到最小/最大，双击恢复默认"></div>
+  <div class="result-column" id="lecture-results">
+   <section class="paper"><div class="paper-toolbar"><div><span class="paper-dot"></span><strong id="result-label">讲义预览</strong></div><div class="paper-actions"><button id="edit-lecture" type="button" class="secondary" disabled>编辑与审核</button><button id="view-input" type="button" class="secondary" disabled>查看生成输入</button><button id="compare-profile" type="button" class="secondary" disabled>画像对照</button><button id="compare-lectures" type="button" class="secondary" disabled>讲义比较</button><button id="download" class="secondary" disabled>下载原稿 Markdown</button></div></div>
+    <div id="version-controls" class="version-controls" hidden><label for="lecture-version">阅读版本</label><select id="lecture-version"></select><p id="version-status" class="helper" role="status"></p></div>
+    <p id="input-trace-note" class="input-trace-note" hidden></p>
     <div id="empty" class="empty"><div class="page-symbol">Aa<span>＋</span></div><h2>从学生的起点出发</h2><p>选择一名学生，查看知识状态，<br>生成针对当前学习需要的讲义。</p><div class="steps"><span>学生状态</span><i>→</i><span>课程证据</span><i>→</i><span>专属讲义</span></div></div>
     <div id="loading" class="empty" hidden><div class="spinner"></div><h2>正在组织这份讲义</h2><p>Qwen 正在结合学生状态与课程材料生成。<br>完成后会自动保存到本地数据库。</p></div>
     <div id="lecture-meta" class="lecture-meta" hidden></div><article id="lecture" class="lecture" hidden></article>
     <div id="review-note" class="review-note" hidden></div>
    </section>
+   <section id="quality-panel" class="panel" hidden><div class="section-heading"><h2>输出检查与问题记录</h2><span id="quality-version" class="helper"></span></div><p id="quality-summary" class="current-summary"></p><h3>程序检查</h3><div id="automatic-checks"></div><h3 id="teacher-checks-title">待教师复核</h3><div id="teacher-checks"></div><details class="trace-section"><summary>逐处引用与对应材料</summary><div id="citation-checks"></div></details><h3>已记录的问题</h3><div id="lecture-issues"></div><p class="helper">自动检查不能证明数学正确性。问题记录指向明确的已保存版本；处理说明是修订记录者的判断。</p></section>
    <section class="panel sources-panel"><div class="section-heading"><div><h2>本次课程证据</h2><p class="helper">按主题知识点从 PostgreSQL 查询 · 中文整理，例题自编</p></div><span id="source-count" class="count">—</span></div><div id="sources" class="sources"></div></section>
   </div>
  </div>
  <footer><span>小规模验证：学生状态 → SQL 查询 → Qwen → 讲义</span><span id="model-label"></span></footer>
 </main>
+<dialog id="lecture-comparison-dialog" aria-labelledby="lecture-comparison-title">
+ <div class="editor-top"><div class="editor-heading"><div><h2 id="lecture-comparison-title">同目标讲义比较</h2><p id="lecture-comparison-status" class="helper" role="status" aria-live="polite"></p></div><button id="close-lecture-comparison" class="secondary" type="button">关闭</button></div><div id="lecture-comparison-error" class="error" role="alert" hidden></div></div>
+ <div class="dialog-body" id="lecture-comparison-content">
+  <p id="lecture-comparison-goal" class="current-summary"></p>
+  <form id="lecture-comparison-form">
+   <div class="lecture-compare-settings"><div><label for="lecture-comparison-left">左侧：当前讲义版本</label><select id="lecture-comparison-left" disabled></select></div><div><label for="lecture-comparison-other">右侧：同任务、同目标讲义</label><select id="lecture-comparison-other" disabled></select></div><div><label for="lecture-comparison-right">右侧版本</label><select id="lecture-comparison-right" disabled></select></div></div>
+   <div class="trace-actions lecture-compare-actions"><button id="apply-lecture-comparison" class="secondary" type="submit" disabled>比较所选版本</button><button id="reload-lecture-comparison" class="secondary" type="button">刷新可选记录</button></div>
+  </form>
+  <p id="lecture-comparison-options-note" class="helper"></p>
+  <div id="lecture-comparison-output" hidden>
+   <p id="lecture-comparison-warning" class="current-summary"></p>
+   <div id="lecture-comparison-controls" class="comparison-badges"></div>
+   <details class="trace-section"><summary>两侧的生成依据与原材料</summary><div id="lecture-comparison-basis" class="comparison-pair"></div></details>
+   <div class="comparison-controls lecture-compare-actions"><label for="lecture-comparison-section">阅读章节</label><select id="lecture-comparison-section"></select><label class="lecture-compare-check"><input id="lecture-comparison-differences" type="checkbox">只看有差异的章节</label></div>
+   <p id="lecture-comparison-summary" class="helper" role="status" aria-live="polite"></p><div id="lecture-comparison-sections"></div>
+   <p class="footnote">文字和行数差异用于定位内容，不代表数学正确、教学效果更好或节省教师用时。材料、版本及参数不同可能影响输出；修订是人工修改，未重新调用模型。原稿、画像、生成输入与审核状态保持原样。</p>
+  </div>
+ </div>
+</dialog>
+<dialog id="profile-comparison-dialog" aria-labelledby="profile-comparison-title">
+ <div class="editor-top">
+  <div class="editor-heading"><div><h2 id="profile-comparison-title">生成时与当前画像</h2><p id="profile-comparison-status" class="helper" role="status" aria-live="polite"></p></div><button id="close-profile-comparison" type="button" class="secondary">关闭</button></div>
+  <div id="profile-comparison-error" class="error" role="alert" hidden></div>
+  <div class="comparison-controls"><button id="reload-profile-comparison" type="button" class="secondary">刷新当前画像</button><label for="profile-comparison-filter">知识点显示</label><select id="profile-comparison-filter"><option value="all">全部知识点</option><option value="changed">只看已记录变化</option></select></div>
+ </div>
+ <div id="profile-comparison-content" class="dialog-body" hidden>
+  <p id="profile-comparison-note" class="current-summary"></p>
+  <section aria-labelledby="profile-comparison-student-title"><h3 id="profile-comparison-student-title">学生说明与学习特点</h3><p id="profile-comparison-student-changes" class="helper"></p><div id="profile-comparison-student" class="comparison-pair"></div></section>
+  <section aria-labelledby="profile-comparison-points-title"><h3 id="profile-comparison-points-title">知识点与讲解策略</h3><p id="profile-comparison-summary" class="helper" role="status" aria-live="polite"></p><div id="profile-comparison-points"></div></section>
+  <p class="footnote">这里比较生成依据的变化，不能据此判断讲义质量或学习效果。未知不代表薄弱；查看或生成讲义不会改变知识状态。旧讲义、修订稿和生成输入均保留原来的画像。</p>
+ </div>
+</dialog>
+<dialog id="profile-dialog" aria-labelledby="profile-editor-title">
+ <div class="editor-top">
+ <div class="editor-heading"><div><h2 id="profile-editor-title">维护学生画像</h2><p class="helper">记录虚拟学生的学习证据，由教师确认判断。历史讲义保留原来的画像。</p></div><button id="close-profile" type="button" class="secondary">关闭</button></div>
+ <div id="profile-error" class="error" role="alert" hidden></div>
+ <p id="profile-status" class="helper" role="status" aria-live="polite"></p>
+ <button id="reload-profile" type="button" class="secondary">保留输入，重新读取当前画像</button>
+ </div>
+ <div class="dialog-body" id="profile-editor-content" hidden>
+  <div class="editor-columns">
+   <section class="editor-section">
+    <h3>学生说明与学习特点</h3>
+    <p id="profile-current" class="current-summary"></p>
+    <form id="profile-form" class="editor-form">
+     <label for="profile-subtitle">学生说明</label><input id="profile-subtitle" name="subtitle" maxlength="80" required>
+     <label for="profile-text">学习特点</label><textarea id="profile-text" name="profile" rows="4" maxlength="600" required></textarea>
+     <label for="profile-recorder">录入者</label><input id="profile-recorder" name="recorder" maxlength="80" required>
+     <label for="profile-reason">修改理由</label><textarea id="profile-reason" name="reason" rows="2" maxlength="600" required></textarea>
+     <label class="check-row"><input id="profile-confirmed" name="confirmed" type="checkbox" required>我已确认修改理由与学习特点</label>
+     <button type="submit" class="primary">保存学生说明</button>
+    </form>
+   </section>
+   <section class="editor-section">
+    <h3>知识状态与诊断证据</h3>
+    <p class="helper">答对一次或阅读讲义不会自动变为已掌握。新旧证据冲突时可保留原判断，双方记录仍可查看。</p>
+    <form id="evidence-form" class="editor-form">
+     <label for="evidence-knowledge">知识点</label><select id="evidence-knowledge" name="knowledge_id" required></select>
+     <p id="evidence-current" class="current-summary"></p>
+     <label for="evidence-source">证据来源</label><select id="evidence-source" name="source"><option value="observation">课堂观察</option><option value="homework">作业</option><option value="quiz">测验</option><option value="teacher_review">教师复核</option></select>
+     <label for="evidence-task">任务或观察内容</label><textarea id="evidence-task" name="task_content" rows="2" maxlength="1200" required></textarea>
+     <label for="evidence-performance">学生表现</label><textarea id="evidence-performance" name="performance" rows="3" maxlength="2000" required></textarea>
+     <div class="field-pair"><div><label for="evidence-time">观察时间（本机时区）</label><input id="evidence-time" name="observed_at" type="datetime-local" required></div><div><label for="evidence-recorder">录入者</label><input id="evidence-recorder" name="recorder" maxlength="80" required></div></div>
+     <label for="evidence-decision">本次处理</label><select id="evidence-decision" name="decision"><option value="update">依据新证据确认状态</option><option value="retain">记录新证据，保留原判断并待复核</option></select>
+     <label for="evidence-state">教师确认的状态</label><select id="evidence-state" name="new_state"></select>
+     <p id="state-rule" class="helper"></p>
+     <label for="evidence-reason">确认理由</label><textarea id="evidence-reason" name="reason" rows="2" maxlength="600" required></textarea>
+     <label class="check-row"><input id="evidence-confirmed" name="confirmed" type="checkbox" required>我已核对证据，并确认本次状态判断</label>
+     <button type="submit" class="primary">保存证据与判断</button>
+    </form>
+   </section>
+  </div>
+  <section class="editor-section editor-history"><h3>诊断证据与状态历史</h3><p id="evidence-history-count" class="helper"></p><div id="evidence-history"></div></section>
+  <section class="editor-section editor-history"><h3>学生说明修改历史</h3><p class="helper">展示最近 20 次修改，原说明和理由均保留。</p><div id="profile-history"></div></section>
+ </div>
+</dialog>
+<dialog id="trace-dialog" aria-labelledby="trace-title">
+ <div class="editor-top">
+  <div class="editor-heading"><div><h2 id="trace-title">生成输入与结果记录</h2><p id="trace-status" class="helper" role="status" aria-live="polite"></p></div><button id="close-trace" type="button" class="secondary">关闭</button></div>
+  <div class="trace-actions"><button id="reload-trace" type="button" class="secondary">刷新本条记录</button><a id="download-input" class="secondary" hidden>下载输入 JSON</a><button id="retry-run" class="secondary" type="button" hidden>按原输入重试</button></div>
+ </div>
+ <div class="dialog-body">
+ <div id="trace-dialog-error" class="error" role="alert" hidden></div>
+ <div id="trace-content" hidden>
+  <p id="trace-call-note" class="current-summary"></p>
+  <dl id="trace-metadata" class="trace-metadata"></dl>
+  <section class="trace-section"><h3>本次要求与生成依据</h3><pre id="trace-context-summary" class="trace-text"></pre></section>
+  <section class="trace-section"><h3>系统提示词全文</h3><pre id="trace-system" class="trace-text"></pre></section>
+  <details class="trace-section"><summary>动态用户消息原文</summary><pre id="trace-user" class="trace-text"></pre></details>
+  <details class="trace-section"><summary>模型与请求参数</summary><pre id="trace-parameters" class="trace-text"></pre></details>
+  <details class="trace-section"><summary>完整请求体原文</summary><pre id="trace-body" class="trace-text"></pre></details>
+  <section id="trace-output-section" class="trace-section" hidden><h3 id="trace-output-title"></h3><pre id="trace-output" class="trace-text"></pre></section>
+ </div>
+ </div>
+</dialog>
+<dialog id="lecture-editor" aria-labelledby="lecture-editor-title">
+ <div class="editor-top"><div class="editor-heading"><div><h2 id="lecture-editor-title">编辑与审核讲义</h2><p id="lecture-editor-base" class="helper"></p></div><button id="close-lecture-editor" class="secondary" type="button">关闭</button></div><div id="lecture-editor-error" class="error" role="alert" hidden></div><p id="lecture-editor-status" class="helper" role="status" aria-live="polite"></p><button id="reload-lecture-review" class="secondary" type="button">保留输入，重新读取审核记录</button></div>
+ <div class="dialog-body" id="lecture-editor-content" hidden>
+  <form id="revision-form" class="editor-form">
+   <label for="revision-content">讲义正文（Markdown）</label><textarea id="revision-content" rows="18" maxlength="16000" required></textarea><p class="helper">另存修订版本，原稿保留。最多 16,000 字符；历史生成输入仍对应原稿。</p>
+   <div class="field-pair"><div><label for="revision-status">保存时审核状态</label><select id="revision-status"><option value="draft">草稿</option><option value="needs_revision">待修订</option><option value="reviewed">教师已审核</option></select></div><div><label for="revision-recorder">记录者</label><input id="revision-recorder" maxlength="80" required></div></div>
+   <label for="revision-reason">修改或复核理由</label><textarea id="revision-reason" rows="2" maxlength="1500" required></textarea>
+   <label for="revision-seconds">实际审核/修改用时（秒，记录者填写）</label><input id="revision-seconds" type="number" min="0" max="86400" step="1" value="0" required><p class="helper">0 表示未记录实际用时，不将窗口打开时长当作有效工作量。</p>
+   <fieldset class="review-fieldset"><legend>教师复核项</legend><div id="revision-checklist"></div></fieldset>
+   <fieldset class="review-fieldset"><legend>已记录问题的本次处理</legend><div id="revision-resolutions"></div><p class="helper">勾选已处理并填写理由。标记“教师已审核”须确认全部检查项、说明全部问题处理，并修正无效引用编号。</p></fieldset>
+   <label class="check-row"><input id="revision-confirmed" type="checkbox" required>我已确认本次正文、状态、处理理由与用时记录</label><button id="save-revision" class="primary" type="submit">另存修订版本</button>
+  </form>
+  <section class="editor-history"><h3>记录具体问题与引用判断</h3><p id="issue-base-note" class="helper"></p><form id="issue-form" class="editor-form">
+   <label for="issue-category">问题类型</label><select id="issue-category"><option value="math">数学运算或条件</option><option value="terminology">术语</option><option value="citation_support">引用支持</option><option value="scope">目标或知识范围</option><option value="structure">结构或篇幅</option><option value="other">其他</option></select>
+   <label for="issue-excerpt">准确原文片段（复制所选已保存版本）</label><textarea id="issue-excerpt" rows="2" maxlength="1200" required></textarea>
+   <div id="issue-source-fields" hidden><label for="issue-material">对应材料快照</label><select id="issue-material"></select><p id="issue-material-content" class="current-summary"></p><label for="issue-support">引用支持判断</label><select id="issue-support"><option value="unreviewed">尚未核查</option><option value="supported">支持</option><option value="unsupported">不支持</option><option value="unclear">依据不足或不确定</option></select></div>
+   <label for="issue-detail">问题说明、判断依据与修改建议</label><textarea id="issue-detail" rows="3" maxlength="1500" required></textarea><label for="issue-recorder">问题记录者</label><input id="issue-recorder" maxlength="80" required><label class="check-row"><input id="issue-confirmed" type="checkbox" required>我已核对原文位置及问题依据</label><button id="save-issue" class="primary" type="submit">保存问题记录</button>
+  </form></section>
+  <section class="editor-history"><h3>版本、修改位置与审核记录</h3><div id="revision-history"></div></section>
+ </div>
+</dialog>
 </body></html>
