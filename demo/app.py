@@ -1,5 +1,7 @@
 """Local-only PostgreSQL + Qwen teaching prototype. No vector or vision models."""
+import html
 import os
+from io import BytesIO
 import re
 import time
 from urllib.parse import quote
@@ -432,6 +434,187 @@ def database_error(_error):
     return jsonify(error='数据库暂不可用。请检查本机 PostgreSQL，并运行初始化命令。'),503
 
 
+def build_reference_text(row):
+    sources = '\n'.join(
+        f'- [M{m["id"]}] {m["source_title"]}: {m["source_url"]}\n  {m["section"]}'
+        for m in row['context']['materials']
+    )
+    warning = row['citation_check'].get('review_warning', '')
+    text = row.get('export_note', '') + row['content'] + '\n\n## 参考材料\n\n' + sources
+    text += '\n\n说明：虚拟学生演示；模型生成内容需人工审核。\n'
+    if warning:
+        text += '\n审核提醒：' + warning + '\n'
+    return text
+
+
+def build_export_text(row):
+    """用于 txt 下载：把 Markdown 标记去掉一部分，保持可读。"""
+    content = build_reference_text(row)
+    lines = []
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith('#'):
+            stripped = stripped.lstrip('#').strip()
+        if stripped.startswith('- ') or stripped.startswith('* '):
+            stripped = '· ' + stripped[2:]
+        lines.append(stripped)
+    return '\n'.join(lines)
+
+
+def build_export_html(row):
+    """把模型返回的 Markdown 做保守转换；所有模型文本都先转义。"""
+    body_parts = []
+    in_list = False
+
+    def inline_markdown(text):
+        text = html.escape(text)
+        text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+        text = re.sub(r'\[M(\d+)\]', r'<span class="citation">[M\1]</span>', text)
+        return text
+
+    for raw in row['content'].splitlines():
+        line = raw.strip()
+        if not line:
+            if in_list:
+                body_parts.append('</ul>')
+                in_list = False
+            continue
+
+        heading = re.match(r'^(#{1,3})\s+(.+)$', line)
+        item = re.match(r'^([-*]|\d+[.、])\s+(.+)$', line)
+
+        if heading:
+            if in_list:
+                body_parts.append('</ul>')
+                in_list = False
+            level = len(heading.group(1))
+            body_parts.append(f'<h{level}>{inline_markdown(heading.group(2))}</h{level}>')
+        elif item:
+            if not in_list:
+                body_parts.append('<ul>')
+                in_list = True
+            body_parts.append(f'<li>{inline_markdown(item.group(2))}</li>')
+        else:
+            if in_list:
+                body_parts.append('</ul>')
+                in_list = False
+            body_parts.append(f'<p>{inline_markdown(line)}</p>')
+
+    if in_list:
+        body_parts.append('</ul>')
+
+    sources_html = []
+    for m in row['context']['materials']:
+        sources_html.append(
+            '<li>'
+            f'<strong>[M{m["id"]}]</strong> '
+            f'{html.escape(m["source_title"])}：'
+            f'<a href="{html.escape(m["source_url"])}" target="_blank" rel="noopener noreferrer">'
+            f'{html.escape(m["source_url"])}</a>'
+            f'<br><span>{html.escape(m["section"])}</span>'
+            '</li>'
+        )
+
+    warning = row['citation_check'].get('review_warning', '')
+    warning_html = f'<p class="warning">审核提醒：{html.escape(warning)}</p>' if warning else ''
+    student_name = html.escape(row['context']['student']['name'])
+    topic_title = html.escape(row['context']['topic']['title'])
+
+    return f'''<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>{student_name} · {topic_title}</title>
+<style>
+body {{ font-family: -apple-system, BlinkMacSystemFont, "Noto Sans SC", "Microsoft YaHei", sans-serif;
+       max-width: 820px; margin: 40px auto; padding: 0 24px; line-height: 1.9; color: #162235; }}
+h1 {{ font-size: 28px; }}
+h2 {{ font-size: 20px; margin-top: 32px; border-bottom: 1px solid #e4e8ef; padding-bottom: 8px; }}
+.citation {{ color: #2858dc; font-size: 13px; font-weight: 600; }}
+.meta {{ color: #68758a; font-size: 13px; margin-bottom: 28px; }}
+.warning {{ background: #f3f6fb; padding: 12px 15px; border-radius: 6px; color: #66738a; font-size: 13px; }}
+a {{ color: #4268ba; }}
+</style>
+</head>
+<body>
+<h1>{topic_title}</h1>
+<p class="meta">学生：{student_name} · 模型：{html.escape(row['model'])} · 已保存 #{row['id']}</p>
+<p class="meta" style="white-space:pre-wrap">{html.escape(row.get('export_note', ''))}</p>
+{''.join(body_parts)}
+<h2>{html.escape(row.get('source_heading', '参考材料'))}</h2>
+<ul>{''.join(sources_html)}</ul>
+<p class="meta">说明：虚拟学生演示；模型生成内容需人工审核。</p>
+{warning_html}
+</body>
+</html>'''
+
+
+def build_export_docx(row):
+    from docx import Document
+    from docx.shared import Pt
+
+    doc = Document()
+    style = doc.styles['Normal']
+    style.font.name = 'Noto Sans SC'
+    style.font.size = Pt(11)
+
+    if row.get('export_note'):
+        doc.add_paragraph(row['export_note'])
+
+    for raw in row['content'].splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith('### '):
+            doc.add_heading(line[4:].strip(), level=3)
+        elif line.startswith('## '):
+            doc.add_heading(line[3:].strip(), level=2)
+        elif line.startswith('# '):
+            doc.add_heading(line[2:].strip(), level=1)
+        elif line.startswith('- ') or line.startswith('* '):
+            doc.add_paragraph(line[2:].strip(), style='List Bullet')
+        else:
+            doc.add_paragraph(line)
+
+    doc.add_heading(row.get('source_heading', '参考材料'), level=2)
+    for m in row['context']['materials']:
+        doc.add_paragraph(
+            f'[M{m["id"]}] {m["source_title"]}: {m["source_url"]} — {m["section"]}',
+            style='List Bullet'
+        )
+
+    doc.add_paragraph('说明：虚拟学生演示；模型生成内容需人工审核。')
+    warning = row['citation_check'].get('review_warning', '')
+    if warning:
+        doc.add_paragraph('审核提醒：' + warning)
+
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+
+def export_response(row, markdown, note, filename):
+    fmt = request.args.get('format', 'md').lower()
+    if fmt not in {'md', 'txt', 'html', 'docx'}:
+        return jsonify(error='不支持的下载格式。'), 400
+    export_row = {**row, 'export_note': note}
+    if fmt == 'md':
+        content, mime = markdown, 'text/markdown; charset=utf-8'
+    elif fmt == 'txt':
+        content, mime = build_export_text(export_row), 'text/plain; charset=utf-8'
+    elif fmt == 'html':
+        content, mime = build_export_html(export_row), 'text/html; charset=utf-8'
+    else:
+        content = build_export_docx(export_row).getvalue()
+        mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    response = Response(content, content_type=mime)
+    name = filename + '.' + fmt
+    response.headers['Content-Disposition'] = (
+        f"attachment; filename=lecture-{row['id']}.{fmt}; filename*=UTF-8''{quote(name)}")
+    return response
+
+
 @app.get('/api/lectures/<int:lecture_id>/download')
 def download_lecture(lecture_id):
     with db() as conn:
@@ -444,10 +627,8 @@ def download_lecture(lecture_id):
     content = '导出版本：模型原稿 #'+str(lecture_id)+'；审核状态：原稿未审核（教师修订另行导出）。\n\n'+row['content']+'\n\n## 参考材料\n\n'+sources+'\n\n说明：虚拟学生演示；模型生成内容需人工审核。\n'
     if warning:
         content += '\n审核提醒：'+warning+'\n'
-    name = f'{row["context"]["student"]["name"]}-讲义-{lecture_id}.md'
-    response = Response(content, content_type='text/markdown; charset=utf-8')
-    response.headers['Content-Disposition'] = f"attachment; filename=lecture-{lecture_id}.md; filename*=UTF-8''{quote(name)}"
-    return response
+    note = '导出版本：模型原稿 #'+str(lecture_id)+'；审核状态：原稿未审核（教师修订另行导出）。\n\n'
+    return export_response(row, content, note, f'{row["context"]["student"]["name"]}-讲义-{lecture_id}')
 
 
 @app.get('/api/lectures/<int:lecture_id>/revisions/<int:number>/download')
@@ -459,15 +640,16 @@ def download_revision(lecture_id, number):
         revision = version_row(conn, lecture, number)
     sources = '\n'.join(f'- [M{m["id"]}] {m["source_title"]}: {m["source_url"]}\n  {m["section"]}' for m in lecture['context']['materials'])
     duration = f'{revision["review_seconds"]} 秒' if revision['review_seconds'] else '未记录'
-    content = (f'导出版本：教师修订稿，讲义 #{lecture_id} / R{number}\n'
+    note = (f'导出版本：教师修订稿，讲义 #{lecture_id} / R{number}\n'
                f'保存时审核状态：{STATUS_LABELS[revision["status"]]}\n'
                f'记录者：{revision["recorder"]}；保存时间：{revision["created_at"].isoformat()}\n'
-               f'修改理由：{revision["reason"]}\n审核/修改用时（记录者自报）：{duration}\n\n'
-               + revision['content'] + '\n\n## 参考材料（原生成时快照）\n\n' + sources
+               f'修改理由：{revision["reason"]}\n审核/修改用时（记录者自报）：{duration}\n\n')
+    content = (note + revision['content'] + '\n\n## 参考材料（原生成时快照）\n\n' + sources
                + '\n\n说明：虚拟学生演示；审核状态为该版本保存时的教师记录，不是程序质量认证。\n')
-    response = Response(content, content_type='text/markdown; charset=utf-8')
-    response.headers['Content-Disposition'] = f'attachment; filename=lecture-{lecture_id}-R{number}.md'
-    return response
+    export_row = {**lecture, 'content': revision['content'],
+                  'source_heading': '参考材料（原生成时快照）',
+                  'citation_check': {'review_warning': '审核状态为该版本保存时的教师记录，不是程序质量认证。'}}
+    return export_response(export_row, content, note, f'lecture-{lecture_id}-R{number}')
 
 
 if __name__ == '__main__':

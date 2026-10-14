@@ -65,7 +65,7 @@ function issueCards(issues, resolutions, container) {
 function clearLectureReview(){
   reviewSession++;scopeSession++;reviewLecture=null;lectureReviewData=null;selectedRevision=0;
   $('edit-lecture').disabled=true;$('version-controls').hidden=true;$('quality-panel').hidden=true;
-  $('download').textContent='下载原稿 Markdown';
+  updateDownloadLabel();
 }
 function setReviewBusy(value){$('edit-lecture').disabled=value||!lectureReviewData;$('lecture-version').disabled=value;}
 function currentReviewVersion(){return selectedRevision===0?lectureReviewData?.original:lectureReviewData?.revisions.find(r=>r.revision_number===selectedRevision);}
@@ -94,7 +94,7 @@ function showReviewVersion(number){
   const r={...reviewLecture,content:version.content,revision_number:number,review_status:version.status};
   if(number){r.quality_report=version.quality_report;r.quality_report_origin='修订保存时检查';r.citation_check={has_citations:!!version.quality_report.citation_locations.length,quality_report:version.quality_report};}
   showResult(r,false);drawQuality(r.quality_report||r.citation_check.quality_report,r.quality_report_origin||'生成时留存',number?version:null);drawVersionControls();
-  $('download').textContent=number?`下载 R${number} Markdown`:'下载原稿 Markdown';
+  updateDownloadLabel();
   if(number){$('lecture-meta').textContent=`教师修订 R${number} · ${statusLabels[version.status]}（保存时记录） · ${version.recorder} · ${new Date(version.created_at).toLocaleString('zh-CN')}`;$('review-note').textContent='审核状态和问题处理是记录者在该版本保存时的判断；程序检查不能证明内容正确，新增问题另行显示。';const trace=$('input-trace-note');trace.textContent+=' 当前正文为教师修订，生成输入对应模型原稿。';}
 }
 $('lecture-version').onchange=()=>showReviewVersion(Number($('lecture-version').value));

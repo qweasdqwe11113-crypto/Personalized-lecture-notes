@@ -34,10 +34,10 @@ except psycopg.OperationalError:
             print('Using existing demo database; preserving records.')
 else:
     print('Using existing demo database; preserving records.')
-seeds = [json.loads((ROOT / 'demo' / name).read_text()) for name in ('seed.json', 'university_seed.json')]
+seeds = [json.loads((ROOT / 'demo' / name).read_text(encoding='utf-8')) for name in ('seed.json', 'university_seed.json')]
 seed = {key: [row for source in seeds for row in source[key]] for key in seeds[0]}
 with psycopg.connect(dsn, row_factory=dict_row) as conn:
-    conn.execute((ROOT / 'demo/schema.sql').read_text())
+    conn.execute((ROOT / 'demo/schema.sql').read_text(encoding='utf-8'))
     for r in seed['students']:
         conn.execute('INSERT INTO students (id,name,subtitle,profile) VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING',
                      (r['id'], r['name'], r['subtitle'], r['profile']))
