@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>知页 · 教学工作空间</title><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/layout.css"><script defer src="/static/app.js"></script><script defer src="/static/profiles.js"></script><script defer src="/static/traces.js"></script><script defer src="/static/reviews.js"></script><script defer src="/static/jobs.js"></script><script defer src="/static/profile-comparison.js"></script><script defer src="/static/lecture-comparison.js"></script><script defer src="/static/layout.js"></script><script defer src="/static/navigation.js"></script><link rel="stylesheet" href="/static/workspace.css"><script defer src="/static/uploads.js"></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>知页 · 教学工作空间</title><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/layout.css"><script defer src="/static/app.js"></script><script defer src="/static/profiles.js"></script><script defer src="/static/traces.js"></script><script defer src="/static/reviews.js"></script><script defer src="/static/jobs.js"></script><script defer src="/static/profile-comparison.js"></script><script defer src="/static/lecture-comparison.js"></script><script defer src="/static/layout.js"></script><script defer src="/static/navigation.js"></script><link rel="stylesheet" href="/static/workspace.css"><script defer src="/static/uploads.js"></script><script defer src="/static/vision.js"></script><link rel="stylesheet" href="/static/vision.css"></head>
 <body>
 <aside class="app-sidebar" aria-label="主导航">
  <a class="brand" href="#workbench"><span class="brand-icon">知</span><div><strong>知页</strong><span>教学工作空间</span></div></a>
@@ -31,6 +31,7 @@
      <div class="setup-field"><label for="personalization-mode">生成依据</label><select id="personalization-mode"><option value="profile">使用学生画像</option><option value="none">无画像对照 · 通用讲义</option></select></div>
      <div class="setup-field"><label for="retrieval-mode">材料取用方式</label><select id="retrieval-mode"><option value="sql">精确 SQL · 取该知识点全部材料</option><option value="vector">向量检索 · 按本次目标取片段</option></select><p id="retrieval-note" class="helper" role="status" aria-live="polite">选择向量检索后自动准备资料索引。</p></div>
      <div class="setup-field setup-goal"><label for="goal">本次教学目标</label><textarea id="goal" rows="3" maxlength="400"></textarea></div>
+     <div class="setup-field setup-goal"><label>图片解析依据 <span>选填，最多 4 张</span></label><p class="helper">先在「上传资料」中解析图片，再选择用于本次讲义的解析。原图仅发送给本地视觉模型；语言模型只接收解析文字。</p><button id="refresh-visual-evidence" type="button" class="secondary">刷新图片解析</button><div id="visual-evidence-options" class="visual-options"></div></div>
      <details class="scope-box"><summary>目标范围与材料覆盖</summary><div id="scope-check"><p class="helper">读取主题后展示。</p></div></details>
      <button class="primary" id="generate" type="submit" disabled>生成个性化讲义 <span>↗</span></button>
      <p id="progress" class="helper" role="status" aria-live="polite">读取学生状态与课程证据后生成。</p>
@@ -68,7 +69,7 @@
     <div class="upload-tabs" role="tablist" aria-label="资料上传模式"><button id="upload-file-tab" role="tab" aria-selected="true" aria-controls="upload-file-pane" type="button">本地上传</button><button id="upload-url-tab" role="tab" aria-selected="false" aria-controls="upload-url-pane" tabindex="-1" type="button">网址上传</button></div>
     <form id="upload-file-pane" role="tabpanel" aria-labelledby="upload-file-tab">
      <label for="upload-file-title">资料名称 <span>选填，默认使用文件名</span></label><input id="upload-file-title" maxlength="120" placeholder="例如：一元一次方程教学参考">
-     <label class="upload-dropzone" id="upload-dropzone" for="upload-file"><span class="upload-symbol" aria-hidden="true">↥</span><strong>点击选择文件，或拖拽到这里</strong><span>支持 TXT、MD、PDF、DOCX · 单个文件不超过 10 MB</span><input id="upload-file" type="file" accept=".txt,.md,.pdf,.docx" required></label>
+     <label class="upload-dropzone" id="upload-dropzone" for="upload-file"><span class="upload-symbol" aria-hidden="true">↥</span><strong>点击选择文件，或拖拽到这里</strong><span>支持 TXT、MD、PDF、DOCX 和图片 · 单个文件不超过 10 MB，最多 8 张插图</span><input id="upload-file" type="file" accept=".txt,.md,.pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp,.gif,.tif,.tiff" required></label>
      <p id="upload-file-selection" class="helper" role="status">尚未选择文件</p>
      <button id="upload-file-submit" type="submit" class="primary">上传并解析资料 <span>↗</span></button>
     </form>
@@ -80,7 +81,7 @@
     </form>
     <p id="upload-status" class="upload-status" role="status" aria-live="polite" hidden></p>
    </section>
-   <aside class="panel upload-guide"><span class="intro-icon" aria-hidden="true">▤</span><h2>让教学资料井然有序</h2><p>上传资料后，系统会提取文字并保存原文件，方便预览和再次下载。</p><ul><li>本地上传：教案、参考材料和文字版讲义</li><li>网址上传：公开文章与文档链接</li><li>扫描版 PDF 需先进行文字识别</li></ul><p class="footnote">资料保存到本地上传库。当前讲义生成仍使用「课程材料」中的教学证据。</p></aside>
+   <aside class="panel upload-guide"><span class="intro-icon" aria-hidden="true">▤</span><h2>让教学资料井然有序</h2><p>保存原文件、提取正文与插图。点击资料旁的「图片识读」，使用本地视觉模型解析。</p><ul><li>支持直接上传图片、PDF 内嵌图片及 DOCX 插图</li><li>图片识读结果需核对公式、数值与单位</li><li>扫描 PDF 仅识读提取出的图片，不渲染整页或矢量图</li></ul><p class="footnote">在讲义工作台选择解析后生成。文字课程材料仍按 SQL 或向量检索提供。</p></aside>
   </div>
   <section class="panel upload-library"><div class="section-heading"><div><h2>已上传资料</h2><p class="helper">最近 100 条资料 · 保存原文件与提取正文</p></div><button id="refresh-uploads" type="button" class="secondary">刷新列表</button></div><div id="upload-list"><p class="helper">正在读取资料…</p></div></section>
  </section>
@@ -117,7 +118,7 @@
  </section>
  <footer><span>知页 · 让教学更有针对性</span><span id="model-label"></span></footer>
 </main>
-<dialog id="upload-preview-dialog" aria-labelledby="upload-preview-title"><div class="editor-top"><div class="editor-heading"><div><h2 id="upload-preview-title">资料预览</h2><p id="upload-preview-meta" class="helper"></p></div><button id="close-upload-preview" class="secondary" type="button">关闭</button></div></div><div class="dialog-body"><pre id="upload-preview-content" class="upload-preview-text"></pre></div></dialog>
+<dialog id="upload-preview-dialog" aria-labelledby="upload-preview-title"><div class="editor-top"><div class="editor-heading"><div><h2 id="upload-preview-title">资料预览</h2><p id="upload-preview-meta" class="helper"></p></div><button id="close-upload-preview" class="secondary" type="button">关闭</button></div></div><div class="dialog-body"><pre id="upload-preview-content" class="upload-preview-text"></pre><div id="upload-preview-images"></div></div></dialog>
 <dialog id="lecture-comparison-dialog" aria-labelledby="lecture-comparison-title">
  <div class="editor-top"><div class="editor-heading"><div><h2 id="lecture-comparison-title">同目标讲义比较</h2><p id="lecture-comparison-status" class="helper" role="status" aria-live="polite"></p></div><button id="close-lecture-comparison" class="secondary" type="button">关闭</button></div><div id="lecture-comparison-error" class="error" role="alert" hidden></div></div>
  <div class="dialog-body" id="lecture-comparison-content">

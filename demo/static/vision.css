@@ -1,0 +1,8 @@
+.visual-options { max-height: 300px; overflow: auto; margin-top: 12px; }
+.visual-option { display: flex; align-items: start; gap: 8px; margin: 14px 0 6px; }
+.visual-option input { width: auto; margin: 3px 0; }
+.visual-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
+.visual-card { border-top: 1px solid #e1e6f0; padding: 20px 0; }
+.visual-card img, .visual-evidence-result img { display: block; max-width: 100%; max-height: 340px; object-fit: contain; margin: 12px 0; }
+.visual-evidence-result { border-top: 1px solid #e1e6f0; margin-top: 24px; padding-top: 16px; }
+.visual-evidence-result .helper { overflow-wrap: anywhere; }

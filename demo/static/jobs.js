@@ -49,7 +49,7 @@ $('generate-form').onsubmit=async e=>{
  e.preventDefault();if(busy||!current)return;
  setBusy(true);error('');$('progress').textContent='正在提交并固定输入…';
  try{
-  const job=await api('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:Number($('student').value),topic:$('topic').value,goal:$('goal').value,personalization_mode:$('personalization-mode').value,retrieval_mode:$('retrieval-mode').value})});
+  const job=await api('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:Number($('student').value),topic:$('topic').value,goal:$('goal').value,personalization_mode:$('personalization-mode').value,retrieval_mode:$('retrieval-mode').value,visual_analysis_ids:typeof selectedVisualAnalyses==='function'?selectedVisualAnalyses():[]})});
   await refreshJobs();await watchJob(job.id);
  }catch(e){error(e.message);setBusy(false);}
 };

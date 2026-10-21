@@ -1,4 +1,4 @@
-"""Local-only PostgreSQL + Qwen teaching prototype. No vector or vision models."""
+"""Local teaching workspace with separate language, vision and embedding services."""
 import html
 import os
 from io import BytesIO
@@ -16,6 +16,7 @@ from flask import Flask, Response, jsonify, render_template, request
 from profiles import (ProfileError, compare_lecture_profile, decorate_states, evidence_history, get_profile,
                       record_evidence, update_profile)
 from prompts import prepare_request
+from vision import selected_evidence
 from qwen import ModelError, ModelResult, call_qwen, config_flags
 from runs import create_run, fail_run, mark_attempt, recent_runs, run_detail, save_success
 from quality import assess_scope, check_output
@@ -221,14 +222,16 @@ def generate():
     if retrieval_mode not in RETRIEVAL_MODES:
         return jsonify(error='请选择精确 SQL 或向量检索。'), 400
     goal = goal.strip() or TOPICS[topic_key]['goal']
+    evidence = selected_evidence(ROOT, data.get('visual_analysis_ids', []))
     if not GENERATION_LOCK.acquire(blocking=False):
         return jsonify(error='已有讲义正在生成，请等待完成后再试。'), 429
-    result, status = generate_locked(sid, topic_key, goal, mode, retrieval_mode=retrieval_mode)
+    result, status = generate_locked(sid, topic_key, goal, mode, retrieval_mode=retrieval_mode,
+                                     visual_evidence=evidence)
     return jsonify(result), status
 
 
 def generate_locked(sid, topic_key, goal, mode='profile', frozen=None, prepared=None, run_id=None,
-                    job_id=None, retrieval_mode='sql'):
+                    job_id=None, retrieval_mode='sql', visual_evidence=None):
     # Caller owns GENERATION_LOCK; release it for every result and exception.
     output, check, stage = ModelResult(''), {}, 'preparation'
     start = time.monotonic()
@@ -236,6 +239,8 @@ def generate_locked(sid, topic_key, goal, mode='profile', frozen=None, prepared=
         ctx = frozen or get_context(sid, topic_key, mode, retrieval_mode)
         if not ctx:
             return {'error': '学生不存在。'}, 404
+        if frozen is None and visual_evidence:
+            ctx['visual_evidence'] = visual_evidence
         if frozen is None:
             ctx['scope_check'] = assess_scope(ctx, goal)
         prepared = prepared or prepare_request(ctx, goal, MODEL)
@@ -341,6 +346,9 @@ def submit_job():
     ctx = get_context(sid, topic, mode, retrieval_mode)
     if not ctx:
         raise JobError('学生不存在。', 404)
+    evidence = selected_evidence(ROOT, request.get_json().get('visual_analysis_ids', []))
+    if evidence:
+        ctx['visual_evidence'] = evidence
     ctx['scope_check'] = assess_scope(ctx, goal)
     return jsonify(TASKS.submit(sid, topic, goal, ctx, prepare_request(ctx, goal, MODEL))), 202
 

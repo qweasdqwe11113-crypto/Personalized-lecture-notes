@@ -92,6 +92,12 @@ def check_output(content, context, goal):
         add('retrieval_usage', '召回片段的引用情况', not missing,
             '以下本次召回的材料未在正文引用：' + '、'.join('M' + item for item in missing) if missing
             else '本次召回的材料在正文中都出现了编号；不代表引用位置恰当或内容被正确理解。')
+    if context.get('visual_evidence'):
+        available = {item['citation_id'] for item in context['visual_evidence']}
+        used = set(re.findall(r'\[(V\d+)\]', content))
+        add('visual_citations', '图片解析引用', bool(used) and used <= available,
+            '已引用有效图片解析编号；识读与引用支持关系仍需教师核对。' if used and used <= available else
+            '未引用图片解析或存在无效图片编号；图片可能与本次目标无关，请核对。')
     return {'version': scope['version'], 'metrics': {'chinese_characters': chinese, 'line_count': len(content.splitlines())},
             'scope': scope, 'automatic': checks, 'citation_locations': citations,
             'teacher_review': [{'code': key, 'label': label, 'status': 'needs_review'} for key, label in REVIEW_ITEMS.items()],

@@ -14,6 +14,8 @@ from urllib.parse import urljoin, urlsplit, unquote, quote
 from zipfile import ZipFile, BadZipFile
 
 from flask import jsonify, request, send_file
+import assets
+from vision import VisionError, prepare_images, store_images, register_vision
 
 MAX_BYTES = 10 * 1024 * 1024
 MAX_TEXT = 200000
@@ -167,6 +169,7 @@ def read_upload(root, upload_id):
 
 
 def register_uploads(app, root):
+    register_vision(app, root)
     store = Path(root) / '.runtime' / 'uploads.sqlite3'
 
     def connect():
@@ -200,7 +203,7 @@ def register_uploads(app, root):
                 raw = file.read(MAX_BYTES + 1)
                 if not raw or len(raw) > MAX_BYTES:
                     raise ImportError('文件不能为空，且不能超过 10 MB。')
-                content = extract(raw, filename)
+                content = '' if Path(filename).suffix.lower() in assets.EXTENSIONS else extract(raw, filename)
                 title = request.form.get('title', '').strip() or Path(filename).stem
                 kind, source_url = 'file', ''
             else:
@@ -229,8 +232,9 @@ def register_uploads(app, root):
                     raise ImportError('资料名称格式不正确。')
                 title = custom_title.strip() or title
                 kind = 'url'
+            images = prepare_images(raw, filename)
             content = content.strip()
-            if not content or '\x00' in content:
+            if (not content and not images) or '\x00' in content:
                 raise ImportError('未提取到有效文字。扫描版 PDF 请先进行文字识别。')
             if len(content) > MAX_TEXT:
                 raise ImportError('资料正文超过 20 万字符，请拆分后上传。')
@@ -241,8 +245,9 @@ def register_uploads(app, root):
                           created_at=datetime.now(timezone.utc).isoformat())
             with closing(connect()) as conn, conn:
                 conn.execute('INSERT INTO uploads VALUES (:id,:title,:filename,:kind,:source_url,:content,:raw,:created_at)', record)
-            return jsonify(upload={**summary(record), 'characters': len(content)}), 201
-        except ImportError as exc:
+                store_images(conn, record['id'], images)
+            return jsonify(upload={**summary(record), 'characters': len(content), 'images': len(images)}), 201
+        except (ImportError, VisionError) as exc:
             return jsonify(error=str(exc)), 400
 
     @app.get('/api/uploads/<upload_id>')

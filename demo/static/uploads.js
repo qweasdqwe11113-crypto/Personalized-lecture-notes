@@ -46,11 +46,12 @@
         const info = el('div', undefined, 'upload-row-info');
         const preview = el('button', item.title, 'upload-preview-button'); preview.type = 'button';
         preview.onclick = async () => {
-          try { const data = await api('/api/uploads/' + item.id); $('upload-preview-title').textContent = data.upload.title; $('upload-preview-meta').textContent = item.kind === 'url' ? item.source_url : item.filename; $('upload-preview-content').textContent = data.upload.content; $('upload-preview-dialog').showModal(); } catch (e) { status(e.message, true); }
+          try { const data = await api('/api/uploads/' + item.id); $('upload-preview-title').textContent = data.upload.title; $('upload-preview-meta').textContent = item.kind === 'url' ? item.source_url : item.filename; $('upload-preview-content').textContent = data.upload.content; $('upload-preview-images').replaceChildren(); $('upload-preview-dialog').showModal(); await showUploadImages(item.id); } catch (e) { status(e.message, true); }
         };
         info.append(preview, el('p', `${item.kind === 'url' ? '网址导入' : '本地上传'} · ${item.characters.toLocaleString()} 字符 · ${new Date(item.created_at).toLocaleString('zh-CN')}`));
         const download = el('a', '下载原文件', 'secondary'); download.href = '/api/uploads/' + item.id + '/download'; download.download = item.filename;
-        row.append(icon, info, download); list.append(row);
+        const pictures = el('button', '图片识读', 'secondary'); pictures.type = 'button'; pictures.onclick = () => preview.click();
+        row.append(icon, info, pictures, download); list.append(row);
       }
     } catch (e) { $('upload-list').replaceChildren(el('p', e.message, 'helper')); }
   }
@@ -61,7 +62,7 @@
     status('正在读取和解析资料，请稍候…');
     try {
       const data = await api('/api/uploads', options);
-      status(`「${data.upload.title}」已保存，提取 ${data.upload.characters.toLocaleString()} 个字符。`);
+      status(`「${data.upload.title}」已保存，提取 ${data.upload.characters.toLocaleString()} 个字符、${data.upload.images || 0} 张图片。可点击「图片识读」继续解析。`);
       await refreshUploads();
     } catch (e) { status(e.message, true); }
     finally { uploading = false; panes.forEach(pane => pane.querySelectorAll('input,button').forEach(control => control.disabled = false)); }
@@ -69,7 +70,7 @@
   panes[0].onsubmit = event => {
     event.preventDefault(); const file = selectedFile();
     if (!file) { status('请选择要上传的资料文件。', true); return; }
-    if (!/\.(txt|md|pdf|docx)$/i.test(file.name) || file.size > 10 * 1024 * 1024 || file.size === 0) { status('请选择非空的 TXT、MD、PDF 或 DOCX 文件，大小不超过 10 MB。', true); return; }
+    if (!/\.(txt|md|pdf|docx|png|jpe?g|webp|bmp|gif|tiff?)$/i.test(file.name) || file.size > 10 * 1024 * 1024 || file.size === 0) { status('请选择非空文档或图片，大小不超过 10 MB。', true); return; }
     const body = new FormData(); body.append('file', file); body.append('title', $('upload-file-title').value.trim()); submit({method:'POST', body});
   };
   panes[1].onsubmit = event => { event.preventDefault(); submit({method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:$('upload-url').value.trim(), title:$('upload-url-title').value.trim()})}); };

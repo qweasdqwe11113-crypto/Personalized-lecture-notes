@@ -90,7 +90,7 @@ def build(raw, label=''):
     return Asset(data, sha256(raw), sha256(data), width, height, step)
 
 
-def extract(raw, filename):
+def extract(raw, filename, limit=None):
     """Pull images out of a PDF, a DOCX or a plain image file."""
     ext = Path(filename).suffix.lower()
     if ext == '.pdf':
@@ -104,6 +104,8 @@ def extract(raw, filename):
                 try:
                     for image in page.images:
                         found.append(Source(image.data, image.name, number))
+                        if limit is not None and len(found) >= limit:
+                            return found
                 except Exception:
                     continue  # A page with an undecodable image stream still yields the others.
             return found
@@ -115,7 +117,7 @@ def extract(raw, filename):
         try:
             with ZipFile(io.BytesIO(raw)) as archive:
                 names = sorted(name for name in archive.namelist() if name.startswith('word/media/'))
-                return [Source(archive.read(name), Path(name).name) for name in names]
+                return [Source(archive.read(name), Path(name).name) for name in (names[:limit] if limit else names)]
         except Exception as exc:
             raise AssetError('DOCX 解析失败，请确认文件完整。') from exc
     if ext not in EXTENSIONS:
