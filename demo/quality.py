@@ -85,6 +85,13 @@ def check_output(content, context, goal):
     if university and scope['version'] == 'probability-text-check-v2':
         risky = bool(re.search(r'Ai\s*∩\s*Bi|(?:仅在|只有).*P\(A\)\s*=\s*P\(B\).*相等', content))
         add('known_probability_hints', '已发现问题的词语提示', not risky, '匹配未定义 Bi 的已知表达或过强相等条件；词语提示不解释否定或完整上下文，需人工判断。')
+    approach = context.get('retrieval') or {}
+    if approach.get('mode') == 'vector':
+        recalled = {str(item['material_id']) for item in approach.get('items', [])}
+        missing = sorted(recalled - set(re.findall(r'\[M(\d+)\]', content)))
+        add('retrieval_usage', '召回片段的引用情况', not missing,
+            '以下本次召回的材料未在正文引用：' + '、'.join('M' + item for item in missing) if missing
+            else '本次召回的材料在正文中都出现了编号；不代表引用位置恰当或内容被正确理解。')
     return {'version': scope['version'], 'metrics': {'chinese_characters': chinese, 'line_count': len(content.splitlines())},
             'scope': scope, 'automatic': checks, 'citation_locations': citations,
             'teacher_review': [{'code': key, 'label': label, 'status': 'needs_review'} for key, label in REVIEW_ITEMS.items()],

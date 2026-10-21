@@ -12,7 +12,7 @@
 ./run_demo.sh
 ```
 
-打开 <http://127.0.0.1:5055>，终端 Ctrl+C 停止。仅监听本机。专用库 `lecture_demo_prototype` 所有者为 dax，初始化跳过已有种子和记录、不清空讲义、不修改其他数据库。大学与初中资料均为少量文字，没有视觉、pgvector 或 embedding。
+打开 <http://127.0.0.1:5055>，终端 Ctrl+C 停止。仅监听本机。专用库 `lecture_demo_prototype` 所有者为 dax，初始化跳过已有种子和记录、不清空讲义、不修改其他数据库。大学与初中资料均为少量文字，没有视觉输入。材料有精确 SQL 与向量检索两种取用方式，默认仍是精确 SQL。
 
 ## 使用
 
@@ -36,6 +36,8 @@
 编辑、追溯和对照窗口的标题与关闭按钮保持可见，正文独立滚动。编辑区可拖动增高，窗口大小变化保留当前输入；重开编辑器从顶部开始。历史列表有独立滚动，工具按钮与长公式可换行。实测宽度 320—1920 像素及低高度窗口，验证结果见 [VERIFICATION](demo/VERIFICATION.md)。
 
 ## 配置、后台任务与失败重试
+
+「系统设置」可分别编辑语言模型、VLM 和 embedding 的服务地址、模型名称与密钥，支持 OpenAI 兼容接口（Ollama 使用 `http://127.0.0.1:11434/v1`）。密钥不会回显，留空保留已保存值，勾选清除后删除对应配置值。连接测试使用表单当前内容，不会保存；语言模型实际请求文本生成，VLM 实际发送测试图片并核对红色三角形与数字，embedding 实际请求向量并显示维度。保存原子更新本地 `.env`，重启后生效，数据库等其他配置保留。VLM 目前提供独立配置与图片测试入口，尚未接入带图讲义生成。
 
 “检测配置”只检查专用数据库连接、密钥存在、模型配置和地址格式，不发模型请求、不展示密钥或连接地址，不能证明密钥有效或服务可达。修改 .env 后须重启服务。真实可用性以实际调用为准。
 
@@ -98,6 +100,7 @@ prepare 查询当前数据并冻结实际输入，已有 manifest 时拒绝覆�
 | [profile-comparison.js](demo/static/profile-comparison.js) | 生成时与当前画像对照、变化筛选及刷新 |
 | [comparisons.py](demo/comparisons.py)、[lecture-comparison.js](demo/static/lecture-comparison.js) | 同目标候选、版本 / 章节对照与生成设置核对 |
 | [jobs.py](demo/jobs.py)、[experiment.py](demo/experiment.py) | 本机有限队列与冻结重复实验 |
+| [retrieval.py](demo/retrieval.py)、[embed.py](demo/embed.py) | 分块、向量索引、可替换排序后端与嵌入调用 |
 | [schema.sql](demo/schema.sql)、[init_db.py](demo/init_db.py) | 专用库 12 张关系表、幂等初始化 |
 | [tests/](demo/tests) | 隔离 schema 的文本 / 数据库 / HTTP 与队列验证 |
 | [TODO.md](TODO.md) | 必做项与额外候选 |
@@ -138,7 +141,7 @@ python3 -m pip --python .venv/bin/python install -r requirements.txt
 
 初中材料参考 OpenStax *Prealgebra 2e* 的 [8.1 加减性质](https://openstax.org/books/prealgebra-2e/pages/8-1-solve-equations-using-the-subtraction-and-addition-properties-of-equality)、[8.2 乘除性质](https://openstax.org/books/prealgebra-2e/pages/8-2-solve-equations-using-the-division-and-multiplication-properties-of-equality)、[8.3 含变量与常数的方程](https://openstax.org/books/prealgebra-2e/pages/8-3-solve-equations-with-variables-and-constants-on-both-sides)。大学少量摘要的原章节、条件和假设例题说明见 [专题资料](demo/university/README.md)。中文概括和例子自行整理，网页与导出保留来源。
 
-这是本机讲义演示，无登录、多资料上传、自动诊断、训练、视觉或向量检索、自动出题阅卷、公网部署。虚拟学生和少量生成不支持真实学习效果结论。必做实现与核查已完成，独立教师审核、导师最终模块范围及专利验收仍待确认；额外候选按用户反馈选择。
+这是本机讲义演示，无登录、多资料上传、自动诊断、训练、视觉输入、自动出题阅卷、公网部署。虚拟学生和少量生成不支持真实学习效果结论。必做实现与核查已完成，独立教师审核、导师最终模块范围及专利验收仍待确认；额外候选按用户反馈选择。
 
 ## 验证改动
 
@@ -146,7 +149,7 @@ python3 -m pip --python .venv/bin/python install -r requirements.txt
 .venv/bin/python -m unittest discover -s demo/tests -v
 ```
 
-全部 105 项测试通过：11 项文本与分节检查、94 项 PostgreSQL 集成测试。测试连接专用库、创建唯一临时 schema、结束清理，不修改实际业务表、不调用真实 Qwen；HTTP 与生成使用测试响应，覆盖画像、字节追溯、审核事务、课程隔离、无画像模式、后台行为及多格式版本导出。实际模型质量另见 12 次对照与 2 次演示。
+全部 139 项测试通过（检索层新增 15 项、图片资产新增 14 项）。测试连接专用库、创建唯一临时 schema、结束清理，不修改实际业务表、不调用真实 Qwen；HTTP、生成与嵌入均使用测试响应或确定性假件，覆盖画像、字节追溯、审核事务、课程隔离、无画像模式、后台行为、多格式版本导出、检索排序与收录及图片规范化。实际模型质量另见 12 次对照与 2 次演示。
 
 隔离体验可运行：
 
@@ -160,4 +163,19 @@ python3 -m pip --python .venv/bin/python install -r requirements.txt
 
 ## 上传资料
 
-导航中的「上传资料」支持本地 TXT / MD / PDF / DOCX（每份最多 10 MB、20 万字符，PDF 最多 200 页）和公开 HTTP / HTTPS 网页、文本或文档直链。原文件与提取正文保存到 `.runtime/uploads.sqlite3`，列表可预览和下载，刷新页面后仍保留。扫描版 PDF 需先完成 OCR；登录或动态网页可能无法读取。网址导入不发送登录凭据，不读取内网地址。上传库目前独立于 PostgreSQL 课程材料，不自动用于讲义生成。
+导航中的「上传资料」支持本地 TXT / MD / PDF / DOCX（每份最多 10 MB、20 万字符，PDF 最多 200 页）和公开 HTTP / HTTPS 网页、文本或文档直链。原文件与提取正文保存到 `.runtime/uploads.sqlite3`，列表可预览和下载，刷新页面后仍保留。扫描版 PDF 需先完成 OCR；登录或动态网页可能无法读取。网址导入不发送登录凭据，不读取内网地址。
+
+## 材料取用方式与检索
+
+讲义设置中的「材料取用方式」决定本次交给模型的课程材料如何挑出来：
+
+1. **精确 SQL**（默认）：按所选知识点的外键精确取全部关联材料。与已有讲义和此前 12 次对照实验完全一致，历史结果仍然可比。
+2. **向量检索**：先按所选知识点召回全部候选片段，再用本次目标（有画像时附加强弱知识点名称）与片段的余弦相似度排序，取前若干个片段。片段沿用其所属材料的 `[M编号]`，同一材料的多段合并为一条材料，编号含义与过去相同。
+
+选择向量检索后，系统会自动检查当前主题的材料索引：新增材料、正文或来源信息变化、分块结果变化或嵌入模型变化时重新处理，未变化的片段直接复用。预览和生成时都会检查，无需手动点击索引按钮；首次准备期间会显示等待提示。上传的资料可用 `POST /api/retrieval/adopt` 收录到某个知识点后再索引；同一份资料重复收录是更新而非堆叠副本。维护接口 `POST /api/retrieval/index` 仍可使用，传入 `force: true` 可强制重建当前主题的索引。
+
+当前排序在 Python 侧对 `float8[]` 算余弦，并按分值、材料号、块号三级稳定排序，因此同一查询的 Top-k 可复现。嵌入地址与密钥默认取自生成通道；可通过 `QWEN_EMBEDDING_BASE_URL` 和 `QWEN_EMBEDDING_API_KEY` 独立配置，让生成使用外部接口、嵌入继续使用本机 Ollama。需要另行指定模型时可在 `.env` 设置 `QWEN_EMBEDDING_MODEL`，留空则使用 `QWEN_MODEL`。若该服务不提供 OpenAI 兼容的 embeddings 接口，建立索引会失败并给出 HTTP 状态码，首次真实调用之前不做任何可用性承诺。
+
+每次生成都会把实际的方式、排序后端、嵌入模型、检索问句和命中的片段写入 `generation_runs.retrieval`，事后可以核查这份讲义为什么拿到了这些材料。`retrieval.py` 的排序后端是可替换的：装上 pgvector 之后可改用 `<=>` 与向量索引，调用方不变；本机 PostgreSQL 18 尚未安装该扩展，因此当前没有启用。
+
+边界要说清：相似度不等于语义蕴含，召回不等于被正确引用，也不等于该材料足以支持讲义的每一句。向量模式下程序只增加一项检查——正文是否出现本次召回材料的编号；片段是否被恰当使用、图表或公式是否被正确理解，仍然全部由教师复核。

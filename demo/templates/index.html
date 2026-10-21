@@ -29,6 +29,7 @@
      <div class="setup-field"><label for="topic">课程与教学任务</label><select id="topic" disabled></select><p id="task-level" class="helper"></p></div>
      <div class="setup-field"><label for="student">选择学生 <span>虚拟数据</span></label><select id="student" disabled></select><div id="student-profile" class="profile"></div></div>
      <div class="setup-field"><label for="personalization-mode">生成依据</label><select id="personalization-mode"><option value="profile">使用学生画像</option><option value="none">无画像对照 · 通用讲义</option></select></div>
+     <div class="setup-field"><label for="retrieval-mode">材料取用方式</label><select id="retrieval-mode"><option value="sql">精确 SQL · 取该知识点全部材料</option><option value="vector">向量检索 · 按本次目标取片段</option></select><p id="retrieval-note" class="helper" role="status" aria-live="polite">选择向量检索后自动准备资料索引。</p></div>
      <div class="setup-field setup-goal"><label for="goal">本次教学目标</label><textarea id="goal" rows="3" maxlength="400"></textarea></div>
      <details class="scope-box"><summary>目标范围与材料覆盖</summary><div id="scope-check"><p class="helper">读取主题后展示。</p></div></details>
      <button class="primary" id="generate" type="submit" disabled>生成个性化讲义 <span>↗</span></button>
@@ -88,9 +89,31 @@
 <section class="panel"><div class="section-heading"><h2>生成记录</h2><button id="refresh-runs" type="button" class="secondary">刷新</button></div><p class="helper">最近 10 次请求 · 包含失败记录</p><div id="generation-runs" class="history"><p class="helper">正在读取…</p></div></section>
  </section>
  <section class="workspace-page" id="page-settings" hidden>
-  <div class="page-intro"><span class="intro-icon">⚙</span><div><h2>工作空间连接与配置</h2><p>查看数据库与模型配置状态，确保讲义生成服务可以使用。</p></div></div>
+  <div class="page-intro"><span class="intro-icon">⚙</span><div><h2>模型与服务配置</h2><p>为文字生成、图片理解和资料检索分别选择模型。</p></div></div>
+  <form id="model-settings-form">
+   <div class="model-settings-toolbar"><div><strong>模型连接</strong><p class="helper">支持 OpenAI 兼容接口，包括本机 Ollama 的 /v1 地址。</p></div><button id="save-model-settings" class="primary" type="submit" disabled>保存配置</button></div>
+   <p id="model-settings-status" class="model-settings-status helper" role="status" aria-live="polite">正在读取已保存的模型配置…</p>
+   <div id="model-settings-error" class="error" role="alert" hidden></div>
+   {% for key, number, title, description, example in [
+     ('llm', '01', '语言模型', '负责生成讲义与文字回答。', 'qwen3.5:9b'),
+     ('vlm', '02', '视觉模型 · VLM', '配置图片理解服务。可与语言模型使用同一个多模态模型；测试会实际发送图片，讲义带图生成入口尚未接入。', 'qwen3.5:9b'),
+     ('embedding', '03', '嵌入模型 · Embedding', '把资料转成向量，用于语义检索。更换模型后会在下次向量检索时自动更新索引。', 'bge-m3:latest')
+   ] %}
+   <section class="panel model-config-card" data-model-channel="{{ key }}">
+    <div class="section-heading"><div class="model-config-heading"><span class="model-config-number">{{ number }}</span><h2>{{ title }}</h2></div><span class="model-config-badge">{{ '可选' if key == 'vlm' else '独立配置' }}</span></div>
+    <p class="helper">{{ description }}</p>
+    <div class="model-config-fields">
+     <div class="model-config-address"><label for="{{ key }}-base-url">服务地址</label><input id="{{ key }}-base-url" name="{{ key }}-base-url" type="url" maxlength="2048" placeholder="http://127.0.0.1:11434/v1" autocomplete="off" {{ 'required' if key != 'vlm' else '' }} disabled><p class="helper">填写基础地址，通常以 /v1 结尾。</p></div>
+     <div><label for="{{ key }}-model">模型名称</label><input id="{{ key }}-model" name="{{ key }}-model" maxlength="2048" placeholder="{{ example }}" autocomplete="off" {{ 'required' if key != 'vlm' else '' }} disabled></div>
+     <div class="model-config-secret"><label for="{{ key }}-api-key">API 密钥</label><input id="{{ key }}-api-key" name="{{ key }}-api-key" type="password" maxlength="2048" autocomplete="new-password" placeholder="未配置，可填写新密钥" disabled><label class="model-config-clear"><input id="{{ key }}-clear-key" type="checkbox" disabled>清除已保存密钥</label><p class="helper">留空保留已保存密钥；无鉴权的本机服务可填 local-ollama。</p></div>
+    </div>
+    <div class="model-config-test"><button id="test-{{ key }}" class="secondary" type="button" disabled>测试{{ '图片识别' if key == 'vlm' else '向量接口' if key == 'embedding' else '文本生成' }}</button><p id="{{ key }}-test-status" class="helper" role="status" aria-live="polite">尚未测试</p></div>
+   </section>
+   {% endfor %}
+   <p class="helper">配置保存在本地 .env 文件中，保存后重启服务生效。连接测试使用当前表单内容，无需先保存；测试成功不会自动保存配置。</p>
+  </form>
 <section class="panel"><div class="section-heading"><h2>服务连接</h2><button id="check-health" class="secondary" type="button">检测配置</button></div><p id="health-summary" class="helper" role="status">读取配置状态…</p></section>
-  <section class="panel configuration-note"><h2>配置说明</h2><p>在项目的 .env 文件中维护数据库和模型配置，修改后重启本地服务。</p><p>检测配置检查数据库连接、密钥是否配置和服务地址格式。模型服务实际可用性以生成结果为准。</p></section>
+  <section class="panel configuration-note"><h2>数据库与运行状态</h2><p>数据库连接继续在本地 .env 文件中维护。上方服务检测反映当前运行配置；表单显示已保存配置，重启前两者可能不同。</p></section>
  </section>
  <footer><span>知页 · 让教学更有针对性</span><span id="model-label"></span></footer>
 </main>
@@ -211,4 +234,5 @@
   <section class="editor-history"><h3>版本、修改位置与审核记录</h3><div id="revision-history"></div></section>
  </div>
 </dialog>
+<link rel="stylesheet" href="/static/model-settings.css"><script defer src="/static/model-settings.js"></script>
 </body></html>

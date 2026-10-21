@@ -31,7 +31,7 @@ async function watchJob(id){
      const r=await api('/api/lectures/'+job.lecture_id);
      const key=Object.keys(topics).find(key=>topics[key].title===r.topic);
      if(key)$('topic').value=key;filterStudents(r.student_id);
-     $('personalization-mode').value=r.context.personalization_mode||'profile';$('goal').value=r.goal;
+     $('personalization-mode').value=r.context.personalization_mode||'profile';$('retrieval-mode').value=(r.context.retrieval||{}).mode||'sql';$('goal').value=r.goal;
      drawContext(r.context,true);showResult(r);
      $('progress').textContent=`已保存讲义 #${r.id} · 模型用时 ${job.elapsed_seconds} 秒 · 用量 ${JSON.stringify(job.usage)}`;
      await refreshHistory();break;
@@ -49,7 +49,7 @@ $('generate-form').onsubmit=async e=>{
  e.preventDefault();if(busy||!current)return;
  setBusy(true);error('');$('progress').textContent='正在提交并固定输入…';
  try{
-  const job=await api('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:Number($('student').value),topic:$('topic').value,goal:$('goal').value,personalization_mode:$('personalization-mode').value})});
+  const job=await api('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:Number($('student').value),topic:$('topic').value,goal:$('goal').value,personalization_mode:$('personalization-mode').value,retrieval_mode:$('retrieval-mode').value})});
   await refreshJobs();await watchJob(job.id);
  }catch(e){error(e.message);setBusy(false);}
 };

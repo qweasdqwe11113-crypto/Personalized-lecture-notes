@@ -7,10 +7,11 @@ from psycopg.types.json import Jsonb
 
 def create_run(conn, student_id, topic_key, goal, context, prepared):
     return conn.execute('''INSERT INTO generation_runs
-        (student_id,topic_key,topic,goal,context,prompt_version,input_version,request_body,request_sha256)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id''',
+        (student_id,topic_key,topic,goal,context,prompt_version,input_version,request_body,request_sha256,retrieval)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id''',
         (student_id, topic_key, context['topic']['title'], goal, Jsonb(context),
-         prepared.prompt_version, prepared.input_version, prepared.body, prepared.sha256)).fetchone()['id']
+         prepared.prompt_version, prepared.input_version, prepared.body, prepared.sha256,
+         Jsonb(context.get('retrieval', {})))).fetchone()['id']
 
 
 def mark_attempt(conn, run_id):

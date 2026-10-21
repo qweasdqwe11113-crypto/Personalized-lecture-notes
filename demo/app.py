@@ -11,6 +11,7 @@ from threading import Lock
 import psycopg
 from psycopg.rows import dict_row
 from dotenv import load_dotenv
+from model_settings import register_model_settings
 from flask import Flask, Response, jsonify, render_template, request
 from profiles import (ProfileError, compare_lecture_profile, decorate_states, evidence_history, get_profile,
                       record_evidence, update_profile)
@@ -23,26 +24,37 @@ from reviews import (ReviewError, STATUS_LABELS, add_issue, lecture_row,
 from courses import TOPICS, REFERENCE_EXAMPLES
 from comparisons import comparison_options, compare_lectures
 from jobs import JobError, JobQueue
-from uploads import register_uploads
+from uploads import read_upload, register_uploads
+from embed import EmbeddingError, OllamaEmbedder, QwenEmbedder
+from retrieval import (MODES as RETRIEVAL_MODES, RetrievalError, adopt_content, build_query,
+                       index_knowledge, search as search_chunks, status as retrieval_status,
+                       to_materials)
 
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / '.env')
 app = Flask(__name__)
+register_model_settings(app, ROOT / '.env')
 app.config['MAX_CONTENT_LENGTH'] = 11 * 1024 * 1024
 register_uploads(app, ROOT)
 DSN = os.environ.get('DATABASE_URL', 'postgresql:///lecture_demo_prototype')
 MODEL = os.environ.get('QWEN_MODEL', 'qwen3.8-27b')
 GENERATION_LOCK = Lock()
+EMBEDDER = QwenEmbedder()
+RETRIEVAL_LIMIT = 6
 
 
 def db():
     return psycopg.connect(DSN, row_factory=dict_row, connect_timeout=5)
 
 
-def get_context(student_id, topic_key, mode='profile'):
+def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql'):
     topic = TOPICS[topic_key]
     if student_id not in topic['student_ids']:
         return None
+    if retrieval_mode == 'vector':
+        # Prepare missing or stale chunks before opening the read-only snapshot.
+        with db() as conn:
+            index_knowledge(conn, EMBEDDER, topic['knowledge_ids'])
     with db() as conn:
         conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
         student = conn.execute('SELECT * FROM students WHERE id=%s', (student_id,)).fetchone()
@@ -54,16 +66,22 @@ def get_context(student_id, topic_key, mode='profile'):
             FROM knowledge_points k LEFT JOIN student_knowledge s
             ON s.knowledge_id=k.id AND s.student_id=%s
             WHERE k.id=ANY(%s) ORDER BY k.id''', (student_id,topic['knowledge_ids'])).fetchall()
-        # Exact SQL lookup, restricted to the selected topic. No vector retrieval.
+        # Exact SQL lookup, restricted to the selected topic.
         materials = conn.execute('SELECT * FROM materials WHERE knowledge_id=ANY(%s) ORDER BY id',
                                  (topic['knowledge_ids'],)).fetchall()
+        retrieval = {'mode': retrieval_mode, 'backend': None, 'embed_model': None, 'query': None, 'items': []}
+        if retrieval_mode == 'vector':
+            # Without a profile the question stays the shared goal, so ablation is still clean.
+            query = build_query(topic['goal'], states if mode == 'profile' else [])
+            retrieval = search_chunks(conn, EMBEDDER, query, topic['knowledge_ids'], limit=RETRIEVAL_LIMIT)
+            materials = to_materials(retrieval['items'])
         # Fetch each point separately so a frequently updated point cannot crowd
         # another point's evidence out of the model input.
         recent = {s['id']: evidence_history(conn, student_id, [s['id']], limit=3) for s in states}
     decorate_states(states)
     for s in states:
         s['recent_evidence'] = recent[s['id']]
-    ctx = {'student':student, 'topic':topic, 'states':states, 'materials':materials}
+    ctx = {'student':student, 'topic':topic, 'states':states, 'materials':materials, 'retrieval': retrieval}
     ctx['personalization_mode'] = mode
     if topic.get('course') == '大学概率论':
         ctx['reference_examples'] = REFERENCE_EXAMPLES[:1] if topic_key.endswith('basic') else REFERENCE_EXAMPLES
@@ -108,7 +126,8 @@ def bootstrap():
         history = conn.execute('''SELECT l.id,s.name,l.topic,l.created_at FROM lectures l
                                   JOIN students s ON s.id=l.student_id ORDER BY l.id DESC LIMIT 8''').fetchall()
     return jsonify(students=students, topics=TOPICS, model=MODEL, history=history,
-                   database='PostgreSQL · 已连接', configured=all(config_flags().values()))
+                   database='PostgreSQL · 已连接', configured=all(config_flags().values()),
+                   embed_model=EMBEDDER.model)
 
 
 @app.get('/api/context')
@@ -117,9 +136,11 @@ def context():
     topic = request.args.get('topic', 'linear')
     goal = request.args.get('goal', '').strip()
     mode = request.args.get('personalization_mode', 'profile')
-    if student_id is None or topic not in TOPICS or len(goal) > 400 or mode not in ('profile', 'none'):
+    retrieval_mode = request.args.get('retrieval_mode', 'sql')
+    if (student_id is None or topic not in TOPICS or len(goal) > 400
+            or mode not in ('profile', 'none') or retrieval_mode not in RETRIEVAL_MODES):
         return jsonify(error='请选择有效学生和主题。'), 400
-    data = get_context(student_id, topic, mode)
+    data = get_context(student_id, topic, mode, retrieval_mode)
     if data:
         data['scope_check'] = assess_scope(data, goal or TOPICS[topic]['goal'])
     return (jsonify(data) if data else (jsonify(error='学生不存在。'),404))
@@ -196,19 +217,23 @@ def generate():
     mode = data.get('personalization_mode', 'profile')
     if mode not in ('profile', 'none'):
         return jsonify(error='请选择有画像或无画像模式。'), 400
+    retrieval_mode = data.get('retrieval_mode', 'sql')
+    if retrieval_mode not in RETRIEVAL_MODES:
+        return jsonify(error='请选择精确 SQL 或向量检索。'), 400
     goal = goal.strip() or TOPICS[topic_key]['goal']
     if not GENERATION_LOCK.acquire(blocking=False):
         return jsonify(error='已有讲义正在生成，请等待完成后再试。'), 429
-    result, status = generate_locked(sid, topic_key, goal, mode)
+    result, status = generate_locked(sid, topic_key, goal, mode, retrieval_mode=retrieval_mode)
     return jsonify(result), status
 
 
-def generate_locked(sid, topic_key, goal, mode='profile', frozen=None, prepared=None, run_id=None, job_id=None):
+def generate_locked(sid, topic_key, goal, mode='profile', frozen=None, prepared=None, run_id=None,
+                    job_id=None, retrieval_mode='sql'):
     # Caller owns GENERATION_LOCK; release it for every result and exception.
     output, check, stage = ModelResult(''), {}, 'preparation'
     start = time.monotonic()
     try:
-        ctx = frozen or (get_context(sid, topic_key) if mode == 'profile' else get_context(sid, topic_key, mode))
+        ctx = frozen or get_context(sid, topic_key, mode, retrieval_mode)
         if not ctx:
             return {'error': '学生不存在。'}, 404
         if frozen is None:
@@ -283,6 +308,16 @@ def job_error(exc):
     return jsonify(error=str(exc)), exc.status
 
 
+@app.errorhandler(RetrievalError)
+def retrieval_error(exc):
+    return jsonify(error=str(exc)), 400
+
+
+@app.errorhandler(EmbeddingError)
+def embedding_error(exc):
+    return jsonify(error=str(exc)), 502
+
+
 def job_input(data):
     if not isinstance(data, dict):
         raise JobError('请求格式必须是 JSON 对象。')
@@ -294,13 +329,16 @@ def job_input(data):
         raise JobError('教学目标请控制在 400 字以内。')
     if mode not in ('profile', 'none'):
         raise JobError('请选择有画像或无画像模式。')
-    return sid, topic, goal.strip() or TOPICS[topic]['goal'], mode
+    retrieval_mode = data.get('retrieval_mode', 'sql')
+    if retrieval_mode not in RETRIEVAL_MODES:
+        raise JobError('请选择精确 SQL 或向量检索。')
+    return sid, topic, goal.strip() or TOPICS[topic]['goal'], mode, retrieval_mode
 
 
 @app.post('/api/jobs')
 def submit_job():
-    sid, topic, goal, mode = job_input(request.get_json(silent=True))
-    ctx = get_context(sid, topic, mode)
+    sid, topic, goal, mode, retrieval_mode = job_input(request.get_json(silent=True))
+    ctx = get_context(sid, topic, mode, retrieval_mode)
     if not ctx:
         raise JobError('学生不存在。', 404)
     ctx['scope_check'] = assess_scope(ctx, goal)
@@ -322,6 +360,65 @@ def retry_generation(run_id):
     return jsonify(TASKS.retry(run_id)), 202
 
 
+@app.get('/api/retrieval/status')
+def retrieval_state():
+    """Index state per knowledge point for the embedding model currently configured."""
+    topic_key = request.args.get('topic', '')
+    if topic_key not in TOPICS:
+        return jsonify(error='请选择有效主题。'), 400
+    try:
+        with db() as conn:
+            return jsonify(retrieval_status(conn, EMBEDDER, TOPICS[topic_key]['knowledge_ids']))
+    except psycopg.Error:
+        return jsonify(error='数据库暂不可用，请检查本机 PostgreSQL。'), 503
+
+
+@app.post('/api/retrieval/index')
+def build_retrieval_index():
+    """Chunk and embed every material of one topic. Re-indexing replaces its own rows only."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or data.get('topic') not in TOPICS:
+        return jsonify(error='请选择有效主题。'), 400
+    ids = TOPICS[data['topic']]['knowledge_ids']
+    try:
+        with db() as conn:
+            indexed = index_knowledge(conn, EMBEDDER, ids, force=bool(data.get('force')))
+            return jsonify(indexed_materials=indexed, **retrieval_status(conn, EMBEDDER, ids))
+    except EmbeddingError as exc:
+        return jsonify(error=str(exc)), 502
+    except psycopg.Error:
+        return jsonify(error='数据库暂不可用，索引未写入。'), 503
+
+
+@app.post('/api/retrieval/adopt')
+def adopt_upload():
+    """Adopt a stored upload as a course material of one knowledge point, then index it."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify(error='请求格式必须是 JSON 对象。'), 400
+    upload_id, knowledge_id = data.get('upload_id'), data.get('knowledge_id')
+    if not isinstance(upload_id, str) or type(knowledge_id) is not int:
+        return jsonify(error='请选择要收录的资料和知识点。'), 400
+    try:
+        with db() as conn:
+            if not conn.execute('SELECT 1 FROM knowledge_points WHERE id=%s', (knowledge_id,)).fetchone():
+                return jsonify(error='知识点不存在。'), 400
+    except psycopg.Error:
+        return jsonify(error='数据库暂不可用，请检查本机 PostgreSQL。'), 503
+    record = read_upload(ROOT, upload_id)
+    if record is None:
+        return jsonify(error='资料不存在。'), 404
+    try:
+        with db() as conn:
+            return jsonify(adopt_content(conn, EMBEDDER, knowledge_id=knowledge_id, title=record['title'],
+                                         content=record['content'], source_title=record['filename'],
+                                         source_url=f'upload:{upload_id}', section='')), 201
+    except EmbeddingError as exc:
+        return jsonify(error=str(exc)), 502
+    except psycopg.Error:
+        return jsonify(error='数据库暂不可用，资料未收录。'), 503
+
+
 @app.get('/api/health')
 def health():
     database_ok = False
@@ -331,8 +428,9 @@ def health():
     except psycopg.Error:
         pass
     return jsonify(database_ok=database_ok, **config_flags(),
-                   queue_capacity=4, workers=1,
-                   note='本机配置与数据库检查；未调用模型，不能证明密钥有效或服务可达。')
+                   queue_capacity=4, workers=1, embed_model=EMBEDDER.model,
+                   embedding_configured=EMBEDDER.configured(),
+                   note='本机配置与数据库检查；未调用模型，不能证明密钥有效、服务可达或支持嵌入接口。')
 
 
 @app.get('/api/generation-runs')

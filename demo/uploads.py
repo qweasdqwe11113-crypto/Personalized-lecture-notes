@@ -154,6 +154,18 @@ def fetch_public(url):
     raise ImportError('网页重定向次数过多，请使用最终网址。')
 
 
+def read_upload(root, upload_id):
+    """Read one stored upload so retrieval can index it; None when it is not there."""
+    store = Path(root) / '.runtime' / 'uploads.sqlite3'
+    if not store.exists():
+        return None
+    with closing(sqlite3.connect(store, timeout=10)) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute('SELECT id,title,filename,source_url,content FROM uploads WHERE id = ?',
+                           (upload_id,)).fetchone()
+    return dict(row) if row else None
+
+
 def register_uploads(app, root):
     store = Path(root) / '.runtime' / 'uploads.sqlite3'
 

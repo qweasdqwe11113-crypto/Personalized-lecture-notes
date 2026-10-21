@@ -159,3 +159,63 @@ CREATE TABLE IF NOT EXISTS generation_jobs (
  finished_at timestamptz
 );
 CREATE INDEX IF NOT EXISTS generation_jobs_recent ON generation_jobs(created_at DESC);
+
+-- Retrieval: one row per text chunk. Source metadata is duplicated here because a
+--   chunk must be usable without joining another store; the citation number stays
+--   tied to the parent material, so [M编号] keeps exactly its old meaning.
+CREATE TABLE IF NOT EXISTS material_chunks (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  material_id integer REFERENCES materials(id) ON DELETE CASCADE,
+  knowledge_id integer NOT NULL REFERENCES knowledge_points(id),
+  chunk_index integer NOT NULL,
+  title text NOT NULL,
+  source_title text NOT NULL,
+  source_url text NOT NULL,
+  section text NOT NULL,
+  content text NOT NULL,
+  char_length integer NOT NULL CHECK (char_length > 0),
+  content_sha256 text NOT NULL,
+  embed_model text NOT NULL,
+  embedding float8[] NOT NULL CHECK (cardinality(embedding) > 0),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS material_chunks_knowledge ON material_chunks(knowledge_id, material_id, chunk_index);
+CREATE UNIQUE INDEX IF NOT EXISTS material_chunks_identity ON material_chunks(material_id, chunk_index);
+
+-- Freeze how this run picked its material: mode, backend, embedding model and scored items.
+ALTER TABLE generation_runs ADD COLUMN IF NOT EXISTS retrieval jsonb NOT NULL DEFAULT '{}';
+
+-- Image assets. `bytes` holds the normalized bytes the model is actually shown;
+-- they are written once and never re-encoded, so saved request bodies stay reproducible.
+CREATE TABLE IF NOT EXISTS material_assets (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  material_id integer REFERENCES materials(id) ON DELETE CASCADE,
+  upload_id text,
+  kind text NOT NULL CHECK (kind IN ('figure','page_scan','diagram')),
+  label text NOT NULL,
+  page_no integer,
+  source_sha256 text NOT NULL,
+  normalized_sha256 text NOT NULL,
+  mime text NOT NULL,
+  width integer NOT NULL CHECK (width > 0),
+  height integer NOT NULL CHECK (height > 0),
+  byte_size integer NOT NULL CHECK (byte_size > 0 AND byte_size <= 1258291),
+  normalize_version text NOT NULL,
+  bytes bytea NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (material_id IS NOT NULL OR upload_id IS NOT NULL)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS material_assets_identity ON material_assets(normalized_sha256);
+CREATE INDEX IF NOT EXISTS material_assets_material ON material_assets(material_id, page_no);
+
+-- Which images this run actually sent, in the exact order they appeared.
+CREATE TABLE IF NOT EXISTS generation_run_assets (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  run_id bigint NOT NULL REFERENCES generation_runs(id) ON DELETE CASCADE,
+  asset_id bigint NOT NULL REFERENCES material_assets(id),
+  ordinal integer NOT NULL CHECK (ordinal > 0),
+  normalized_sha256 text NOT NULL,
+  byte_size integer NOT NULL CHECK (byte_size > 0),
+  UNIQUE(run_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS generation_run_assets_run ON generation_run_assets(run_id, ordinal);

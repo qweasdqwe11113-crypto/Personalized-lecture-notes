@@ -13,3 +13,5 @@ Werkzeug==3.1.8
 python-docx==1.2.0
 
 pypdf==6.20.1
+
+pillow==13.0.0
