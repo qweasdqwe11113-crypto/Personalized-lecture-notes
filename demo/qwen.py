@@ -59,7 +59,7 @@ def call_qwen(prepared, on_attempt):
         raise ModelError('invalid_endpoint', '请检查本地 QWEN_BASE_URL 的服务地址格式。', 'configuration') from None
     on_attempt()  # Commit the attempt before network I/O; never recompute the body.
     try:
-        with urllib.request.urlopen(req, timeout=150) as response:
+        with urllib.request.urlopen(req, timeout=600) as response:
             result = json.load(response)
     except urllib.error.HTTPError as exc:
         code = exc.code

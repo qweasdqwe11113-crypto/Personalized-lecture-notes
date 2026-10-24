@@ -4,7 +4,7 @@ let watchSession=0;
 async function refreshJobs(){
  const data=await api('/api/jobs');
  $('jobs-list').replaceChildren(...data.jobs.map(job=>{
-   const b=el('button',`${labels[job.status]} · ${job.name} · ${job.topic}`);
+   const b=el('button',`${job.section_rewrite?'章节调整 · ':''}${job.section_rewrite&&job.status==='succeeded'?'候选已生成':labels[job.status]} · ${job.name} · ${job.topic}`);
    b.type='button';b.onclick=()=>{if(busy)return;watchJob(job.id);};return b;
  }));
  if(!data.jobs.length)$('jobs-list').append(el('p','尚无后台任务。','helper'));
@@ -24,6 +24,7 @@ async function watchJob(id){
  try{
   while(session===watchSession){
    const job=await api('/api/jobs/'+id);
+   if(job.section_rewrite){$('loading').hidden=true;setBusy(false);await window.watchSectionJob(id);break;}
    const wait=Math.max(0,Math.floor((Date.now()-new Date(job.created_at).getTime())/1000));
    $('progress').textContent=`${labels[job.status]} · 记录 #${job.run_id} · 已等待 ${wait} 秒`+(job.status==='queued'?` · 等待位置 ${job.queue_position}`:'');
    if(job.confirmation_pending)throw new Error('任务结束状态未能确认，请核查生成记录并重启本地服务。');
@@ -49,7 +50,7 @@ $('generate-form').onsubmit=async e=>{
  e.preventDefault();if(busy||!current)return;
  setBusy(true);error('');$('progress').textContent='正在提交并固定输入…';
  try{
-  const job=await api('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:Number($('student').value),topic:$('topic').value,goal:$('goal').value,personalization_mode:$('personalization-mode').value,retrieval_mode:$('retrieval-mode').value,learner_note:$('learner-note').value,visual_analysis_ids:typeof selectedVisualAnalyses==='function'?selectedVisualAnalyses():[]})});
+  const job=await api('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:Number($('student').value),topic:$('topic').value,goal:$('goal').value,personalization_mode:$('personalization-mode').value,retrieval_mode:$('retrieval-mode').value,learner_note:$('learner-note').value,teaching_options:readTeachingOptions(),visual_analysis_ids:typeof selectedVisualAnalyses==='function'?selectedVisualAnalyses():[]})});
   await refreshJobs();await watchJob(job.id);
  }catch(e){error(e.message);setBusy(false);}
 };
@@ -61,6 +62,7 @@ $('retry-run').onclick=async()=>{
    $('trace-dialog').close();await refreshJobs();await watchJob(job.id);
  }catch(e){traceError(e.message);}finally{button.disabled=false;}
 };
+window.refreshWorkspaceJobs=refreshJobs;
 $('check-health').onclick=checkHealth;
 $('refresh-jobs').onclick=()=>refreshJobs().catch(e=>error(e.message));
 refreshJobs().catch(()=>{});checkHealth();

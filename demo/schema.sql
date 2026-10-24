@@ -117,6 +117,10 @@ CREATE TABLE IF NOT EXISTS generation_runs (
  CHECK (status <> 'failed' OR (error_stage IS NOT NULL AND error_code IS NOT NULL AND error_message IS NOT NULL))
 );
 CREATE INDEX IF NOT EXISTS generation_runs_recent ON generation_runs(id DESC);
+-- A lecture has one original generation and may have many section proposals.
+ALTER TABLE generation_runs DROP CONSTRAINT IF EXISTS generation_runs_lecture_id_key;
+CREATE UNIQUE INDEX IF NOT EXISTS generation_runs_original_lecture
+ ON generation_runs(lecture_id) WHERE NOT (context ? 'section_edit');
 
 -- Review event revision changes only on issue/revision writes; original prose stays intact.
 ALTER TABLE lectures ADD COLUMN IF NOT EXISTS review_revision integer NOT NULL DEFAULT 0;

@@ -27,10 +27,20 @@
     <form id="generate-form">
      <div class="setup-field"><label for="topic">选择备课材料副本</label><select id="topic" disabled></select><p id="task-level" class="helper"></p><details id="preparation-preview" hidden><summary>查看副本目标与教案</summary><p id="preparation-preview-goal" class="helper"></p><p id="preparation-preview-plan" class="current-summary"></p></details></div>
      <div class="setup-field"><label for="student">选择学生</label><select id="student" disabled></select><div id="student-profile" class="profile"></div></div>
-     <div class="setup-field"><label for="personalization-mode">生成依据</label><select id="personalization-mode"><option value="profile">使用学生画像</option><option value="none">无画像对照 · 通用讲义</option></select></div>
-     <div class="setup-field setup-goal"><label for="learner-note">本次学生备注 <span>选填</span></label><textarea id="learner-note" rows="4" maxlength="2000" placeholder="例如：这位同学分式运算比较薄弱，请多讲中间步骤；已掌握概念的部分简要回顾。"></textarea><p class="helper">仅用于本次生成，随讲义保存。长期信息请到「学生画像」维护。</p></div>
-     <div class="setup-field"><label for="retrieval-mode">材料取用方式</label><select id="retrieval-mode"><option value="sql">精确 SQL · 取该知识点全部材料</option><option value="vector">向量检索 · 按本次目标取片段</option></select><p id="retrieval-note" class="helper" role="status" aria-live="polite">选择向量检索后自动准备资料索引。</p></div>
      <div class="setup-field setup-goal"><label for="goal">本次教学目标</label><textarea id="goal" rows="3" maxlength="400"></textarea></div>
+     <fieldset class="teaching-controls"><legend>本次怎么讲</legend><div class="teaching-grid">
+      <div><label for="lesson-duration">授课时长（分钟）</label><input id="lesson-duration" type="number" min="5" max="180" step="1" value="45" required></div>
+      <div><label for="lesson-type">授课类型</label><select id="lesson-type"><option value="new">新授</option><option value="practice">巩固</option><option value="correction">纠错</option><option value="review">复习</option></select></div>
+      <div class="teaching-wide"><label for="lesson-detail">讲解详略</label><select id="lesson-detail"><option value="brief">简明提纲 · 约 1,500～2,500 字</option><option value="standard" selected>常规讲解 · 约 4,000～6,000 字</option><option value="detailed">详细讲解 · 约 6,000～8,000 字</option></select><p class="helper">建议篇幅，题量多时可适当增加，最多约 8,000 字。优先展开步骤、例题和答案，避免重复凑字。</p></div>
+      <div><label for="lesson-examples">完整例题数</label><input id="lesson-examples" type="number" min="0" max="6" step="1" value="2" required></div>
+      <div><label for="lesson-exercises">课堂练习数</label><input id="lesson-exercises" type="number" min="0" max="10" step="1" value="3" required></div>
+     </div><p class="helper">供教师授课使用，包含讲解步骤、课堂提问、错误引导与参考答案。时间分配为建议。</p></fieldset>
+     <div class="setup-field setup-goal"><label for="teaching-requirements">本次授课要求 <span>选填</span></label><textarea id="teaching-requirements" rows="3" maxlength="2000" placeholder="例如：多讲负号处理，沿用教案例题，今天不讲拓展；增加错误解法对比。"></textarea><div class="teaching-presets" aria-label="常用授课要求"><button type="button" class="secondary" data-teaching-preset="每个关键步骤说明理由。">多讲步骤</button><button type="button" class="secondary" data-teaching-preset="增加正确与错误解法的对比。">错例对比</button><button type="button" class="secondary" data-teaching-preset="沿用教案中的例题，不额外拓展知识范围。">沿用教案</button></div><p class="helper">仅用于本次讲义，随生成输入保存；长期学生信息请到「学生画像」维护。</p></div>
+     <details class="teaching-advanced"><summary>高级设置 · 画像、材料取用与学生观察</summary>
+      <div class="setup-field"><label for="personalization-mode">生成依据</label><select id="personalization-mode"><option value="profile">使用学生画像</option><option value="none">无画像对照 · 通用讲义</option></select></div>
+      <div class="setup-field"><label for="retrieval-mode">材料取用方式</label><select id="retrieval-mode"><option value="sql">全部关联材料 · 精确 SQL</option><option value="vector">按目标选取片段 · 向量检索</option></select><p id="retrieval-note" class="helper" role="status" aria-live="polite">默认直接读取关联材料。</p></div>
+      <div class="setup-field"><label for="learner-note">本次学生观察 <span>选填</span></label><textarea id="learner-note" rows="2" maxlength="2000" placeholder="例如：今天负数运算仍容易漏符号。"></textarea><p class="helper">作为本次观察使用，不改写长期诊断；无画像对照不发送此项。</p></div>
+     </details>
      <div class="setup-field setup-goal"><label>图片解析依据 <span>选填，最多 4 张</span></label><p class="helper">先在「上传资料」中解析图片，再选择用于本次讲义的解析。原图仅发送给本地视觉模型；语言模型只接收解析文字。</p><button id="refresh-visual-evidence" type="button" class="secondary">刷新图片解析</button><div id="visual-evidence-options" class="visual-options"></div></div>
      <details class="scope-box"><summary>目标范围与材料覆盖</summary><div id="scope-check"><p class="helper">读取主题后展示。</p></div></details>
      <button class="primary" id="generate" type="submit" disabled>生成个性化讲义 <span>↗</span></button>
@@ -41,6 +51,7 @@
   <div id="layout-resizer" class="layout-resizer" role="separator" tabindex="0" aria-label="调整设置栏宽度" aria-orientation="vertical" aria-controls="settings-column lecture-results" aria-valuemin="280" aria-valuemax="440" aria-valuenow="330" aria-valuetext="设置栏宽度 330 像素" title="拖动调整宽度；左右方向键微调，Home/End 调到最小/最大，双击恢复默认"></div>
   <div class="result-column" id="lecture-results">
    <section class="paper"><div class="paper-toolbar"><div><span class="paper-dot"></span><strong id="result-label">讲义预览</strong></div><div class="paper-actions"><button id="edit-lecture" type="button" class="secondary" disabled>编辑与审核</button><button id="view-input" type="button" class="secondary" disabled>查看生成输入</button><button id="compare-profile" type="button" class="secondary" disabled>画像对照</button><button id="compare-lectures" type="button" class="secondary" disabled>讲义比较</button><div class="download-group"><label class="download-format-label" for="download-format">下载格式</label><select id="download-format" disabled><option value="md">Markdown (.md)</option><option value="txt">纯文本 (.txt)</option><option value="html">网页 (.html)</option><option value="docx">Word 文档 (.docx)</option></select><button id="download" class="secondary" disabled>下载原稿 Markdown</button><button id="print-lecture" class="secondary" type="button" disabled>打印 / PDF</button></div></div></div>
+    <div class="section-entry"><button id="adjust-section" type="button" class="secondary" disabled>按章节调整</button><span class="helper">展开、简化或更换例题，预览后另存版本。</span></div>
     <div id="version-controls" class="version-controls" hidden><label for="lecture-version">阅读版本</label><select id="lecture-version"></select><p id="version-status" class="helper" role="status"></p></div>
     <p id="input-trace-note" class="input-trace-note" hidden></p>
     <div id="empty" class="empty"><div class="page-symbol">Aa<span>＋</span></div><h2>从学生的起点出发</h2><p>选择一名学生，查看知识状态，<br>生成针对当前学习需要的讲义。</p><div class="steps"><span>学生状态</span><i>→</i><span>课程证据</span><i>→</i><span>专属讲义</span></div></div>
@@ -48,7 +59,19 @@
     <div id="lecture-meta" class="lecture-meta" hidden></div><article id="lecture" class="lecture" hidden></article>
     <div id="review-note" class="review-note" hidden></div>
    </section>
-   <section id="quality-panel" class="panel" hidden><div class="section-heading"><h2>输出检查与问题记录</h2><span id="quality-version" class="helper"></span></div><p id="quality-summary" class="current-summary"></p><h3>程序检查</h3><div id="automatic-checks"></div><h3 id="teacher-checks-title">待教师复核</h3><div id="teacher-checks"></div><details class="trace-section"><summary>逐处引用与对应材料</summary><div id="citation-checks"></div></details><h3>已记录的问题</h3><div id="lecture-issues"></div><p class="helper">自动检查不能证明数学正确性。问题记录指向明确的已保存版本；处理说明是修订记录者的判断。</p></section>
+   <section id="quality-panel" class="panel" hidden>
+    <div class="section-heading"><h2>讲义检查</h2></div>
+    <h3>发现的问题</h3><div id="quality-warnings"></div><div id="lecture-issues"></div>
+    <h3 id="teacher-checks-title">待确认事项</h3><div id="teacher-checks"></div>
+    <details id="quality-details" class="trace-section"><summary>展开其余检查结果</summary>
+     <p id="quality-summary" class="current-summary"></p><p class="helper">检查规则：<span id="quality-version"></span></p>
+     <h3>其余程序检查</h3><div id="automatic-checks"></div>
+     <h3>保存时已确认的事项</h3><div id="confirmed-teacher-checks"></div>
+     <h3>已有处理说明的问题</h3><div id="resolved-lecture-issues"></div>
+     <details class="trace-section"><summary>逐处引用与对应材料</summary><div id="citation-checks"></div></details>
+     <p class="helper">自动检查不能证明数学正确性。问题记录指向明确的已保存版本；处理说明是修订记录者的判断。</p>
+    </details>
+   </section>
    <div class="evidence-link"><div><strong>每一份讲义，都有课程依据</strong><p>查阅当前任务的材料与知识点来源。</p></div><a href="#materials" class="secondary">查看课程材料 ↗</a></div>
   </div>
  </div>
@@ -278,4 +301,20 @@
 </dialog>
 <link rel="stylesheet" href="/static/model-settings.css"><script defer src="/static/model-settings.js"></script>
 <link rel="stylesheet" href="/static/course-manager.css"><script defer src="/static/course-manager.js"></script><script defer src="/static/student-roster.js"></script>
+<dialog id="section-editor" aria-labelledby="section-editor-title">
+ <div class="editor-top"><div class="editor-heading"><div><h2 id="section-editor-title">按章节调整</h2><p id="section-base-note" class="helper"></p></div><button id="close-section-editor" type="button" class="secondary">关闭</button></div></div>
+ <div class="dialog-body"><div id="section-error" class="error" role="alert" hidden></div>
+  <form id="section-form"><div class="teaching-grid">
+   <div><label for="section-select">选择章节</label><select id="section-select" required></select></div>
+   <div><label for="section-action">修改方式</label><select id="section-action"><option value="expand">展开讲解</option><option value="simplify">简化本节</option><option value="examples">更换例题 / 练习</option><option value="custom">自定义修改</option></select></div>
+   <div class="teaching-wide"><label for="section-instruction">本节修改要求（选填）</label><textarea id="section-instruction" maxlength="1500" rows="2" placeholder="例如：保留推导，增加学生答错时的追问和引导。"></textarea></div>
+   <div><label for="section-recorder">记录者</label><input id="section-recorder" maxlength="80" required placeholder="填写教师姓名或称呼"></div>
+  </div><p class="helper">依据当前阅读版本与原材料生成候选。预览后另存草稿，其余章节保持原样，审核项重新确认。</p>
+  <button id="generate-section" class="primary" type="submit">生成本节候选</button></form>
+  <p id="section-progress" class="current-summary" role="status" aria-live="polite"></p>
+  <div class="section-comparison"><section><h3>修改前</h3><div id="section-before" class="section-preview"></div></section><section><h3>候选内容</h3><div id="section-after" class="section-preview"><p class="helper">生成后在这里预览。</p></div></section></div>
+  <div class="section-save-actions"><button id="accept-section" type="button" class="primary" disabled>采用并另存草稿</button><button id="section-trace" type="button" class="secondary" hidden>查看本次修改输入</button></div>
+ </div>
+</dialog>
+<link rel="stylesheet" href="/static/teaching.css"><script defer src="/static/teaching.js"></script><script defer src="/static/section-editor.js"></script>
 </body></html>

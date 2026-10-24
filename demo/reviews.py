@@ -126,11 +126,13 @@ def change_report(before, after):
             'added_lines':sum(len(c['after']) for c in changes)}
 
 
-def save_revision(conn, lecture_id, data):
+def save_revision(conn, lecture_id, data, *, preserve_whitespace=False):
     lecture = lecture_row(conn, lecture_id, True)
     check_event(lecture, data)
     base = version_row(conn, lecture, data.get('base_revision'))
     content = text_field(data, 'content', 16000)
+    if preserve_whitespace:
+        content = data['content']
     recorder, reason = text_field(data, 'recorder', 80), text_field(data, 'reason', 1500)
     status, seconds = data.get('status'), data.get('review_seconds')
     if not isinstance(status, str) or status not in STATUS_LABELS:

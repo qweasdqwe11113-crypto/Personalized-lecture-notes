@@ -30,14 +30,24 @@ function drawQuality(report, origin, teacherRecord=null) {
   $('quality-panel').hidden=!report;
   if (!report) return;
   const warnings=report.automatic.filter(c=>c.status==='warning').length;
+  $('quality-details').open=false;
   $('quality-version').textContent=report.version;
   $('quality-summary').textContent=`${origin || '当前文本检查'} · 程序提示 ${warnings} 项；`+(teacherRecord?.status==='reviewed'?'该版本保存了教师审核判断，程序结果不替代该判断。':'数学、来源支持与教学调整仍待教师复核。');
-  $('automatic-checks').replaceChildren(...report.automatic.map(c=>{
+  const checkCard=c=>{
     const box=el('div',undefined,'check-item '+(c.status==='warning'?'check-warning':''));
     box.append(el('strong',(c.status==='pass'?'已检查 · ':'需查看 · ')+c.label),el('p',c.detail,'helper'));return box;
-  }));
-  $('teacher-checks-title').textContent=teacherRecord?'教师复核记录（保存时）':'待教师复核';
-  $('teacher-checks').replaceChildren(...report.teacher_review.map(c=>el('p',(teacherRecord?.checklist[c.code]?'保存时已确认 · ':'待复核 · ')+c.label,'helper')));
+  };
+  $('quality-warnings').replaceChildren(...report.automatic.filter(c=>c.status==='warning').map(checkCard));
+  if(!warnings)$('quality-warnings').append(el('p','程序暂未发现需提醒的问题。','helper'));
+  $('automatic-checks').replaceChildren(...report.automatic.filter(c=>c.status!=='warning').map(checkCard));
+  if(!report.automatic.some(c=>c.status!=='warning'))$('automatic-checks').append(el('p','暂无其余程序检查结果。','helper'));
+  const confirmed=c=>!!teacherRecord?.checklist?.[c.code];
+  const pending=report.teacher_review.filter(c=>!confirmed(c));
+  $('teacher-checks-title').textContent='待确认事项';
+  $('teacher-checks').replaceChildren(...pending.map(c=>el('p',c.label,'helper')));
+  if(!pending.length)$('teacher-checks').append(el('p','该版本保存时已确认全部复核事项。','helper'));
+  $('confirmed-teacher-checks').replaceChildren(...report.teacher_review.filter(confirmed).map(c=>el('p','保存时已确认 · '+c.label,'helper')));
+  if(!report.teacher_review.some(confirmed))$('confirmed-teacher-checks').append(el('p','尚无已确认的复核事项。','helper'));
   $('citation-checks').replaceChildren();
   for (const c of report.citation_locations) {
     const box=el('div',undefined,'history-card');box.append(el('strong',`正文第 ${c.line} 行`),el('p',c.excerpt,'helper'));
@@ -76,7 +86,11 @@ function drawVersionControls(){
   const version=currentReviewVersion();
   const pending=lectureReviewData.issues.filter(i=>!version?.resolutions?.some(r=>r.issue_id===i.id)).length;
   $('version-status').textContent=`${selectedRevision===0?'模型原稿':`教师修订 R${selectedRevision}`} · ${statusLabels[version?.status] || '未审核'}（保存时记录） · ${pending} 条问题未在此版本说明处理；修订不改写生成输入。`;
-  issueCards(lectureReviewData.issues,version?.resolutions,$('lecture-issues'));
+  const handled=issue=>version?.resolutions?.some(r=>r.issue_id===issue.id);
+  issueCards(lectureReviewData.issues.filter(issue=>!handled(issue)),version?.resolutions,$('lecture-issues'));
+  issueCards(lectureReviewData.issues.filter(handled),version?.resolutions,$('resolved-lecture-issues'));
+  if(!pending)$('lecture-issues').replaceChildren();
+  if(!lectureReviewData.issues.some(handled))$('resolved-lecture-issues').replaceChildren(el('p','此版本尚无问题处理说明。','helper'));
 }
 async function loadLectureReview(result){
   const session=++reviewSession;reviewLecture=result;selectedRevision=0;lectureReviewData=null;
@@ -175,5 +189,6 @@ $('issue-form').onsubmit=async e=>{
   }catch(err){editorError(err.message);$('issue-confirmed').checked=false;}finally{setEditorBusy(false);}
 };
 
-Object.assign(window, {drawScope, loadLectureReview, clearLectureReview, setReviewBusy});
+function displaySectionRevision(lecture,bundle){reviewSession++;reviewLecture=lecture;lectureReviewData=bundle;selectedRevision=bundle.saved_revision;showReviewVersion(selectedRevision);$('edit-lecture').disabled=busy;}
+Object.assign(window, {drawScope, loadLectureReview, clearLectureReview, setReviewBusy, displaySectionRevision});
 })();

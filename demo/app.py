@@ -26,6 +26,8 @@ from courses import TOPICS, REFERENCE_EXAMPLES
 from catalog import load_catalog, register_catalog
 from comparisons import comparison_options, compare_lectures
 from jobs import JobError, JobQueue
+from teaching import teaching_options
+from sections import execute_section, register_sections
 from uploads import read_upload, register_uploads
 from embed import EmbeddingError, OllamaEmbedder, QwenEmbedder
 from retrieval import (MODES as RETRIEVAL_MODES, RetrievalError, adopt_content, build_query,
@@ -99,6 +101,7 @@ def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql', goa
     for s in states:
         s['recent_evidence'] = recent[s['id']]
     ctx = {'student':student, 'topic':topic, 'states':states, 'materials':materials, 'retrieval': retrieval}
+    ctx['lecture_length_policy'] = 'expanded-v1'
     ctx['personalization_mode'] = mode
     if mode == 'profile' and learner_note:
         ctx['learner_note'] = learner_note
@@ -262,6 +265,7 @@ def generate():
         return jsonify(error='请选择有画像或无画像模式。'), 400
     retrieval_mode = data.get('retrieval_mode', 'sql')
     note = learner_note(data)
+    options = validated_teaching_options(data)
     if retrieval_mode not in RETRIEVAL_MODES:
         return jsonify(error='请选择精确 SQL 或向量检索。'), 400
     goal = goal.strip() or topic_catalog()[topic_key]['goal']
@@ -269,12 +273,12 @@ def generate():
     if not GENERATION_LOCK.acquire(blocking=False):
         return jsonify(error='已有讲义正在生成，请等待完成后再试。'), 429
     result, status = generate_locked(sid, topic_key, goal, mode, retrieval_mode=retrieval_mode,
-                                     visual_evidence=evidence, learner_note=note)
+                                     visual_evidence=evidence, learner_note=note, teaching_options=options)
     return jsonify(result), status
 
 
 def generate_locked(sid, topic_key, goal, mode='profile', frozen=None, prepared=None, run_id=None,
-                    job_id=None, retrieval_mode='sql', visual_evidence=None, learner_note=''):
+                    job_id=None, retrieval_mode='sql', visual_evidence=None, learner_note='', teaching_options=None):
     # Caller owns GENERATION_LOCK; release it for every result and exception.
     output, check, stage = ModelResult(''), {}, 'preparation'
     start = time.monotonic()
@@ -284,6 +288,8 @@ def generate_locked(sid, topic_key, goal, mode='profile', frozen=None, prepared=
             return {'error': '学生不存在。'}, 404
         if frozen is None and visual_evidence:
             ctx['visual_evidence'] = visual_evidence
+        if frozen is None and teaching_options:
+            ctx['teaching_options'] = teaching_options
         if frozen is None:
             ctx['scope_check'] = assess_scope(ctx, goal)
         prepared = prepared or prepare_request(ctx, goal, MODEL)
@@ -344,11 +350,24 @@ def execute_job(job_id, run_id, sid, topic, goal, context, prepared):
     except Exception:
         GENERATION_LOCK.release()
         raise
+    if context.get('section_edit'):
+        start = time.monotonic()
+        try:
+            return execute_section(lambda: db(), call_qwen, job_id, run_id, context, prepared)
+        except ModelError as exc:
+            persist_failure(run_id, exc, round(time.monotonic() - start, 2), {}, job_id)
+        except Exception:
+            persist_failure(run_id, ModelError('section_error', '章节修改未完成，请核查生成记录后重试。', 'output'),
+                            round(time.monotonic() - start, 2), {}, job_id)
+        finally:
+            GENERATION_LOCK.release()
+        return
     return generate_locked(sid, topic, goal, context.get('personalization_mode', 'profile'),
                            context, prepared, run_id, job_id)
 
 
 TASKS = JobQueue(lambda: db(), execute_job)
+register_sections(app, lambda: db(), lambda: TASKS, lambda: MODEL)
 
 
 @app.errorhandler(JobError)
@@ -373,10 +392,18 @@ def learner_note(data):
     return note.strip()
 
 
+def validated_teaching_options(data):
+    try:
+        return teaching_options(data)
+    except ValueError as exc:
+        raise JobError(str(exc)) from None
+
+
 def job_input(data):
     if not isinstance(data, dict):
         raise JobError('请求格式必须是 JSON 对象。')
     learner_note(data)
+    validated_teaching_options(data)
     sid, topic = data.get('student_id'), data.get('topic')
     goal, mode = data.get('goal', ''), data.get('personalization_mode', 'profile')
     if type(sid) is not int or not isinstance(topic, str) or topic not in topic_catalog():
@@ -400,6 +427,9 @@ def submit_job():
     evidence = selected_evidence(ROOT, request.get_json().get('visual_analysis_ids', []))
     if evidence:
         ctx['visual_evidence'] = evidence
+    options = validated_teaching_options(request.get_json())
+    if options:
+        ctx['teaching_options'] = options
     ctx['scope_check'] = assess_scope(ctx, goal)
     return jsonify(TASKS.submit(sid, topic, goal, ctx, prepare_request(ctx, goal, MODEL))), 202
 
@@ -524,7 +554,7 @@ def lecture(lecture_id):
     with db() as conn:
         row = conn.execute('SELECT * FROM lectures WHERE id=%s',(lecture_id,)).fetchone()
         if row:
-            trace = conn.execute('SELECT id FROM generation_runs WHERE lecture_id=%s', (lecture_id,)).fetchone()
+            trace = conn.execute("SELECT id FROM generation_runs WHERE lecture_id=%s AND NOT (context ? 'section_edit') ORDER BY id LIMIT 1", (lecture_id,)).fetchone()
             row['generation_run_id'] = trace['id'] if trace else None
             row['quality_report'] = row['citation_check'].get('quality_report') or check_output(row['content'], row['context'], row['goal'])
             row['quality_report_origin'] = '生成时留存' if 'quality_report' in row['citation_check'] else '本次读取时检查，未改写原稿'

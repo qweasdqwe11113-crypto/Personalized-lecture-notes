@@ -60,7 +60,7 @@ class CourseJobTests(ProfileDatabaseFixture):
         self.assertIsNone(module.get_context(1,'probability_basic'))
         self.assertEqual([m['id'] for m in module.get_context(1,'linear')['materials']],[1,2,3])
         prepared=prepare_request(advanced,advanced['topic']['goal'],module.MODEL)
-        self.assertEqual((prepared.prompt_version,prepared.input_version),('lecture-probability-v2','lecture-context-v4'))
+        self.assertEqual((prepared.prompt_version,prepared.input_version),('lecture-probability-v2+expanded-v1','lecture-context-v4'))
 
     def test_ablation_removes_selected_learner_fields_and_has_identical_actual_bytes(self):
         bodies=[]
@@ -92,10 +92,13 @@ class CourseJobTests(ProfileDatabaseFixture):
     def test_university_check_uses_its_length_and_probability_scope(self):
         from quality import check_output
         ctx=module.get_context(11,'probability_advanced')
-        report=check_output('# 概率\n互斥完备 P(B)>0\n'+('概'*950)+' [M13]',ctx,ctx['topic']['goal'])
+        report=check_output('# 概率\n互斥完备 P(B)>0\n'+('概'*4500)+' [M13]',ctx,ctx['topic']['goal'])
         self.assertEqual(report['version'],'probability-text-check-v2')
         self.assertEqual(report['scope']['warnings'],[])
         self.assertEqual(next(c for c in report['automatic'] if c['code']=='length')['status'],'pass')
+        legacy=copy.deepcopy(ctx);legacy.pop('lecture_length_policy')
+        historical=check_output('概'*950,legacy,legacy['topic']['goal'])
+        self.assertEqual(next(c for c in historical['automatic'] if c['code']=='length')['status'],'pass')
         self.assertEqual(next(c for c in report['automatic'] if c['code']=='probability_conditions')['status'],'pass')
         self.assertTrue(all(c['status']=='needs_review' for c in report['teacher_review']))
 

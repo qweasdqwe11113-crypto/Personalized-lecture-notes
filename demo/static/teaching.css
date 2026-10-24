@@ -1,0 +1,29 @@
+.teaching-controls { margin: 0; min-width: 0; padding: 16px; border: 1px solid var(--line, #e1e6f0); border-radius: 10px; background: #f8faff; }
+.teaching-controls legend { padding: 0 6px; font-size: 13px; font-weight: 600; color: #334c78; }
+.teaching-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.teaching-grid > div { min-width: 0; }
+.teaching-grid label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 7px; }
+.teaching-grid input { width: 100%; box-sizing: border-box; background: #fafbfe; border: 1px solid #e1e6f0; border-radius: 7px; padding: 11px 12px; font: inherit; font-size: 13px; color: inherit; }
+.teaching-grid input:focus-visible { outline: 3px solid #bfd0ff; outline-offset: 2px; }
+.teaching-wide { grid-column: 1 / -1; }
+.teaching-presets, .section-save-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.teaching-presets button { font-size: 11px; padding: 5px 9px; }
+.teaching-advanced { border-top: 1px solid var(--line, #e1e6f0); padding-top: 14px; }
+.teaching-advanced summary { cursor: pointer; color: #53688f; font-size: 12px; }
+.teaching-advanced .setup-field { margin-top: 16px; }
+#generate-form > .setup-goal { grid-column: 1 / -1; grid-row: auto; }
+.section-entry { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 14px 24px; border-bottom: 1px solid var(--line, #e1e6f0); }
+#section-editor { width: min(1080px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); padding: 0; overflow: hidden; }
+#section-editor[open] { display: flex; flex-direction: column; }
+#section-editor .editor-top { flex: 0 0 auto; }
+#section-editor .dialog-body { overflow-y: auto; min-height: 0; }
+.section-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 20px; }
+.section-comparison > section { min-width: 0; }
+.section-comparison h3 { font-size: 13px; color: #53688f; }
+.section-preview { padding: 16px; border: 1px solid #e1e6f0; border-radius: 9px; background: #fafbfe; overflow-wrap: anywhere; line-height: 1.9; font-size: 14px; }
+.section-preview h2 { margin: 0 0 12px; font-size: 17px; }
+.section-preview h3 { font-size: 15px; }
+.section-save-actions { background: white; padding: 14px 0 6px; }
+.section-save-actions .primary { width: auto; flex: 1 1 200px; }
+@media (max-width: 650px) { .section-comparison { grid-template-columns: minmax(0, 1fr); } #section-editor { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); } }
+@media print { .section-entry, #section-editor { display: none !important; } }

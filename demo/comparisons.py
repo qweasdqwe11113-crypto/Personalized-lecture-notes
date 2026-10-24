@@ -104,7 +104,8 @@ def align_sections(left, right):
 
 def recorded_settings(conn, lecture):
     run = conn.execute('''SELECT prompt_version,input_version,request_body,request_sha256
-        FROM generation_runs WHERE lecture_id=%s''', (lecture['id'],)).fetchone()
+        FROM generation_runs WHERE lecture_id=%s AND NOT (context ? 'section_edit')
+        ORDER BY id LIMIT 1''', (lecture['id'],)).fetchone()
     if not run or hashlib.sha256(run['request_body'].encode()).hexdigest() != run['request_sha256']:
         return None, None
     try:

@@ -1,5 +1,6 @@
 """Transparent text checks; no claim to prove mathematics or citation entailment."""
 import re
+from teaching import length_range
 
 CHECK_VERSION = 'math-text-check-v1'
 SECTIONS = ['学习目标', '本次学习安排', '核心讲解', '例题与检验', '易错点与小结']
@@ -75,6 +76,11 @@ def check_output(content, context, goal):
     add('title', '讲义标题', len(re.findall(r'^#\s+\S', content, re.M)) == 1, '应有一个一级标题。')
     add('sections', '约定章节', not missing, '缺少：' + '、'.join(missing) if missing else '五个约定章节均已出现；不代表章节内容充分。')
     minimum, maximum = context['topic'].get('length_range', [600, 900])
+    expanded = context.get('lecture_length_policy') == 'expanded-v1'
+    if expanded:
+        minimum, maximum = 4000, 8000
+    if context.get('teaching_options'):
+        minimum, maximum = length_range(context['teaching_options'], expanded)
     add('length', '篇幅', minimum <= chinese <= maximum, f'检测到 {chinese} 个汉字；当前模板建议 {minimum}—{maximum}，含标题，不计标点、数字和字母。')
     add('citations', '引用标记', bool(citations), '检测到材料编号。' if citations else '正文未检测到 [M数字] 引用。')
     add('citation_ids', '引用编号有效性', not invalid, '不存在的材料编号：' + '、'.join('M'+x for x in invalid) if invalid else '未检测到无效编号；仍需检查引用支持关系。')
@@ -102,7 +108,7 @@ def check_output(content, context, goal):
         add('visual_citations', '图片解析引用', bool(used) and used <= available,
             '已引用有效图片解析编号；识读与引用支持关系仍需教师核对。' if used and used <= available else
             '未引用图片解析或存在无效图片编号；图片可能与本次目标无关，请核对。')
-    return {'version': scope['version'], 'metrics': {'chinese_characters': chinese, 'line_count': len(content.splitlines())},
+    return {'version': scope['version'] + ('+teaching-v1' if context.get('teaching_options') else ''), 'metrics': {'chinese_characters': chinese, 'line_count': len(content.splitlines())},
             'scope': scope, 'automatic': checks, 'citation_locations': citations,
             'teacher_review': [{'code': key, 'label': label, 'status': 'needs_review'} for key, label in ({**REVIEW_ITEMS, 'math': '学科知识、适用条件与术语', 'examples': '示例与检验过程'} if general else REVIEW_ITEMS).items()],
             'note': '程序只检查文本结构、篇幅、标记和关联；不能判定任意数学结论或来源支持。'}

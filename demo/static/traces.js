@@ -26,7 +26,7 @@ async function refreshRuns() {
   $('generation-runs').replaceChildren(...data.runs.map(run => {
     const button = el('button', undefined, 'run-history-item');
     button.type = 'button';
-    button.append(el('span', `#${run.id} ${run.name} · ${runLabels[run.status]}`, 'run-' + run.status),
+    button.append(el('span', `#${run.id} ${run.name} · ${run.section_rewrite?(run.status==='succeeded'?'章节候选已生成':runLabels[run.status]):runLabels[run.status]}`, 'run-' + run.status),
                   el('span', run.topic, 'helper'));
     button.onclick = () => openTrace(run.id);
     return button;
@@ -39,11 +39,13 @@ function traceError(message) {
 }
 function drawTrace(run) {
   const payload = run.request_payload || {};
+  const edit=run.context.section_edit;const saved=run.response_metadata.saved_revision;
   const messages = Array.isArray(payload.messages) ? payload.messages : [];
-  $('trace-title').textContent = `生成记录 #${run.id} · ${runLabels[run.status]}`;
+  $('trace-title').textContent = `生成记录 #${run.id} · ${edit&&run.status==='succeeded'?'章节候选已生成':runLabels[run.status]}`;
   $('trace-status').textContent = run.status === 'running'
     ? '记录尚未结束，可能仍在处理或曾中断，请刷新核查。'
     : run.status === 'succeeded' ? `已关联讲义 #${run.lecture_id}，输入与输出一起留存。` : '此记录没有进入成功讲义历史。';
+  if(edit&&run.status==='succeeded')$('trace-status').textContent=saved?`本次章节修改已另存讲义 #${edit.lecture_id} / R${saved} 草稿。`:`章节候选尚未采用，可从后台任务恢复预览；原讲义未修改。`;
   traceError(!run.integrity_valid ? '输入校验值不匹配，请核查存储记录。' : run.error_message);
   $('trace-call-note').textContent = run.attempted_at
     ? `已尝试调用模型 · ${new Date(run.attempted_at).toLocaleString('zh-CN')}`
@@ -63,7 +65,9 @@ function drawTrace(run) {
     `学生：${context.student.name}`, `备课副本 / 主题：${run.topic}`,
     `本次目标：${run.goal}`, `主题默认目标：${context.topic.goal}`,
     `学习特点：${context.student.profile}`,
-    `本次学生备注：${context.learner_note || '未填写；无画像模式不使用个体备注。'}`,
+    `本次学生观察：${context.learner_note || '未填写；无画像模式不使用个体观察。'}`,
+    `授课设置：${context.teaching_options ? JSON.stringify(context.teaching_options,null,2) : '历史输入未设置'}`,
+    ...(edit ? [`章节调整：讲义 #${edit.lecture_id} / ${edit.base_revision?'R'+edit.base_revision:'原稿'} / ${edit.title}；要求：${edit.instruction||edit.action}`] : []),
     `副本教案：${context.topic.lesson_plan || '未填写教案正文。'}`,
     '知识状态：' + context.states.map(s => `${s.name} / ${s.label} / 记录版本 ${s.revision ?? '未记录'}`).join('；'),
     '课程材料：' + context.materials.map(m => `M${m.id} ${m.title}`).join('；')

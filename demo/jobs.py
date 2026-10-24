@@ -66,7 +66,8 @@ class JobQueue:
     def detail(self, job_id):
         with self.db() as conn:
             row = conn.execute('''SELECT j.*,r.lecture_id,r.error_message,r.error_code,r.usage,
-                r.elapsed_seconds,r.topic,r.student_id FROM generation_jobs j
+                r.elapsed_seconds,r.topic,r.student_id,r.context ? 'section_edit' AS section_rewrite,
+                r.response_metadata->'saved_revision' AS saved_revision FROM generation_jobs j
                 JOIN generation_runs r ON r.id=j.run_id WHERE j.id=%s''', (job_id,)).fetchone()
             if not row:
                 raise JobError('任务不存在。', 404)
@@ -78,7 +79,8 @@ class JobQueue:
 
     def recent(self):
         with self.db() as conn:
-            return conn.execute('''SELECT j.*,r.lecture_id,r.error_message,r.topic,s.name
+            return conn.execute('''SELECT j.*,r.lecture_id,r.error_message,r.topic,s.name,
+                r.context ? 'section_edit' AS section_rewrite
                 FROM generation_jobs j JOIN generation_runs r ON r.id=j.run_id
                 JOIN students s ON s.id=r.student_id ORDER BY j.created_at DESC LIMIT 12''').fetchall()
 

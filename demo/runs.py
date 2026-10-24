@@ -51,7 +51,8 @@ def save_success(conn, run_id, student_id, goal, context, prepared, output, elap
 
 def recent_runs(conn):
     return conn.execute('''SELECT r.id,r.status,r.topic,r.created_at,r.finished_at,r.elapsed_seconds,
-        r.lecture_id,r.prompt_version,r.error_message,s.name FROM generation_runs r
+        r.lecture_id,r.prompt_version,r.error_message,s.name,
+        r.context ? 'section_edit' AS section_rewrite FROM generation_runs r
         JOIN students s ON s.id=r.student_id ORDER BY r.id DESC LIMIT 10''').fetchall()
 
 
