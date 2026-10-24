@@ -179,7 +179,7 @@
  <section class="workspace-page" id="page-grading" hidden>
   <div class="grading-layout">
    <section class="panel">
-    <div class="section-heading"><h2>上传阅卷材料</h2></div>
+    <div class="section-heading"><h2>上传阅卷材料</h2><a href="#records/grading" class="secondary">阅卷记录</a></div>
     <form id="grading-form">
      <label for="grading-paper">学生作答材料</label>
      <input id="grading-paper" type="file" accept=".png,.jpg,.jpeg,.webp,.bmp,.gif,.tif,.tiff,.pdf,.docx,.txt,.md" required>
@@ -202,19 +202,23 @@
      <div id="grading-results"></div>
      <details id="grading-extraction" hidden><summary>查看提取原文（需核对）</summary><h3>学生作答材料</h3><pre id="grading-extracted"></pre><h3>另传参考答案</h3><pre id="grading-reference-text"></pre></details>
     </section>
-    <section class="panel">
-     <div class="section-heading"><h2>阅卷记录</h2><button type="button" id="grading-refresh" class="secondary">刷新记录</button></div>
-     <div id="grading-history"></div>
-    </section>
    </div>
   </div>
  </section>
  <section class="workspace-page" id="page-records" hidden>
-  <div class="record-tabs" role="tablist" aria-label="生成记录类型"><a href="#records/lectures" id="record-tab-lectures" role="tab" aria-selected="true" aria-controls="record-panel-lectures">讲义记录</a><a href="#records/quizzes" id="record-tab-quizzes" role="tab" aria-selected="false" aria-controls="record-panel-quizzes" tabindex="-1">出题记录</a></div>
+  <div class="record-tabs" role="tablist" aria-label="生成记录类型"><a href="#records/lectures" id="record-tab-lectures" role="tab" aria-selected="true" aria-controls="record-panel-lectures">讲义记录</a><a href="#records/quizzes" id="record-tab-quizzes" role="tab" aria-selected="false" aria-controls="record-panel-quizzes" tabindex="-1">出题记录</a><a href="#records/grading" id="record-tab-grading" role="tab" aria-selected="false" aria-controls="record-panel-grading" tabindex="-1">阅卷记录</a></div>
   <div id="record-panel-lectures" role="tabpanel" aria-labelledby="record-tab-lectures">
   <div class="records-grid"><section class="panel"><div class="section-heading"><h2>最近生成</h2></div><div id="history" class="history"><p class="helper">暂无已保存讲义</p></div></section><section class="panel"><div class="section-heading"><h2>后台任务</h2><button id="refresh-jobs" class="secondary" type="button">刷新任务</button></div><p class="helper">1 个任务处理，最多 3 个等待；仅本机单进程。提交时固定输入，刷新页面后可从任务恢复查看。</p><div id="jobs-list" class="history"></div></section></div>
 <section class="panel"><div class="section-heading"><h2>讲义生成记录</h2><button id="refresh-runs" type="button" class="secondary">刷新</button></div><p class="helper">最近 10 次请求 · 包含失败记录</p><div id="generation-runs" class="history"><p class="helper">正在读取…</p></div></section>
   </div><div id="record-panel-quizzes" role="tabpanel" aria-labelledby="record-tab-quizzes" hidden><section class="panel"><div class="section-heading"><h2>出题记录</h2><div class="quiz-actions"><a href="#quizzes" class="secondary">前往出题</a><button id="quiz-refresh-history" type="button" class="secondary">刷新记录</button></div></div><p class="helper">保存提交时的备课副本、学生依据和设置；点击记录可返回出题页查看题目与答案解析。</p><p id="quiz-history-error" class="error" role="alert" hidden></p><div id="quiz-history" class="quiz-history"></div></section></div>
+  <div id="record-panel-grading" role="tabpanel" aria-labelledby="record-tab-grading" hidden>
+   <section class="panel">
+    <div class="section-heading"><h2>阅卷记录</h2><div class="quiz-actions"><a href="#grading" class="secondary">前往阅卷</a><button type="button" id="grading-refresh" class="secondary">刷新记录</button></div></div>
+    <p class="helper">点击记录可返回阅卷页，查看逐题评分、解析和提取原文，并下载批改结果。</p>
+    <p id="grading-history-error" class="error" role="alert" hidden></p>
+    <div id="grading-history"></div>
+   </section>
+  </div>
  </section>
  <section class="workspace-page" id="page-settings" hidden>
   <div class="page-intro"><span class="intro-icon">⚙</span><div><h2>模型与服务配置</h2><p>为文字生成、图片理解和资料检索分别选择模型。</p></div></div>

@@ -26,7 +26,7 @@
 .quiz-answer p {margin:0;white-space:pre-wrap}
 .quiz-workspace {margin:20px 0;color:#8491a5}
 .quiz-history {display:grid;gap:9px;margin-top:16px}
-.record-tabs {display:flex;gap:8px;margin-bottom:22px;border-bottom:1px solid var(--line);padding-bottom:12px}
+.record-tabs {display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px;border-bottom:1px solid var(--line);padding-bottom:12px}
 .record-tabs a {display:block;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;color:#68768c}
 .record-tabs a[aria-selected=true] {background:#eef1ff;color:var(--accent);font-weight:600}
 .record-tabs a:focus-visible {outline:3px solid #bfd0ff;outline-offset:2px}

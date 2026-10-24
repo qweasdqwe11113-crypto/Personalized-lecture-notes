@@ -11,12 +11,13 @@
     settings: ['系统设置', '管理本地工作空间的服务连接与模型配置。'],
   };
   const aliases = {'lecture-results': 'workbench', 'support-modules': 'records'};
+  const recordTypes = ['lectures', 'quizzes', 'grading'];
   let active;
   function navigate(focus = false) {
     const hash = location.hash.slice(1);
     const profileRoute = /^profiles\/(new|[1-9]\d*)$/.test(hash);
     const materialRoute = /^materials\/[\w-]+$/.test(hash);
-    const recordsRoute = /^records\/(lectures|quizzes)$/.test(hash);
+    const recordsRoute = /^records\/(lectures|quizzes|grading)$/.test(hash);
     const page = recordsRoute ? 'records' : materialRoute ? 'materials' : profileRoute ? 'profiles' : pages[hash] ? hash : aliases[hash] || 'workbench';
     if (!pages[hash] && !profileRoute && !materialRoute && !recordsRoute) history.replaceState(null, '', '#' + page);
     if (active === hash) return;
@@ -30,23 +31,25 @@
     $('page-title').textContent = title;
     document.title = title + ' · 知页';
     document.body.dataset.page = page;
-    const recordsTab = hash === 'records/quizzes' ? 'quizzes' : 'lectures';
-    for (const key of ['lectures', 'quizzes']) {
+    const recordsTab = recordsRoute ? hash.split('/')[1] : 'lectures';
+    for (const key of recordTypes) {
       const selected = key === recordsTab;
       $('record-tab-' + key).setAttribute('aria-selected', String(selected));
       $('record-tab-' + key).tabIndex = selected ? 0 : -1;
       $('record-panel-' + key).hidden = !selected;
     }
     if (page === 'records' && recordsTab === 'quizzes') window.dispatchEvent(new Event('quiz-history-open'));
+    if (page === 'records' && recordsTab === 'grading') window.dispatchEvent(new Event('grading-history-open'));
     window.scrollTo({top: 0});
     if (focus) (recordsRoute ? $('record-tab-' + recordsTab) : $('page-title')).focus({preventScroll: true});
   }
   window.addEventListener('hashchange', () => navigate(true));
-  for (const key of ['lectures', 'quizzes']) {
+  for (const key of recordTypes) {
     $('record-tab-' + key).addEventListener('keydown', event => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault();
-      const next = event.key === 'Home' ? 'lectures' : event.key === 'End' ? 'quizzes' : key === 'lectures' ? 'quizzes' : 'lectures';
+      const index = recordTypes.indexOf(key);
+      const next = event.key === 'Home' ? recordTypes[0] : event.key === 'End' ? recordTypes[recordTypes.length - 1] : recordTypes[(index + (event.key === 'ArrowRight' ? 1 : -1) + recordTypes.length) % recordTypes.length];
       location.hash = 'records/' + next;
       $('record-tab-' + next).focus();
     });

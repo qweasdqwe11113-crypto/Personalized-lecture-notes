@@ -3,6 +3,7 @@
   const labels = {reading:'正在提取题目与作答…', grading:'正在逐题批改…', completed:'阅卷完成 · 建议评分需教师复核', failed:'阅卷失败'};
   let activeId, timer;
   const message = text => { $('grading-error').textContent = text || ''; $('grading-error').hidden = !text; };
+  const historyError = text => { $('grading-history-error').textContent = text || ''; $('grading-history-error').hidden = !text; };
   function render(row) {
     $('grading-status').textContent = labels[row.status] || row.status;
     $('grading-extraction').hidden = !row.extracted;
@@ -26,14 +27,20 @@
     }
   }
   async function history() {
-    const data = await api('/api/grading');
-    $('grading-history').replaceChildren();
-    if (!data.records.length) $('grading-history').append(el('p','还没有阅卷记录。','helper'));
-    for (const row of data.records) {
-      const button = el('button', `${row.filename} · ${labels[row.status]} · ${new Date(row.created_at).toLocaleString('zh-CN')}`);
-      button.type = 'button'; button.onclick = () => open(row.id).catch(e => message(e.message));
-      $('grading-history').append(button);
-    }
+    try {
+      const data = await api('/api/grading');
+      historyError('');
+      $('grading-history').replaceChildren();
+      if (!data.records.length) $('grading-history').append(el('p','还没有阅卷记录。','helper'));
+      for (const row of data.records) {
+        const button = el('button', `${row.filename} · ${labels[row.status]} · ${new Date(row.created_at).toLocaleString('zh-CN')}`);
+        button.type = 'button'; button.onclick = () => {
+          openWorkspacePage('grading');
+          open(row.id).catch(e => message(e.message));
+        };
+        $('grading-history').append(button);
+      }
+    } catch(e) { historyError(e.message); }
   }
   async function poll(id) {
     const row = await api('/api/grading/' + id);
@@ -65,7 +72,8 @@
     } catch(e) { message(e.message); }
     finally { $('grading-submit').disabled = false; }
   };
-  $('grading-refresh').onclick = () => history().catch(e => message(e.message));
-  history().catch(e => message(e.message));
+  $('grading-refresh').onclick = history;
+  window.addEventListener('grading-history-open', history);
+  history();
   try { const id = localStorage.getItem('grading-last-id'); if (id) open(id).catch(e => message(e.message)); } catch (_) {}
 })();
