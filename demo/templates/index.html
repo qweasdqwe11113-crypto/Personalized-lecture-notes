@@ -7,6 +7,7 @@
  <div class="workspace-label">教学管理</div>
  <nav class="app-nav" aria-label="页面导航">
   <a href="#workbench" data-page="workbench" aria-current="page"><span class="nav-icon" aria-hidden="true">▦</span>讲义工作台</a>
+  <a href="#quizzes" data-page="quizzes"><span class="nav-icon" aria-hidden="true">✎</span>出题</a>
   <a href="#profiles" data-page="profiles"><span class="nav-icon" aria-hidden="true">◎</span>学生画像</a>
   <a href="#materials" data-page="materials"><span class="nav-icon" aria-hidden="true">▤</span>课程材料</a>
   <a href="#uploads" data-page="uploads"><span class="nav-icon" aria-hidden="true">↥</span>上传资料</a>
@@ -75,6 +76,32 @@
    <div class="evidence-link"><div><strong>每一份讲义，都有课程依据</strong><p>查阅当前任务的材料与知识点来源。</p></div><a href="#materials" class="secondary">查看课程材料 ↗</a></div>
   </div>
  </div>
+ </section>
+ <section class="workspace-page" id="page-quizzes" hidden>
+  <div class="quiz-layout">
+   <section class="panel quiz-settings"><div class="section-heading"><h2>出题设置</h2><button id="quiz-refresh-catalog" type="button" class="secondary">刷新副本</button></div>
+    <form id="quiz-form">
+     <label for="quiz-topic">备课材料副本</label><select id="quiz-topic" required disabled></select>
+     <p id="quiz-goal" class="helper"></p>
+     <label for="quiz-student">参考学生 <span>选填</span></label><select id="quiz-student"><option value="">通用学生水平</option></select>
+     <label for="quiz-level">学生水平</label><select id="quiz-level"><option value="profile">按所选学生画像</option><option value="foundation">基础待巩固</option><option value="standard" selected>常规水平</option><option value="advanced">学有余力</option></select>
+     <p id="quiz-profile-note" class="helper">学生水平决定题目情境和解析方式，题目难度可另行选择。</p>
+     <div class="quiz-form-pair"><div><label for="quiz-count">题目数量</label><input id="quiz-count" type="number" min="1" max="30" step="1" value="10" required></div><div><label for="quiz-difficulty">题目难度</label><select id="quiz-difficulty"><option value="basic">基础难度</option><option value="medium" selected>中等难度</option><option value="advanced">拔高难度</option><option value="mixed">混合 · 基础 / 中等 / 拔高</option></select></div></div>
+     <p id="quiz-allocation" class="helper"></p>
+     <fieldset><legend>题型 <span>至少选择一种</span></legend><div class="quiz-checks"><label><input type="checkbox" name="quiz-type" value="single_choice" checked>单项选择</label><label><input type="checkbox" name="quiz-type" value="fill_blank">填空</label><label><input type="checkbox" name="quiz-type" value="short_answer" checked>简答</label><label><input type="checkbox" name="quiz-type" value="calculation">计算</label><label><input type="checkbox" name="quiz-type" value="application">综合应用</label></div></fieldset>
+     <details class="quiz-focus"><summary>考查知识点 <span class="helper">默认覆盖副本全部知识点</span></summary><div id="quiz-knowledge" class="quiz-checks"></div></details>
+     <label for="quiz-requirements">出题要求 <span>选填</span></label><textarea id="quiz-requirements" maxlength="2000" rows="3" placeholder="例如：重点考查单位换算，增加错例辨析；不出超纲题。"></textarea>
+     <button id="quiz-generate" class="primary" type="submit" disabled>生成练习题</button>
+     <p class="helper">每题附参考答案、解析和易错点。混合难度约按 5∶3∶2 分配；题型轮流分配，题量少时优先采用靠前的所选题型。</p>
+    </form><p id="quiz-status" class="helper" role="status" aria-live="polite"></p><div id="quiz-error" class="error" role="alert" hidden></div>
+   </section>
+   <div class="quiz-main"><section class="panel"><div class="section-heading"><h2 id="quiz-preview-title">题组预览</h2><div class="quiz-actions"><button id="quiz-student-view" class="secondary" type="button" aria-pressed="true">学生版</button><button id="quiz-teacher-view" class="secondary" type="button" aria-pressed="false">教师版 · 含解析</button></div></div>
+    <p id="quiz-preview-note" class="helper">选择备课副本和出题设置，即可生成练习题。学生版隐藏答案，教师版显示解析与易错点。</p>
+    <div id="quiz-export" class="quiz-actions" hidden><label for="quiz-format">下载格式</label><select id="quiz-format"><option value="docx">Word (.docx)</option><option value="md">Markdown (.md)</option><option value="txt">纯文本 (.txt)</option><option value="html">网页 (.html)</option></select><a id="quiz-download" class="secondary">下载学生版</a></div>
+    <div id="quiz-questions" class="quiz-questions"></div><button id="quiz-retry" class="secondary" type="button" hidden>按原输入重试</button>
+   </section>
+   <section class="panel"><div class="section-heading"><h2>出题记录</h2><button id="quiz-refresh-history" type="button" class="secondary">刷新记录</button></div><p class="helper">保存提交时的备课副本、学生依据和设置；刷新页面后可继续查看。模型生成题目与答案均需教师复核。</p><div id="quiz-history" class="quiz-history"></div></section></div>
+  </div>
  </section>
  <section class="workspace-page" id="page-profiles" hidden>
   <div id="student-list-page"><div class="page-intro"><span class="intro-icon">◎</span><div><h2>学生名单</h2><p>选择同学查看独立档案，或新建学生画像。</p></div></div>
@@ -317,4 +344,5 @@
  </div>
 </dialog>
 <link rel="stylesheet" href="/static/teaching.css"><script defer src="/static/teaching.js"></script><script defer src="/static/section-editor.js"></script>
+<link rel="stylesheet" href="/static/quizzes.css"><script defer src="/static/quizzes.js"></script>
 </body></html>

@@ -28,6 +28,7 @@ from comparisons import comparison_options, compare_lectures
 from jobs import JobError, JobQueue
 from teaching import teaching_options
 from sections import execute_section, register_sections
+from quizzes import QuizQueue, register_quizzes
 from uploads import read_upload, register_uploads
 from embed import EmbeddingError, OllamaEmbedder, QwenEmbedder
 from retrieval import (MODES as RETRIEVAL_MODES, RetrievalError, adopt_content, build_query,
@@ -368,6 +369,8 @@ def execute_job(job_id, run_id, sid, topic, goal, context, prepared):
 
 TASKS = JobQueue(lambda: db(), execute_job)
 register_sections(app, lambda: db(), lambda: TASKS, lambda: MODEL)
+QUIZZES = QuizQueue(lambda: db(), lambda prepared, attempted: call_qwen(prepared, attempted), GENERATION_LOCK)
+register_quizzes(app, lambda: db(), lambda: QUIZZES, topic_catalog, get_context, lambda: MODEL)
 
 
 @app.errorhandler(JobError)
@@ -845,4 +848,5 @@ def download_revision(lecture_id, number):
 
 if __name__ == '__main__':
     TASKS.recover()
+    QUIZZES.recover()
     app.run(host='127.0.0.1', port=int(os.environ.get('PORT','5055')), debug=False, threaded=True)

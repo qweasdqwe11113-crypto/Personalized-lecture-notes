@@ -230,3 +230,24 @@ CREATE TABLE IF NOT EXISTS generation_run_assets (
   UNIQUE(run_id, ordinal)
 );
 CREATE INDEX IF NOT EXISTS generation_run_assets_run ON generation_run_assets(run_id, ordinal);
+
+-- Independent question sets: frozen inputs and answers never become lectures or student diagnoses.
+CREATE TABLE IF NOT EXISTS quiz_jobs (
+ id text PRIMARY KEY,
+ parent_id text REFERENCES quiz_jobs(id),
+ status text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','running','succeeded','failed','interrupted')),
+ topic_key text NOT NULL,
+ student_id integer REFERENCES students(id),
+ context jsonb NOT NULL,
+ options jsonb NOT NULL,
+ request_body text NOT NULL,
+ request_sha256 text NOT NULL,
+ result jsonb,
+ usage jsonb NOT NULL DEFAULT '{}',
+ error_message text,
+ created_at timestamptz NOT NULL DEFAULT now(),
+ started_at timestamptz,
+ finished_at timestamptz,
+ CHECK ((status='succeeded') = (result IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS quiz_jobs_recent ON quiz_jobs(created_at DESC);

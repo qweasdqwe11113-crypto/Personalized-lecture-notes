@@ -1,0 +1,33 @@
+.quiz-layout {display:grid;grid-template-columns:minmax(280px,350px) minmax(0,1fr);gap:22px;align-items:start}
+.quiz-main {display:grid;gap:22px;min-width:0}
+#quiz-form>label,.quiz-form-pair label {display:block;margin:17px 0 7px;font-size:13px;font-weight:600}
+#quiz-form label span,#quiz-form legend span {font-weight:400;font-size:11px;color:var(--muted)}
+#quiz-form input[type=number] {width:100%;border:1px solid var(--line);border-radius:7px;background:#fafbfe;padding:10px;font:inherit;color:inherit}
+#quiz-form fieldset {border:1px solid var(--line);border-radius:9px;margin:20px 0;padding:14px}
+#quiz-form legend {font-size:13px;padding:0 5px}
+.quiz-checks {display:flex;flex-wrap:wrap;gap:12px 18px;margin-top:10px}
+.quiz-checks label {display:flex;gap:7px;align-items:center;font-size:12px;cursor:pointer}
+.quiz-checks input {min-height:0;width:auto;margin:0}
+.quiz-form-pair {display:grid;grid-template-columns:90px minmax(0,1fr);gap:14px}
+.quiz-focus summary {font-size:13px;cursor:pointer}
+.quiz-actions {display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.quiz-actions select {width:auto;max-width:100%}
+.quiz-actions a {text-decoration:none}
+.quiz-actions [aria-pressed=true] {background:#eef1ff;color:var(--accent);border-color:#bcc8ff}
+#quiz-export {padding:15px 0;border-bottom:1px solid var(--line);margin-bottom:12px;font-size:12px}
+.quiz-questions {min-height:180px;overflow-wrap:anywhere}
+.quiz-question {border-top:1px solid var(--line);padding:22px 0;line-height:1.85;font-size:14px}
+.quiz-question:first-child {border-top:0}
+.quiz-question h3 {font-size:14px;margin:0 0 14px;color:#334c78}
+.quiz-question .quiz-text {white-space:pre-wrap}
+.quiz-answer {background:#f7f9fe;border:1px solid var(--line);border-radius:8px;padding:16px;margin-top:18px}
+.quiz-answer h4 {margin:14px 0 5px;font-size:13px}
+.quiz-answer h4:first-child {margin-top:0}
+.quiz-answer p {margin:0;white-space:pre-wrap}
+.quiz-workspace {margin:20px 0;color:#8491a5}
+.quiz-history {display:grid;gap:9px;margin-top:16px}
+.quiz-history button {text-align:left;display:flex;flex-direction:column;gap:5px;padding:13px;background:#fafbfe;border:1px solid var(--line);border-radius:8px;color:inherit}
+.quiz-history button[aria-current=true] {border-color:var(--accent)}
+#quiz-error {margin:16px 0 0}
+@media(max-width:1100px){.quiz-layout{grid-template-columns:minmax(0,1fr)}#quiz-form{max-width:800px}.quiz-settings{max-width:100%}}
+@media print{.quiz-settings,.quiz-actions,.quiz-history{display:none}}
