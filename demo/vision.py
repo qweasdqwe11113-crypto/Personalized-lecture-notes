@@ -74,7 +74,7 @@ def store_images(conn, upload_id, images):
             image.normalized_sha256, image.source_sha256, image.width, image.height, image.data))
 
 
-def analyse(image):
+def analyse(image, prompt=PROMPT, max_tokens=2048):
     base = os.environ.get('VLM_BASE_URL', '').rstrip('/')
     model = os.environ.get('VLM_MODEL', '').strip()
     try:
@@ -88,12 +88,12 @@ def analyse(image):
     if hashlib.sha256(raw).hexdigest() != image['normalized_sha256']:
         raise VisionError('图片指纹不匹配，请重新上传资料。')
     body = json.dumps({'model': model, 'messages': [
-        {'role': 'system', 'content': PROMPT},
+        {'role': 'system', 'content': prompt},
         {'role': 'user', 'content': [
             {'type': 'text', 'text': '请识读这张教学图片。'},
             {'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,' +
                 base64.b64encode(raw).decode('ascii')}}]}],
-        'temperature': 0, 'max_tokens': 2048,
+        'temperature': 0, 'max_tokens': max_tokens,
         'chat_template_kwargs': {'enable_thinking': False}}, ensure_ascii=False, separators=(',', ':'))
     headers = {'Content-Type': 'application/json'}
     key = os.environ.get('VLM_API_KEY', '')

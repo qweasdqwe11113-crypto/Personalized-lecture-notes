@@ -29,6 +29,7 @@ from jobs import JobError, JobQueue
 from teaching import teaching_options
 from sections import execute_section, register_sections
 from quizzes import QuizQueue, register_quizzes
+from grading import register_grading
 from uploads import read_upload, register_uploads
 from embed import EmbeddingError, OllamaEmbedder, QwenEmbedder
 from retrieval import (MODES as RETRIEVAL_MODES, RetrievalError, adopt_content, build_query,
@@ -44,6 +45,7 @@ register_uploads(app, ROOT)
 DSN = os.environ.get('DATABASE_URL', 'postgresql:///lecture_demo_prototype')
 MODEL = os.environ.get('QWEN_MODEL', 'qwen3.8-27b')
 GENERATION_LOCK = Lock()
+recover_grading = register_grading(app, ROOT, lambda prepared, attempt: call_qwen(prepared, attempt), GENERATION_LOCK)
 EMBEDDER = QwenEmbedder()
 RETRIEVAL_LIMIT = 6
 
@@ -120,7 +122,7 @@ def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql', goa
 @app.before_request
 def local_origin_only():
     # Keep the local generation endpoint unavailable to cross-origin web pages.
-    if request.method in ('POST', 'PUT') and request.path != '/api/uploads' and request.content_length and request.content_length > 131072:
+    if request.method in ('POST', 'PUT') and request.path not in ('/api/uploads', '/api/grading') and request.content_length and request.content_length > 131072:
         return jsonify(error='提交内容过长，请缩短后重试。'), 413
     origin = request.headers.get('Origin')
     if request.method in ('POST', 'PUT') and origin and origin != request.host_url.rstrip('/'):
@@ -847,6 +849,7 @@ def download_revision(lecture_id, number):
 
 
 if __name__ == '__main__':
+    recover_grading()
     TASKS.recover()
     QUIZZES.recover()
     app.run(host='127.0.0.1', port=int(os.environ.get('PORT','5055')), debug=False, threaded=True)

@@ -8,6 +8,7 @@
  <nav class="app-nav" aria-label="页面导航">
   <a href="#workbench" data-page="workbench" aria-current="page"><span class="nav-icon" aria-hidden="true">▦</span>讲义工作台</a>
   <a href="#quizzes" data-page="quizzes"><span class="nav-icon" aria-hidden="true">✎</span>出题</a>
+  <a href="#grading" data-page="grading"><span class="nav-icon" aria-hidden="true">✓</span>阅卷</a>
   <a href="#profiles" data-page="profiles"><span class="nav-icon" aria-hidden="true">◎</span>学生画像</a>
   <a href="#materials" data-page="materials"><span class="nav-icon" aria-hidden="true">▤</span>课程材料</a>
   <a href="#uploads" data-page="uploads"><span class="nav-icon" aria-hidden="true">↥</span>上传资料</a>
@@ -174,6 +175,39 @@
    <aside class="panel upload-guide"><span class="intro-icon" aria-hidden="true">▤</span><h2>让教学资料井然有序</h2><p>保存原文件、提取正文与插图。点击资料旁的「图片识读」，使用本地视觉模型解析。</p><ul><li>支持直接上传图片、PDF 内嵌图片及 DOCX 插图</li><li>图片识读结果需核对公式、数值与单位</li><li>扫描 PDF 仅识读提取出的图片，不渲染整页或矢量图</li></ul><p class="footnote">在讲义工作台选择解析后生成。文字课程材料仍按 SQL 或向量检索提供。</p></aside>
   </div>
   <section class="panel upload-library"><div class="section-heading"><div><h2>已上传资料</h2><p class="helper">最近 100 条资料 · 保存原文件与提取正文</p></div><button id="refresh-uploads" type="button" class="secondary">刷新列表</button></div><div id="upload-list"><p class="helper">正在读取资料…</p></div></section>
+ </section>
+ <section class="workspace-page" id="page-grading" hidden>
+  <div class="grading-layout">
+   <section class="panel">
+    <div class="section-heading"><h2>上传阅卷材料</h2></div>
+    <form id="grading-form">
+     <label for="grading-paper">学生作答材料</label>
+     <input id="grading-paper" type="file" accept=".png,.jpg,.jpeg,.webp,.bmp,.gif,.tif,.tiff,.pdf,.docx,.txt,.md" required>
+     <p class="helper">上传包含题目与学生作答的试卷或答题照片。支持图片、PDF、Word、TXT 和 Markdown；每次总计10 MB，最多30题、8张图片。较长试卷请拆分上传。</p>
+     <label for="grading-reference">参考答案 <span>选填</span></label>
+     <input id="grading-reference" type="file" accept=".png,.jpg,.jpeg,.webp,.bmp,.gif,.tif,.tiff,.pdf,.docx,.txt,.md">
+     <p class="helper">可另传答案与评分标准；没有参考答案时由模型推导，并标记供教师核对。</p>
+     <label for="grading-requirements">评分要求 <span>选填</span></label>
+     <textarea id="grading-requirements" rows="3" maxlength="2000" placeholder="例如：按步骤给分，等价解法也算正确；第1题满分5分。"></textarea>
+     <button class="primary" id="grading-submit" type="submit">上传并自动阅卷</button>
+     <p class="helper">图片由已配置的视觉模型识读，提取文字交给语言模型批改。结果为建议评分，需教师复核。</p>
+    </form>
+    <p id="grading-status" role="status" aria-live="polite"></p>
+    <p id="grading-error" class="error" role="alert" hidden></p>
+   </section>
+   <div class="grading-main">
+    <section class="panel">
+     <div class="section-heading"><h2>阅卷结果</h2><a id="grading-download" class="secondary" hidden>下载批改结果</a></div>
+     <p id="grading-summary" class="helper">上传材料后，自动识别题目、学生作答和参考答案，逐题展示评分、解析与错因。</p>
+     <div id="grading-results"></div>
+     <details id="grading-extraction" hidden><summary>查看提取原文（需核对）</summary><h3>学生作答材料</h3><pre id="grading-extracted"></pre><h3>另传参考答案</h3><pre id="grading-reference-text"></pre></details>
+    </section>
+    <section class="panel">
+     <div class="section-heading"><h2>阅卷记录</h2><button type="button" id="grading-refresh" class="secondary">刷新记录</button></div>
+     <div id="grading-history"></div>
+    </section>
+   </div>
+  </div>
  </section>
  <section class="workspace-page" id="page-records" hidden>
   <div class="record-tabs" role="tablist" aria-label="生成记录类型"><a href="#records/lectures" id="record-tab-lectures" role="tab" aria-selected="true" aria-controls="record-panel-lectures">讲义记录</a><a href="#records/quizzes" id="record-tab-quizzes" role="tab" aria-selected="false" aria-controls="record-panel-quizzes" tabindex="-1">出题记录</a></div>
@@ -348,4 +382,5 @@
 </dialog>
 <link rel="stylesheet" href="/static/teaching.css"><script defer src="/static/teaching.js"></script><script defer src="/static/section-editor.js"></script>
 <link rel="stylesheet" href="/static/quizzes.css"><script defer src="/static/quizzes.js"></script>
+<link rel="stylesheet" href="/static/grading.css"><script defer src="/static/grading.js"></script>
 </body></html>

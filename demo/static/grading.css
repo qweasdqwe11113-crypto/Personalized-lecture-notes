@@ -1,0 +1,16 @@
+.grading-layout{display:grid;grid-template-columns:minmax(280px,350px) minmax(0,1fr);gap:22px;align-items:start}
+.grading-main{display:grid;gap:22px;min-width:0}
+#grading-form label{display:block;font-size:14px;font-weight:600;margin:18px 0 8px}
+#grading-form label span{color:var(--muted);font-weight:400;font-size:12px;margin-left:6px}
+#grading-form input[type=file]{display:block;width:100%;font:inherit;font-size:13px;border:1px dashed var(--line);border-radius:8px;padding:12px;overflow:hidden;background:#fbfcff}
+#grading-status{color:var(--accent);font-size:14px}
+.grading-question{border:1px solid var(--line);border-radius:9px;padding:18px;margin:16px 0}
+.grading-question h3{font-size:16px;margin:0 0 12px}
+.grading-question p,#grading-extraction pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:14px}
+.grading-question .grading-basis{font-size:12px;color:var(--muted)}
+.grading-pending{border-color:#e6bb60;background:#fffcf3}
+#grading-history{display:grid;gap:10px}
+#grading-history button{text-align:left;padding:12px;border:1px solid var(--line);border-radius:8px;background:#fbfcff;color:inherit;font:inherit;font-size:14px}
+#grading-extraction{border-top:1px solid var(--line);padding-top:16px;margin-top:20px}
+#grading-extraction summary{cursor:pointer}
+@media(max-width:1000px){.grading-layout{grid-template-columns:1fr}}
