@@ -39,6 +39,13 @@ CREATE TABLE IF NOT EXISTS lectures (
 );
 
 -- Additive migration: preserve the original rows and lecture snapshots.
+CREATE TABLE IF NOT EXISTS course_tasks (
+ key text PRIMARY KEY,
+ payload jsonb NOT NULL,
+ revision integer NOT NULL DEFAULT 0,
+ created_at timestamptz NOT NULL DEFAULT now()
+);
+
 ALTER TABLE students ADD COLUMN IF NOT EXISTS profile_revision integer NOT NULL DEFAULT 0;
 ALTER TABLE student_knowledge ADD COLUMN IF NOT EXISTS revision integer NOT NULL DEFAULT 0;
 ALTER TABLE student_knowledge ADD COLUMN IF NOT EXISTS updated_at timestamptz;

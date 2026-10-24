@@ -25,29 +25,31 @@ def assess_scope(context, goal):
     ids = context['topic']['knowledge_ids']
     materials = context['materials']
     coverage = []
+    general = context['topic'].get('custom', False)
+    names = dict(zip(ids, context['topic'].get('knowledge_names', [])))
     for kid in ids:
         selected = [m for m in materials if m['knowledge_id'] == kid]
-        coverage.append({'knowledge_id': kid, 'scope': SCOPE.get(kid, ('未定义范围', []))[0],
+        coverage.append({'knowledge_id': kid, 'scope': names.get(kid, '未定义范围') if general else SCOPE.get(kid, ('未定义范围', []))[0],
                          'material_ids': [m['id'] for m in selected], 'has_material': bool(selected)})
     warnings = []
     missing = [c['knowledge_id'] for c in coverage if not c['has_material']]
     if missing:
         warnings.append('知识点 ' + '、'.join(map(str, missing)) + ' 缺少关联课程材料。')
-    university = context['topic'].get('course') == '大学概率论'
+    university = not general and context['topic'].get('course') == '大学概率论'
     outside = ['导数', '积分', '微分', '二次方程', '三角函数', '连续密度', '重复观测'] if university else OUTSIDE
-    possible_outside = [word for word in outside if word in goal]
+    possible_outside = [] if general else [word for word in outside if word in goal]
     if university and any(word in goal for word in ['移项', '方程']):
         possible_outside.append('方程求解')
-    if not university and 3 not in ids and any(word in goal for word in ['移项', '两步', '两边含未知数']):
+    if not general and not university and 3 not in ids and any(word in goal for word in ['移项', '两步', '两边含未知数']):
         possible_outside.append('当前一步方程主题未包含移项知识点')
     if possible_outside:
         warnings.append('目标含可能超出所选范围的词：' + '、'.join(possible_outside) + '。请教师核查；词语匹配不解释否定语义。')
-    if any(word in goal for word in ['括号', '分配律']):
+    if not general and any(word in goal for word in ['括号', '分配律']):
         warnings.append('当前材料摘要未提供分配律、去括号的课程依据，需补充材料或调整目标。')
     custom = goal != context['topic']['goal']
     if custom:
         warnings.append('这是自定义目标，程序不能确认完整目标覆盖，需教师对照下列范围。')
-    return {'version': context['topic'].get('check_version', 'probability-text-check-v1') if university else CHECK_VERSION, 'goal': goal, 'default_goal': context['topic']['goal'],
+    return {'version': context['topic'].get('check_version', 'probability-text-check-v1') if university else context['topic'].get('check_version', CHECK_VERSION), 'goal': goal, 'default_goal': context['topic']['goal'],
             'custom_goal': custom, 'coverage': coverage, 'warnings': warnings,
             'note': '材料关联表示已提供该知识点资料，不证明材料支持讲义每个结论。'}
 
@@ -60,6 +62,7 @@ def citation_locations(content, context):
 
 
 def check_output(content, context, goal):
+    general = context['topic'].get('custom', False)
     scope = assess_scope(context, goal)
     headings = re.findall(r'^##\s+(.+?)\s*$', content, re.M)
     missing = [s for s in SECTIONS if s not in headings]
@@ -76,9 +79,10 @@ def check_output(content, context, goal):
     add('citations', '引用标记', bool(citations), '检测到材料编号。' if citations else '正文未检测到 [M数字] 引用。')
     add('citation_ids', '引用编号有效性', not invalid, '不存在的材料编号：' + '、'.join('M'+x for x in invalid) if invalid else '未检测到无效编号；仍需检查引用支持关系。')
     add('materials', '知识点资料关联', all(c['has_material'] for c in scope['coverage']), '仅检查所选知识点是否有关联材料，材料内容充分性需人工判断。')
-    university = context['topic'].get('course') == '大学概率论'
-    visible_brackets = not university and bool(re.search(r'去括号|分配律|\d\s*[（(]\s*[-+]?\s*\d*\s*[xX]', content))
-    add('bracket_evidence', '去括号的资料依据', not visible_brackets, '正文出现去括号、分配律或含括号方程，当前摘要未提供分配律依据，需复核来源与范围。' if visible_brackets else '未触发当前含括号关键词规则；不表示证明了范围完整。')
+    university = not general and context['topic'].get('course') == '大学概率论'
+    visible_brackets = not general and not university and bool(re.search(r'去括号|分配律|\d\s*[（(]\s*[-+]?\s*\d*\s*[xX]', content))
+    if not general:
+        add('bracket_evidence', '去括号的资料依据', not visible_brackets, '正文出现去括号、分配律或含括号方程，当前摘要未提供分配律依据，需复核来源与范围。' if visible_brackets else '未触发当前含括号关键词规则；不表示证明了范围完整。')
     add('goal_scope', '目标范围提示', not scope['warnings'], '；'.join(scope['warnings']) if scope['warnings'] else '使用主题默认目标，关联范围已列明；完整覆盖仍需教师复核。')
     if university:
         add('probability_conditions', '概率公式条件提示', all(word in content for word in ['互斥', '完备']) and bool(re.search(r'>\s*0|大于\s*(?:零|0)|正分母', content)), '仅匹配互斥、完备及正分母提示词；不证明每次公式使用都满足条件。')
@@ -100,5 +104,5 @@ def check_output(content, context, goal):
             '未引用图片解析或存在无效图片编号；图片可能与本次目标无关，请核对。')
     return {'version': scope['version'], 'metrics': {'chinese_characters': chinese, 'line_count': len(content.splitlines())},
             'scope': scope, 'automatic': checks, 'citation_locations': citations,
-            'teacher_review': [{'code': key, 'label': label, 'status': 'needs_review'} for key, label in REVIEW_ITEMS.items()],
+            'teacher_review': [{'code': key, 'label': label, 'status': 'needs_review'} for key, label in ({**REVIEW_ITEMS, 'math': '学科知识、适用条件与术语', 'examples': '示例与检验过程'} if general else REVIEW_ITEMS).items()],
             'note': '程序只检查文本结构、篇幅、标记和关联；不能判定任意数学结论或来源支持。'}

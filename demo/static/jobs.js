@@ -14,7 +14,7 @@ async function checkHealth(){
   const h=await api('/api/health');
   $('health-summary').textContent=`数据库：${h.database_ok?'可连接':'待检查'}；密钥：${h.key_present?'已配置':'缺失'}；服务地址格式：${h.endpoint_format_ok?'有效':'待检查'}。${h.note} 配置修改后请重启服务。`;
   modelConfigured=h.database_ok&&h.key_present&&h.endpoint_format_ok&&h.model_present;
-  if(!busy)$('generate').disabled=!modelConfigured||!current;
+  if(!busy)$('generate').disabled=!modelConfigured||!hasGenerationBasis(current);
  }catch(e){$('health-summary').textContent=e.message;}
 }
 async function watchJob(id){
@@ -49,7 +49,7 @@ $('generate-form').onsubmit=async e=>{
  e.preventDefault();if(busy||!current)return;
  setBusy(true);error('');$('progress').textContent='正在提交并固定输入…';
  try{
-  const job=await api('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:Number($('student').value),topic:$('topic').value,goal:$('goal').value,personalization_mode:$('personalization-mode').value,retrieval_mode:$('retrieval-mode').value,visual_analysis_ids:typeof selectedVisualAnalyses==='function'?selectedVisualAnalyses():[]})});
+  const job=await api('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:Number($('student').value),topic:$('topic').value,goal:$('goal').value,personalization_mode:$('personalization-mode').value,retrieval_mode:$('retrieval-mode').value,learner_note:$('learner-note').value,visual_analysis_ids:typeof selectedVisualAnalyses==='function'?selectedVisualAnalyses():[]})});
   await refreshJobs();await watchJob(job.id);
  }catch(e){error(e.message);setBusy(false);}
 };

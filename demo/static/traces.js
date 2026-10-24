@@ -60,9 +60,11 @@ function drawTrace(run) {
   ]) $('trace-metadata').append(el('dt', label), el('dd', value));
   const context = run.context;
   $('trace-context-summary').textContent = [
-    `学生：${context.student.name}（虚拟数据）`, `主题：${run.topic}`,
+    `学生：${context.student.name}`, `备课副本 / 主题：${run.topic}`,
     `本次目标：${run.goal}`, `主题默认目标：${context.topic.goal}`,
     `学习特点：${context.student.profile}`,
+    `本次学生备注：${context.learner_note || '未填写；无画像模式不使用个体备注。'}`,
+    `副本教案：${context.topic.lesson_plan || '未填写教案正文。'}`,
     '知识状态：' + context.states.map(s => `${s.name} / ${s.label} / 记录版本 ${s.revision ?? '未记录'}`).join('；'),
     '课程材料：' + context.materials.map(m => `M${m.id} ${m.title}`).join('；')
   ].join('\n\n');

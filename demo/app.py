@@ -12,7 +12,7 @@ import psycopg
 from psycopg.rows import dict_row
 from dotenv import load_dotenv
 from model_settings import register_model_settings
-from flask import Flask, Response, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request, g, has_request_context
 from profiles import (ProfileError, compare_lecture_profile, decorate_states, evidence_history, get_profile,
                       record_evidence, update_profile)
 from prompts import prepare_request
@@ -23,6 +23,7 @@ from quality import assess_scope, check_output
 from reviews import (ReviewError, STATUS_LABELS, add_issue, lecture_row,
                      review_bundle, save_revision, version_row)
 from courses import TOPICS, REFERENCE_EXAMPLES
+from catalog import load_catalog, register_catalog
 from comparisons import comparison_options, compare_lectures
 from jobs import JobError, JobQueue
 from uploads import read_upload, register_uploads
@@ -48,8 +49,21 @@ def db():
     return psycopg.connect(DSN, row_factory=dict_row, connect_timeout=5)
 
 
-def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql'):
-    topic = TOPICS[topic_key]
+register_catalog(app, lambda: db(), ROOT)
+
+
+def topic_catalog():
+    if has_request_context() and hasattr(g, 'course_topics'):
+        return g.course_topics
+    with db() as conn:
+        result = load_catalog(conn)
+    if has_request_context():
+        g.course_topics = result
+    return result
+
+
+def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql', goal=None, learner_note=''):
+    topic = topic_catalog()[topic_key]
     if student_id not in topic['student_ids']:
         return None
     if retrieval_mode == 'vector':
@@ -73,7 +87,9 @@ def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql'):
         retrieval = {'mode': retrieval_mode, 'backend': None, 'embed_model': None, 'query': None, 'items': []}
         if retrieval_mode == 'vector':
             # Without a profile the question stays the shared goal, so ablation is still clean.
-            query = build_query(topic['goal'], states if mode == 'profile' else [])
+            query = build_query(goal or topic['goal'], states if mode == 'profile' else [])
+            if mode == 'profile' and learner_note:
+                query += '；本次学生备注：' + learner_note
             retrieval = search_chunks(conn, EMBEDDER, query, topic['knowledge_ids'], limit=RETRIEVAL_LIMIT)
             materials = to_materials(retrieval['items'])
         # Fetch each point separately so a frequently updated point cannot crowd
@@ -84,7 +100,9 @@ def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql'):
         s['recent_evidence'] = recent[s['id']]
     ctx = {'student':student, 'topic':topic, 'states':states, 'materials':materials, 'retrieval': retrieval}
     ctx['personalization_mode'] = mode
-    if topic.get('course') == '大学概率论':
+    if mode == 'profile' and learner_note:
+        ctx['learner_note'] = learner_note
+    if not topic.get('custom') and topic.get('course') == '大学概率论':
         ctx['reference_examples'] = REFERENCE_EXAMPLES[:1] if topic_key.endswith('basic') else REFERENCE_EXAMPLES
     if mode == 'none':
         # Paired runs retain their selected student ID in the database, while the
@@ -98,10 +116,10 @@ def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql'):
 @app.before_request
 def local_origin_only():
     # Keep the local generation endpoint unavailable to cross-origin web pages.
-    if request.method == 'POST' and request.path != '/api/uploads' and request.content_length and request.content_length > 131072:
+    if request.method in ('POST', 'PUT') and request.path != '/api/uploads' and request.content_length and request.content_length > 131072:
         return jsonify(error='提交内容过长，请缩短后重试。'), 413
     origin = request.headers.get('Origin')
-    if request.method == 'POST' and origin and origin != request.host_url.rstrip('/'):
+    if request.method in ('POST', 'PUT') and origin and origin != request.host_url.rstrip('/'):
         return jsonify(error='请从本地 demo 页面发起请求。'), 403
 
 
@@ -126,7 +144,7 @@ def bootstrap():
         students = conn.execute('SELECT * FROM students ORDER BY id').fetchall()
         history = conn.execute('''SELECT l.id,s.name,l.topic,l.created_at FROM lectures l
                                   JOIN students s ON s.id=l.student_id ORDER BY l.id DESC LIMIT 8''').fetchall()
-    return jsonify(students=students, topics=TOPICS, model=MODEL, history=history,
+    return jsonify(students=students, topics=topic_catalog(), model=MODEL, history=history,
                    database='PostgreSQL · 已连接', configured=all(config_flags().values()),
                    embed_model=EMBEDDER.model)
 
@@ -138,12 +156,13 @@ def context():
     goal = request.args.get('goal', '').strip()
     mode = request.args.get('personalization_mode', 'profile')
     retrieval_mode = request.args.get('retrieval_mode', 'sql')
-    if (student_id is None or topic not in TOPICS or len(goal) > 400
+    note = learner_note(request.args)
+    if (student_id is None or topic not in topic_catalog() or len(goal) > 400
             or mode not in ('profile', 'none') or retrieval_mode not in RETRIEVAL_MODES):
         return jsonify(error='请选择有效学生和主题。'), 400
-    data = get_context(student_id, topic, mode, retrieval_mode)
+    data = get_context(student_id, topic, mode, retrieval_mode, goal, note)
     if data:
-        data['scope_check'] = assess_scope(data, goal or TOPICS[topic]['goal'])
+        data['scope_check'] = assess_scope(data, goal or topic_catalog()[topic]['goal'])
     return (jsonify(data) if data else (jsonify(error='学生不存在。'),404))
 
 
@@ -153,6 +172,29 @@ def student_profile(student_id):
         conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
         result = get_profile(conn, student_id)
     return jsonify(result)
+
+
+@app.get('/api/students')
+def list_students():
+    with db() as conn:
+        return jsonify(students=conn.execute('SELECT * FROM students ORDER BY id').fetchall())
+
+
+@app.post('/api/students')
+def create_student():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        raise ProfileError('请填写学生档案。')
+    from profiles import text_field
+    name = text_field(data, 'name', '姓名', 80)
+    subtitle = text_field(data, 'subtitle', '年级或学生说明', 80)
+    profile = text_field(data, 'profile', '学生信息与学习特点', 600)
+    with db() as conn:
+        conn.execute('LOCK TABLE students IN EXCLUSIVE MODE')
+        row = conn.execute('''INSERT INTO students(id,name,subtitle,profile)
+            VALUES ((SELECT COALESCE(max(id),0)+1 FROM students),%s,%s,%s) RETURNING *''',
+            (name, subtitle, profile)).fetchone()
+    return jsonify(student=row), 201
 
 
 @app.post('/api/students/<int:student_id>/profile')
@@ -211,7 +253,7 @@ def generate():
     if not isinstance(data, dict):
         return jsonify(error='请求格式必须是 JSON 对象。'), 400
     sid, topic_key, goal = data.get('student_id'), data.get('topic'), data.get('goal', '')
-    if type(sid) is not int or not isinstance(topic_key, str) or topic_key not in TOPICS:
+    if type(sid) is not int or not isinstance(topic_key, str) or topic_key not in topic_catalog():
         return jsonify(error='请选择有效学生和主题。'), 400
     if not isinstance(goal, str) or len(goal.strip()) > 400:
         return jsonify(error='教学目标请控制在 400 字以内。'), 400
@@ -219,24 +261,25 @@ def generate():
     if mode not in ('profile', 'none'):
         return jsonify(error='请选择有画像或无画像模式。'), 400
     retrieval_mode = data.get('retrieval_mode', 'sql')
+    note = learner_note(data)
     if retrieval_mode not in RETRIEVAL_MODES:
         return jsonify(error='请选择精确 SQL 或向量检索。'), 400
-    goal = goal.strip() or TOPICS[topic_key]['goal']
+    goal = goal.strip() or topic_catalog()[topic_key]['goal']
     evidence = selected_evidence(ROOT, data.get('visual_analysis_ids', []))
     if not GENERATION_LOCK.acquire(blocking=False):
         return jsonify(error='已有讲义正在生成，请等待完成后再试。'), 429
     result, status = generate_locked(sid, topic_key, goal, mode, retrieval_mode=retrieval_mode,
-                                     visual_evidence=evidence)
+                                     visual_evidence=evidence, learner_note=note)
     return jsonify(result), status
 
 
 def generate_locked(sid, topic_key, goal, mode='profile', frozen=None, prepared=None, run_id=None,
-                    job_id=None, retrieval_mode='sql', visual_evidence=None):
+                    job_id=None, retrieval_mode='sql', visual_evidence=None, learner_note=''):
     # Caller owns GENERATION_LOCK; release it for every result and exception.
     output, check, stage = ModelResult(''), {}, 'preparation'
     start = time.monotonic()
     try:
-        ctx = frozen or get_context(sid, topic_key, mode, retrieval_mode)
+        ctx = frozen or get_context(sid, topic_key, mode, retrieval_mode, goal, learner_note)
         if not ctx:
             return {'error': '学生不存在。'}, 404
         if frozen is None and visual_evidence:
@@ -247,7 +290,7 @@ def generate_locked(sid, topic_key, goal, mode='profile', frozen=None, prepared=
         if run_id is None:
             with db() as conn:
                 run_id = create_run(conn, sid, topic_key, goal, ctx, prepared)
-        if not ctx['materials']:
+        if not ctx['materials'] and not ctx['topic'].get('preparation_copy'):
             raise ModelError('no_materials', '当前主题没有课程材料，请先导入资料。', 'preparation')
         def on_attempt():
             with db() as conn:
@@ -323,12 +366,20 @@ def embedding_error(exc):
     return jsonify(error=str(exc)), 502
 
 
+def learner_note(data):
+    note = data.get('learner_note', '')
+    if not isinstance(note, str) or len(note.strip()) > 2000:
+        raise JobError('本次学生备注请控制在 2000 字以内。')
+    return note.strip()
+
+
 def job_input(data):
     if not isinstance(data, dict):
         raise JobError('请求格式必须是 JSON 对象。')
+    learner_note(data)
     sid, topic = data.get('student_id'), data.get('topic')
     goal, mode = data.get('goal', ''), data.get('personalization_mode', 'profile')
-    if type(sid) is not int or not isinstance(topic, str) or topic not in TOPICS:
+    if type(sid) is not int or not isinstance(topic, str) or topic not in topic_catalog():
         raise JobError('请选择有效学生和主题。')
     if not isinstance(goal, str) or len(goal.strip()) > 400:
         raise JobError('教学目标请控制在 400 字以内。')
@@ -337,13 +388,13 @@ def job_input(data):
     retrieval_mode = data.get('retrieval_mode', 'sql')
     if retrieval_mode not in RETRIEVAL_MODES:
         raise JobError('请选择精确 SQL 或向量检索。')
-    return sid, topic, goal.strip() or TOPICS[topic]['goal'], mode, retrieval_mode
+    return sid, topic, goal.strip() or topic_catalog()[topic]['goal'], mode, retrieval_mode
 
 
 @app.post('/api/jobs')
 def submit_job():
     sid, topic, goal, mode, retrieval_mode = job_input(request.get_json(silent=True))
-    ctx = get_context(sid, topic, mode, retrieval_mode)
+    ctx = get_context(sid, topic, mode, retrieval_mode, goal, learner_note(request.get_json()))
     if not ctx:
         raise JobError('学生不存在。', 404)
     evidence = selected_evidence(ROOT, request.get_json().get('visual_analysis_ids', []))
@@ -372,11 +423,11 @@ def retry_generation(run_id):
 def retrieval_state():
     """Index state per knowledge point for the embedding model currently configured."""
     topic_key = request.args.get('topic', '')
-    if topic_key not in TOPICS:
+    if topic_key not in topic_catalog():
         return jsonify(error='请选择有效主题。'), 400
     try:
         with db() as conn:
-            return jsonify(retrieval_status(conn, EMBEDDER, TOPICS[topic_key]['knowledge_ids']))
+            return jsonify(retrieval_status(conn, EMBEDDER, topic_catalog()[topic_key]['knowledge_ids']))
     except psycopg.Error:
         return jsonify(error='数据库暂不可用，请检查本机 PostgreSQL。'), 503
 
@@ -385,9 +436,9 @@ def retrieval_state():
 def build_retrieval_index():
     """Chunk and embed every material of one topic. Re-indexing replaces its own rows only."""
     data = request.get_json(silent=True)
-    if not isinstance(data, dict) or data.get('topic') not in TOPICS:
+    if not isinstance(data, dict) or data.get('topic') not in topic_catalog():
         return jsonify(error='请选择有效主题。'), 400
-    ids = TOPICS[data['topic']]['knowledge_ids']
+    ids = topic_catalog()[data['topic']]['knowledge_ids']
     try:
         with db() as conn:
             indexed = index_knowledge(conn, EMBEDDER, ids, force=bool(data.get('force')))

@@ -1,9 +1,9 @@
 /* Hash navigation preserves form inputs and background tasks across pages. */
 (() => {
   const pages = {
-    workbench: ['讲义工作台', '从学生的学习起点出发，让每一份讲义更有针对性。'],
-    profiles: ['学生画像', '连接诊断证据与教学策略，持续了解学生的学习需要。'],
-    materials: ['课程材料', '查看当前教学任务的知识点来源，为讲义提供可靠依据。'],
+    workbench: ['讲义工作台', '选择备课副本和学生，补充本次备注，生成有针对性的讲义。'],
+    profiles: ['学生画像', '独立管理每位同学的信息、学习特点和长期薄弱点。'],
+    materials: ['课程材料', '保存目标、教案和参考资料，建立可以反复使用的备课副本。'],
     uploads: ['上传资料', '汇集本地文档与网页内容，建立你的教学资料库。'],
     records: ['生成记录', '管理已保存讲义，查看后台任务与每次生成的完整记录。'],
     settings: ['系统设置', '管理本地工作空间的服务连接与模型配置。'],
@@ -12,19 +12,20 @@
   let active;
   function navigate(focus = false) {
     const hash = location.hash.slice(1);
-    const page = pages[hash] ? hash : aliases[hash] || 'workbench';
-    if (!pages[hash]) history.replaceState(null, '', '#' + page);
-    if (active === page) return;
-    active = page;
+    const profileRoute = /^profiles\/(new|[1-9]\d*)$/.test(hash);
+    const materialRoute = /^materials\/[\w-]+$/.test(hash);
+    const page = materialRoute ? 'materials' : profileRoute ? 'profiles' : pages[hash] ? hash : aliases[hash] || 'workbench';
+    if (!pages[hash] && !profileRoute && !materialRoute) history.replaceState(null, '', '#' + page);
+    if (active === hash) return;
+    active = hash;
     for (const key of Object.keys(pages)) $('page-' + key).hidden = key !== page;
     for (const link of document.querySelectorAll('[data-page]')) {
       if (link.dataset.page === page) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     }
-    $('page-title').textContent = pages[page][0];
-    $('page-description').textContent = pages[page][1];
-    $('breadcrumb-page').textContent = pages[page][0];
-    document.title = pages[page][0] + ' · 知页';
+    const title = materialRoute ? (hash === 'materials/new' ? '新建备课副本' : '备课副本详情') : profileRoute ? (hash === 'profiles/new' ? '新建学生画像' : '学生档案') : pages[page][0];
+    $('page-title').textContent = title;
+    document.title = title + ' · 知页';
     document.body.dataset.page = page;
     window.scrollTo({top: 0});
     if (focus) $('page-title').focus({preventScroll: true});
@@ -50,13 +51,7 @@
     sync();
     return sync;
   }
-  const syncs = [syncSelector('topic', 'profile-topic-select'), syncSelector('student', 'profile-student-select'), syncSelector('topic', 'material-topic-select')];
-  // Historical lectures update selectors programmatically without a change event.
+  const syncs = [syncSelector('topic', 'material-topic-select')];
   window.addEventListener('workspace-context', () => syncs.forEach(sync => sync()));
-  $('view-current-profile').onclick = () => {
-    if (busy || $('student').disabled || !$('student').value) return;
-    $('personalization-mode').value = 'profile';
-    loadContext();
-  };
   navigate();
 })();

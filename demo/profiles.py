@@ -194,16 +194,17 @@ def update_profile(conn, student_id, data):
     recorder = text_field(data, 'recorder', '录入者', 80)
     reason = text_field(data, 'reason', '修改理由', 600)
     student = lock_student(conn, student_id)
+    name = text_field(data, 'name', '姓名', 80) if 'name' in data else student['name']
     if student['profile_revision'] != revision:
         raise ProfileError('学生说明已被更新。本次未保存，请重新读取并比较当前画像。', 409)
-    if subtitle == student['subtitle'] and profile == student['profile']:
+    if name == student['name'] and subtitle == student['subtitle'] and profile == student['profile']:
         raise ProfileError('学生说明和学习特点没有变化，无需保存。')
-    updated = {**student, 'subtitle': subtitle, 'profile': profile, 'profile_revision': revision + 1}
+    updated = {**student, 'name': name, 'subtitle': subtitle, 'profile': profile, 'profile_revision': revision + 1}
     conn.execute('''INSERT INTO student_profile_history
         (student_id,previous_snapshot,new_snapshot,recorder,reason) VALUES (%s,%s,%s,%s,%s)''',
         (student_id, Jsonb(student), Jsonb(updated), recorder, reason))
-    conn.execute('UPDATE students SET subtitle=%s,profile=%s,profile_revision=%s WHERE id=%s',
-                 (subtitle, profile, revision + 1, student_id))
+    conn.execute('UPDATE students SET name=%s,subtitle=%s,profile=%s,profile_revision=%s WHERE id=%s',
+                 (name, subtitle, profile, revision + 1, student_id))
 
 
 def record_evidence(conn, student_id, data):

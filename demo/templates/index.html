@@ -16,19 +16,19 @@
  <div class="sidebar-note"><span class="status-dot"></span>本地工作空间<p>学生画像驱动的个性化教学</p></div>
  <div class="sidebar-user"><span class="user-avatar">教</span><div><strong>教师工作空间</strong><span>本地演示环境</span></div></div>
 </aside>
-<header class="topbar"><div class="breadcrumb">工作空间 <span>/</span> <strong id="breadcrumb-page">讲义工作台</strong></div><span class="demo-tag">个性化教学 · 本地版</span></header>
 <main>
- <div class="page-heading"><div><p class="eyebrow" id="course-label">备课工作台</p><h1 id="page-title" tabindex="-1">讲义工作台</h1><p id="page-description">从学生的学习起点出发，让每一份讲义更有针对性。</p></div><div class="connection" id="connection" role="status">正在连接数据库…</div></div>
+ <h1 id="page-title" class="visually-hidden" tabindex="-1">讲义工作台</h1>
  <div id="error" class="error" role="alert" hidden></div>
  <section class="workspace-page" id="page-workbench" aria-labelledby="page-title">
- <div class="workflow-strip"><span class="workflow-number">01</span><strong>设定教学任务</strong><span class="workflow-line"></span><span class="workflow-number">02</span><strong>生成专属讲义</strong><span class="workflow-line"></span><a href="#materials">查看课程依据 ↗</a></div>
+ <div class="workflow-strip"><span class="workflow-number">01</span><strong>选择备课副本</strong><span class="workflow-line"></span><span class="workflow-number">02</span><strong>选择学生并填写备注</strong><span class="workflow-line"></span><a href="#materials">管理备课材料 ↗</a></div>
  <div class="workspace" id="workspace">
   <aside id="settings-column" aria-label="讲义设置与状态">
    <section class="panel setup"><div class="section-heading"><h2>讲义设置</h2><span class="small-label">01</span></div>
     <form id="generate-form">
-     <div class="setup-field"><label for="topic">课程与教学任务</label><select id="topic" disabled></select><p id="task-level" class="helper"></p></div>
-     <div class="setup-field"><label for="student">选择学生 <span>虚拟数据</span></label><select id="student" disabled></select><div id="student-profile" class="profile"></div></div>
+     <div class="setup-field"><label for="topic">选择备课材料副本</label><select id="topic" disabled></select><p id="task-level" class="helper"></p><details id="preparation-preview" hidden><summary>查看副本目标与教案</summary><p id="preparation-preview-goal" class="helper"></p><p id="preparation-preview-plan" class="current-summary"></p></details></div>
+     <div class="setup-field"><label for="student">选择学生</label><select id="student" disabled></select><div id="student-profile" class="profile"></div></div>
      <div class="setup-field"><label for="personalization-mode">生成依据</label><select id="personalization-mode"><option value="profile">使用学生画像</option><option value="none">无画像对照 · 通用讲义</option></select></div>
+     <div class="setup-field setup-goal"><label for="learner-note">本次学生备注 <span>选填</span></label><textarea id="learner-note" rows="4" maxlength="2000" placeholder="例如：这位同学分式运算比较薄弱，请多讲中间步骤；已掌握概念的部分简要回顾。"></textarea><p class="helper">仅用于本次生成，随讲义保存。长期信息请到「学生画像」维护。</p></div>
      <div class="setup-field"><label for="retrieval-mode">材料取用方式</label><select id="retrieval-mode"><option value="sql">精确 SQL · 取该知识点全部材料</option><option value="vector">向量检索 · 按本次目标取片段</option></select><p id="retrieval-note" class="helper" role="status" aria-live="polite">选择向量检索后自动准备资料索引。</p></div>
      <div class="setup-field setup-goal"><label for="goal">本次教学目标</label><textarea id="goal" rows="3" maxlength="400"></textarea></div>
      <div class="setup-field setup-goal"><label>图片解析依据 <span>选填，最多 4 张</span></label><p class="helper">先在「上传资料」中解析图片，再选择用于本次讲义的解析。原图仅发送给本地视觉模型；语言模型只接收解析文字。</p><button id="refresh-visual-evidence" type="button" class="secondary">刷新图片解析</button><div id="visual-evidence-options" class="visual-options"></div></div>
@@ -54,13 +54,53 @@
  </div>
  </section>
  <section class="workspace-page" id="page-profiles" hidden>
-  <div class="panel context-selector"><div><label for="profile-topic-select">课程任务</label><select id="profile-topic-select" disabled></select></div><div><label for="profile-student-select">选择学生</label><select id="profile-student-select" disabled></select></div><button class="secondary" id="view-current-profile" type="button">查看当前画像</button></div>
-  <div class="page-intro"><span class="intro-icon">◎</span><div><h2>用学习证据，了解每一位学生</h2><p>查看知识点状态与讲解建议，维护诊断证据和教师判断。</p></div></div>
-<section class="panel"><div class="section-heading"><h2>知识点掌握情况</h2><button id="edit-profile" type="button" class="secondary" disabled>维护画像</button></div><p id="profile-view-note" class="helper"></p><div id="states" class="states"><p class="helper">正在读取…</p></div><p class="footnote">诊断记录为演示数据。状态由教师确认；生成讲义不会改变掌握状态。</p></section>
+  <div id="student-list-page"><div class="page-intro"><span class="intro-icon">◎</span><div><h2>学生名单</h2><p>选择同学查看独立档案，或新建学生画像。</p></div></div>
+  <section class="panel"><div class="section-heading"><h2 id="student-roster-title">全部学生</h2><div class="trace-actions"><button id="refresh-student-roster" class="secondary" type="button">刷新名单</button><a href="#profiles/new" class="primary student-page-link">新建学生画像</a></div></div><div id="student-roster" class="student-roster"></div></section></div>
+  <div id="student-create-page" hidden><div class="section-heading"><h2>新建学生画像</h2><a href="#profiles" class="student-page-link">返回学生名单</a></div>
+  <section class="panel"><form id="new-student-form" class="editor-form"><div class="course-fields"><div><label for="new-student-name">姓名</label><input id="new-student-name" maxlength="80" required></div><div><label for="new-student-subtitle">年级 / 学生说明</label><input id="new-student-subtitle" maxlength="80" required placeholder="例如：高一 · 物理基础巩固"></div></div><label for="new-student-profile">学生信息与学习特点</label><textarea id="new-student-profile" rows="4" maxlength="600" required placeholder="记录学习特点、已掌握的内容、长期薄弱点等。"></textarea><div class="trace-actions"><button id="create-student" class="primary" type="submit">保存学生档案</button><a href="#profiles" class="student-page-link">取消并返回</a></div></form></section></div>
+  <div id="student-detail-page" hidden><div class="section-heading"><a href="#profiles" class="student-page-link">← 返回学生名单</a><button class="secondary" id="view-current-profile" type="button">读取最新档案</button></div>
+  <section class="panel"><h2 id="roster-student-name">学生信息</h2><p id="roster-student-subtitle" class="helper"></p><p id="roster-student-profile" class="current-summary"></p></section>
+<section class="panel"><div class="section-heading"><h2>知识点掌握情况</h2><button id="edit-profile" type="button" class="secondary" disabled>维护画像</button></div><p id="profile-view-note" class="helper"></p><div id="states" class="states"><p class="helper">正在读取…</p></div><p class="footnote">预置档案包含虚拟演示数据。新增同学的信息由你维护；生成讲义和本次备注不会自动改变长期状态。</p></section>
+  </div><p id="student-roster-status" class="helper" role="status"></p>
  </section>
  <section class="workspace-page" id="page-materials" hidden>
+  <div id="course-list-page"><div class="page-intro"><span class="intro-icon">▤</span><div><h2>备课材料</h2><p>按副本整理教学目标、教案和参考资料，选择一份进入查看或编辑。</p></div></div><section class="panel"><div class="section-heading"><h2 id="course-list-title">我的备课副本</h2><a href="#materials/new" class="primary student-page-link">新建备课副本</a></div><div id="course-copy-list" class="student-roster"></div></section><section class="panel"><h2>预设示例</h2><p class="helper">打开示例后可复制成自己的备课副本。</p><div id="course-example-list" class="student-roster"></div></section></div>
+  <div id="course-editor-page" hidden><div class="section-heading"><a href="#materials" class="student-page-link">← 返回材料列表</a><h2 id="course-editor-heading">新建备课副本</h2></div>
+  <section class="panel" id="course-manager">
+   <div hidden><button id="new-course-task" type="button">新建备课副本</button><select id="managed-course-task"><option value="">新建副本</option></select></div>
+   <div class="trace-actions" id="course-saved-actions" hidden><button id="duplicate-course-task" type="button" class="secondary" disabled>复制为新副本</button><button id="use-course-task" type="button" class="secondary" disabled>选择此副本生成讲义</button></div>
+   <form id="course-task-form">
+    <div class="course-fields">
+     <div><label for="course-stage">学段</label><input id="course-stage" list="course-stages" maxlength="40" required placeholder="选择或填写学段"><datalist id="course-stages"><option value="小学"><option value="初中"><option value="高中"><option value="大学"><option value="职业教育"><option value="其他 / 培训"></datalist></div>
+     <div><label for="course-name">课程名称</label><input id="course-name" maxlength="80" required placeholder="例如：高中物理、大学英语"></div>
+     <div><label for="course-chapter">章节</label><input id="course-chapter" maxlength="100" required placeholder="例如：第一章 运动的描述"></div>
+     <div><label for="course-task-title">副本名称</label><input id="course-task-title" maxlength="120" required placeholder="例如：速度与加速度 · 第一课时教案"></div>
+     <div><label for="course-task-level">任务层次</label><input id="course-task-level" maxlength="40" required placeholder="例如：概念入门、巩固练习、拓展应用"></div>
+    </div>
+    <label for="course-goal">教学目标</label><textarea id="course-goal" maxlength="400" rows="3" required placeholder="描述本次要理解的概念、掌握的方法或完成的任务"></textarea>
+    <label for="course-lesson-plan">教案 / 备课正文</label><textarea id="course-lesson-plan" maxlength="20000" rows="8" placeholder="填写导入、教学重点、难点、讲解顺序、例题安排与课堂小结。也可从自己的教案复制粘贴。"></textarea>
+    <label for="course-knowledge">知识点（每行一个，最多 20 个）</label><textarea id="course-knowledge" rows="4" required placeholder="位移与路程&#10;速度与速率&#10;加速度"></textarea>
+    <p class="helper">编辑时保持原知识点名称可沿用已关联材料；新增或更名的知识点需要重新关联资料，历史讲义保留原快照。</p>
+    <p class="helper">副本不绑定学生。生成讲义时再选择同学，并补充本次薄弱点或讲解要求。</p>
+    <button id="save-course-task" class="primary" type="submit">保存备课副本</button>
+   </form>
+   <p id="course-manager-status" class="helper" role="status" aria-live="polite"></p>
+  </section>
+  <section class="panel" id="course-reference-panel" hidden>
+   <div class="section-heading"><div><h2>此副本的参考资料</h2><p class="helper">选择已上传资料和对应知识点，添加到当前副本。<a href="#uploads">前往上传资料</a></p></div><button id="refresh-course-uploads" class="secondary" type="button">刷新上传资料</button></div>
+   <p id="course-reference-status" class="helper" role="status"></p><div id="course-reference-list" class="sources"></div>
+   <details id="course-attach-details"><summary>添加参考资料</summary>
+   <form id="course-material-form" class="course-fields">
+    <div hidden><label for="attach-topic">备课材料副本</label><select id="attach-topic" required></select></div>
+    <div><label for="attach-knowledge">知识点</label><select id="attach-knowledge" required></select></div>
+    <div><label for="attach-upload">已上传资料</label><select id="attach-upload" required></select></div>
+    <button id="attach-course-material" class="primary" type="submit">收录资料</button>
+   </form><p id="course-material-status" class="helper" role="status" aria-live="polite"></p></details>
+  </section>
+  </div><div hidden>
   <div class="panel context-selector"><div><label for="material-topic-select">课程任务</label><select id="material-topic-select" disabled></select></div><p class="helper">切换课程任务后，展示对应材料；已打开讲义使用生成时的材料快照。</p></div>
    <section class="panel sources-panel"><div class="section-heading"><div><h2>本次课程证据</h2><p class="helper">按主题知识点从 PostgreSQL 查询 · 中文整理，例题自编</p></div><span id="source-count" class="count">—</span></div><div id="sources" class="sources"></div></section>
+  </div>
  </section>
  <section class="workspace-page" id="page-uploads" hidden>
   <div class="upload-grid">
@@ -164,6 +204,7 @@
     <h3>学生说明与学习特点</h3>
     <p id="profile-current" class="current-summary"></p>
     <form id="profile-form" class="editor-form">
+     <label for="profile-name">姓名</label><input id="profile-name" name="name" maxlength="80" required>
      <label for="profile-subtitle">学生说明</label><input id="profile-subtitle" name="subtitle" maxlength="80" required>
      <label for="profile-text">学习特点</label><textarea id="profile-text" name="profile" rows="4" maxlength="600" required></textarea>
      <label for="profile-recorder">录入者</label><input id="profile-recorder" name="recorder" maxlength="80" required>
@@ -236,4 +277,5 @@
  </div>
 </dialog>
 <link rel="stylesheet" href="/static/model-settings.css"><script defer src="/static/model-settings.js"></script>
+<link rel="stylesheet" href="/static/course-manager.css"><script defer src="/static/course-manager.js"></script><script defer src="/static/student-roster.js"></script>
 </body></html>

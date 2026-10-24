@@ -38,13 +38,12 @@ function historyCard(summaryText, lines) {
 }
 function drawEditor(data, resetProfile = true, resetEvidence = true) {
   const selected = $('evidence-knowledge').value;
-  const ids=topics[$('topic').value]?.knowledge_ids;
-  if(ids)data={...data,states:data.states.filter(s=>ids.includes(s.id))};
   editorProfile = data;
   $('profile-editor-title').textContent = data.student.name + ' · 维护画像';
   $('profile-current').textContent = `当前说明：${data.student.subtitle} · 版本 ${data.student.profile_revision}\n当前学习特点：${data.student.profile}`;
   if (resetProfile) {
     $('profile-form').reset();
+    $('profile-name').value = data.student.name;
     $('profile-subtitle').value = data.student.subtitle;
     $('profile-text').value = data.student.profile;
     $('profile-recorder').value = lastRecorder;
@@ -79,6 +78,7 @@ function drawEditor(data, resetProfile = true, resetEvidence = true) {
   }));
   $('profile-history').replaceChildren(...data.profile_history.map(h => historyCard(
     `${h.recorder} · 版本 ${h.previous_snapshot.profile_revision} → ${h.new_snapshot.profile_revision} · ${new Date(h.created_at).toLocaleString('zh-CN')}`, [
+      ['原姓名', h.previous_snapshot.name], ['新姓名', h.new_snapshot.name],
       ['原说明', h.previous_snapshot.subtitle], ['新说明', h.new_snapshot.subtitle],
       ['原学习特点', h.previous_snapshot.profile], ['新学习特点', h.new_snapshot.profile], ['修改理由', h.reason]
     ]
@@ -106,9 +106,9 @@ async function loadEditor(preserveDraft) {
   finally { if (session === editorSession) setEditorBusy(false); }
 }
 $('edit-profile').onclick = async () => {
-  if (busy || !current) return;
+  if (busy || !window.selectedProfileStudentId) return;
   editorSession++;
-  editorStudentId = Number($('student').value);
+  editorStudentId = window.selectedProfileStudentId;
   editorProfile = null;
   $('profile-editor-content').hidden = true;
   $('profile-dialog').showModal();
@@ -126,13 +126,8 @@ for (const formId of ['profile-form', 'evidence-form']) {
   });
 }
 async function refreshAfterProfileSave() {
-  const selected = $('student').value;
-  const data = await api('/api/bootstrap');
-  $('student').replaceChildren(...data.students.map(s => {
-    const option = el('option', `${s.name} · ${s.subtitle}`); option.value = s.id; return option;
-  }));
-  $('student').value = selected;
-  drawHistory(data.history);
+  await refreshWorkspaceCatalog();
+  if (window.refreshStudentRoster) await refreshStudentRoster(editorStudentId);
   await loadContext();
 }
 async function saveProfileForm(event, evidence) {
