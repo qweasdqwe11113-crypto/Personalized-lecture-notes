@@ -6,6 +6,7 @@
   const historyError = text => { $('grading-history-error').textContent = text || ''; $('grading-history-error').hidden = !text; };
   function render(row) {
     $('grading-status').textContent = labels[row.status] || row.status;
+    $('grading-status').dataset.status = row.status;
     $('grading-extraction').hidden = !row.extracted;
     $('grading-extracted').textContent = row.extracted || '';
     $('grading-reference-text').textContent = row.reference_text || '未另传参考答案';
@@ -17,12 +18,21 @@
     $('grading-download').href = '/api/grading/' + row.id + '/download';
     $('grading-summary').textContent = `${row.filename} · 共 ${result.questions.length} 题 · 已评得分 ${result.score} / 全卷 ${result.max_score} 分 · 待核对 ${result.pending} 题。所有分数均为建议评分。`;
     for (const q of result.questions) {
-      const card = el('article', undefined, 'grading-question' + (q.status === 'needs_review' ? ' grading-pending' : ''));
-      card.append(el('h3', `第 ${q.number} 题 · ${q.score === null ? '待核对' : q.score + ' 分'} / ${q.max_score} 分`));
-      for (const [title, text] of [['题目',q.stem],['学生作答',q.student_answer],['参考答案',q.reference_answer],['评分解析与错因',q.feedback]]) {
+      const state = q.status === 'needs_review' ? 'pending' : q.score === q.max_score ? 'correct' : 'incorrect';
+      const card = el('article', undefined, 'grading-question grading-' + state);
+      const heading = el('h3', `第 ${q.number} 题`);
+      heading.append(el('span', q.score === null ? `待核对 / ${q.max_score} 分` : `${q.score} / ${q.max_score} 分`, 'grading-score'));
+      card.append(heading);
+      for (const [title, text] of [['题目',q.stem],['学生作答',q.student_answer]]) {
         const p = el('p'); p.append(el('strong', title + '：'), document.createTextNode(text)); card.append(p);
       }
-      card.append(el('p', q.basis === 'provided' ? '答案依据：材料提供的参考答案（需核对对应关系）' : '答案依据：模型推导，请重点核对。', 'grading-basis'));
+      const details = el('details'); details.open = state !== 'correct';
+      details.append(el('summary', '参考答案与评分解析'));
+      for (const [title, text] of [['参考答案',q.reference_answer],['评分解析与错因',q.feedback]]) {
+        const p = el('p'); p.append(el('strong', title + '：'), document.createTextNode(text)); details.append(p);
+      }
+      details.append(el('p', q.basis === 'provided' ? '答案依据：材料提供的参考答案（需核对对应关系）' : '答案依据：模型推导，请重点核对。', 'grading-basis'));
+      card.append(details);
       $('grading-results').append(card);
     }
   }

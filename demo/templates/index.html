@@ -183,7 +183,7 @@
     <form id="grading-form">
      <label for="grading-paper">学生作答材料</label>
      <input id="grading-paper" type="file" accept=".png,.jpg,.jpeg,.webp,.bmp,.gif,.tif,.tiff,.pdf,.docx,.txt,.md" required>
-     <p class="helper">上传包含题目与学生作答的试卷或答题照片。支持图片、PDF、Word、TXT 和 Markdown；每次总计10 MB，最多30题、8张图片。较长试卷请拆分上传。</p>
+     <p class="helper">上传包含题目与学生作答的试卷或答题照片。</p><details class="upload-guidance"><summary>支持格式与上传限制</summary><p>支持图片、PDF、Word、TXT 和 Markdown；每次总计10 MB，最多30题，每份最多8张图片或8页PDF。较长试卷请拆分上传。</p></details>
      <label for="grading-reference">参考答案 <span>选填</span></label>
      <input id="grading-reference" type="file" accept=".png,.jpg,.jpeg,.webp,.bmp,.gif,.tif,.tiff,.pdf,.docx,.txt,.md">
      <p class="helper">可另传答案与评分标准；没有参考答案时由模型推导，并标记供教师核对。</p>
@@ -387,4 +387,5 @@
 <link rel="stylesheet" href="/static/teaching.css"><script defer src="/static/teaching.js"></script><script defer src="/static/section-editor.js"></script>
 <link rel="stylesheet" href="/static/quizzes.css"><script defer src="/static/quizzes.js"></script>
 <link rel="stylesheet" href="/static/grading.css"><script defer src="/static/grading.js"></script>
+<link rel="stylesheet" href="/static/theme.css">
 </body></html>
