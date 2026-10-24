@@ -15,8 +15,9 @@
     const hash = location.hash.slice(1);
     const profileRoute = /^profiles\/(new|[1-9]\d*)$/.test(hash);
     const materialRoute = /^materials\/[\w-]+$/.test(hash);
-    const page = materialRoute ? 'materials' : profileRoute ? 'profiles' : pages[hash] ? hash : aliases[hash] || 'workbench';
-    if (!pages[hash] && !profileRoute && !materialRoute) history.replaceState(null, '', '#' + page);
+    const recordsRoute = /^records\/(lectures|quizzes)$/.test(hash);
+    const page = recordsRoute ? 'records' : materialRoute ? 'materials' : profileRoute ? 'profiles' : pages[hash] ? hash : aliases[hash] || 'workbench';
+    if (!pages[hash] && !profileRoute && !materialRoute && !recordsRoute) history.replaceState(null, '', '#' + page);
     if (active === hash) return;
     active = hash;
     for (const key of Object.keys(pages)) $('page-' + key).hidden = key !== page;
@@ -28,10 +29,27 @@
     $('page-title').textContent = title;
     document.title = title + ' · 知页';
     document.body.dataset.page = page;
+    const recordsTab = hash === 'records/quizzes' ? 'quizzes' : 'lectures';
+    for (const key of ['lectures', 'quizzes']) {
+      const selected = key === recordsTab;
+      $('record-tab-' + key).setAttribute('aria-selected', String(selected));
+      $('record-tab-' + key).tabIndex = selected ? 0 : -1;
+      $('record-panel-' + key).hidden = !selected;
+    }
+    if (page === 'records' && recordsTab === 'quizzes') window.dispatchEvent(new Event('quiz-history-open'));
     window.scrollTo({top: 0});
-    if (focus) $('page-title').focus({preventScroll: true});
+    if (focus) (recordsRoute ? $('record-tab-' + recordsTab) : $('page-title')).focus({preventScroll: true});
   }
   window.addEventListener('hashchange', () => navigate(true));
+  for (const key of ['lectures', 'quizzes']) {
+    $('record-tab-' + key).addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === 'Home' ? 'lectures' : event.key === 'End' ? 'quizzes' : key === 'lectures' ? 'quizzes' : 'lectures';
+      location.hash = 'records/' + next;
+      $('record-tab-' + next).focus();
+    });
+  }
   window.openWorkspacePage = page => {
     if (pages[page] && active !== page) location.hash = page;
   };

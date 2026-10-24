@@ -42,7 +42,7 @@
       <div class="setup-field"><label for="retrieval-mode">材料取用方式</label><select id="retrieval-mode"><option value="sql">全部关联材料 · 精确 SQL</option><option value="vector">按目标选取片段 · 向量检索</option></select><p id="retrieval-note" class="helper" role="status" aria-live="polite">默认直接读取关联材料。</p></div>
       <div class="setup-field"><label for="learner-note">本次学生观察 <span>选填</span></label><textarea id="learner-note" rows="2" maxlength="2000" placeholder="例如：今天负数运算仍容易漏符号。"></textarea><p class="helper">作为本次观察使用，不改写长期诊断；无画像对照不发送此项。</p></div>
      </details>
-     <div class="setup-field setup-goal"><label>图片解析依据 <span>选填，最多 4 张</span></label><p class="helper">先在「上传资料」中解析图片，再选择用于本次讲义的解析。原图仅发送给本地视觉模型；语言模型只接收解析文字。</p><button id="refresh-visual-evidence" type="button" class="secondary">刷新图片解析</button><div id="visual-evidence-options" class="visual-options"></div></div>
+     <div class="setup-field setup-goal"><details class="visual-picker"><summary>图片解析依据 <span id="visual-selection-count">未选择 · 选填，最多 4 张</span></summary><p class="helper">先在「上传资料」中解析图片，再选择用于本次讲义的解析。原图仅发送给本地视觉模型；语言模型只接收解析文字。</p><button id="refresh-visual-evidence" type="button" class="secondary">刷新图片解析</button><div id="visual-evidence-options" class="visual-options"></div></details></div>
      <details class="scope-box"><summary>目标范围与材料覆盖</summary><div id="scope-check"><p class="helper">读取主题后展示。</p></div></details>
      <button class="primary" id="generate" type="submit" disabled>生成个性化讲义 <span>↗</span></button>
      <p id="progress" class="helper" role="status" aria-live="polite">读取学生状态与课程证据后生成。</p>
@@ -79,7 +79,7 @@
  </section>
  <section class="workspace-page" id="page-quizzes" hidden>
   <div class="quiz-layout">
-   <section class="panel quiz-settings"><div class="section-heading"><h2>出题设置</h2><button id="quiz-refresh-catalog" type="button" class="secondary">刷新副本</button></div>
+   <section class="panel quiz-settings"><div class="section-heading"><h2>出题设置</h2><div class="quiz-actions"><a href="#records/quizzes" class="secondary">出题记录</a><button id="quiz-refresh-catalog" type="button" class="secondary">刷新副本</button></div></div>
     <form id="quiz-form">
      <label for="quiz-topic">备课材料副本</label><select id="quiz-topic" required disabled></select>
      <p id="quiz-goal" class="helper"></p>
@@ -100,7 +100,7 @@
     <div id="quiz-export" class="quiz-actions" hidden><label for="quiz-format">下载格式</label><select id="quiz-format"><option value="docx">Word (.docx)</option><option value="md">Markdown (.md)</option><option value="txt">纯文本 (.txt)</option><option value="html">网页 (.html)</option></select><a id="quiz-download" class="secondary">下载学生版</a></div>
     <div id="quiz-questions" class="quiz-questions"></div><button id="quiz-retry" class="secondary" type="button" hidden>按原输入重试</button>
    </section>
-   <section class="panel"><div class="section-heading"><h2>出题记录</h2><button id="quiz-refresh-history" type="button" class="secondary">刷新记录</button></div><p class="helper">保存提交时的备课副本、学生依据和设置；刷新页面后可继续查看。模型生成题目与答案均需教师复核。</p><div id="quiz-history" class="quiz-history"></div></section></div>
+   </div>
   </div>
  </section>
  <section class="workspace-page" id="page-profiles" hidden>
@@ -176,8 +176,11 @@
   <section class="panel upload-library"><div class="section-heading"><div><h2>已上传资料</h2><p class="helper">最近 100 条资料 · 保存原文件与提取正文</p></div><button id="refresh-uploads" type="button" class="secondary">刷新列表</button></div><div id="upload-list"><p class="helper">正在读取资料…</p></div></section>
  </section>
  <section class="workspace-page" id="page-records" hidden>
+  <div class="record-tabs" role="tablist" aria-label="生成记录类型"><a href="#records/lectures" id="record-tab-lectures" role="tab" aria-selected="true" aria-controls="record-panel-lectures">讲义记录</a><a href="#records/quizzes" id="record-tab-quizzes" role="tab" aria-selected="false" aria-controls="record-panel-quizzes" tabindex="-1">出题记录</a></div>
+  <div id="record-panel-lectures" role="tabpanel" aria-labelledby="record-tab-lectures">
   <div class="records-grid"><section class="panel"><div class="section-heading"><h2>最近生成</h2></div><div id="history" class="history"><p class="helper">暂无已保存讲义</p></div></section><section class="panel"><div class="section-heading"><h2>后台任务</h2><button id="refresh-jobs" class="secondary" type="button">刷新任务</button></div><p class="helper">1 个任务处理，最多 3 个等待；仅本机单进程。提交时固定输入，刷新页面后可从任务恢复查看。</p><div id="jobs-list" class="history"></div></section></div>
-<section class="panel"><div class="section-heading"><h2>生成记录</h2><button id="refresh-runs" type="button" class="secondary">刷新</button></div><p class="helper">最近 10 次请求 · 包含失败记录</p><div id="generation-runs" class="history"><p class="helper">正在读取…</p></div></section>
+<section class="panel"><div class="section-heading"><h2>讲义生成记录</h2><button id="refresh-runs" type="button" class="secondary">刷新</button></div><p class="helper">最近 10 次请求 · 包含失败记录</p><div id="generation-runs" class="history"><p class="helper">正在读取…</p></div></section>
+  </div><div id="record-panel-quizzes" role="tabpanel" aria-labelledby="record-tab-quizzes" hidden><section class="panel"><div class="section-heading"><h2>出题记录</h2><div class="quiz-actions"><a href="#quizzes" class="secondary">前往出题</a><button id="quiz-refresh-history" type="button" class="secondary">刷新记录</button></div></div><p class="helper">保存提交时的备课副本、学生依据和设置；点击记录可返回出题页查看题目与答案解析。</p><p id="quiz-history-error" class="error" role="alert" hidden></p><div id="quiz-history" class="quiz-history"></div></section></div>
  </section>
  <section class="workspace-page" id="page-settings" hidden>
   <div class="page-intro"><span class="intro-icon">⚙</span><div><h2>模型与服务配置</h2><p>为文字生成、图片理解和资料检索分别选择模型。</p></div></div>

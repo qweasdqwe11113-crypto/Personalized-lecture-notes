@@ -82,10 +82,11 @@
   }
   async function refreshHistory(){
     const data=await api('/api/quizzes');
+    $('quiz-history-error').hidden=true;
     $('quiz-history').replaceChildren(...data.quizzes.map(q=>{
       const b=el('button');b.type='button';b.setAttribute('aria-current',String(q.id===displayed?.id));
       b.append(el('strong',q.title),el('span',`${statusLabels[q.status]} · ${q.options.count} 题 · ${difficultyLabels[q.options.difficulty]} · ${new Date(q.created_at).toLocaleString('zh-CN')}`,'helper'));
-      b.onclick=()=>watch(q.id).catch(e=>showError(e.message));return b;
+      b.onclick=()=>{openWorkspacePage('quizzes');watch(q.id).catch(e=>showError(e.message));};return b;
     }));
     if(!data.quizzes.length)$('quiz-history').append(el('p','还没有出题记录。','helper'));
   }
@@ -124,7 +125,9 @@
   $('quiz-student').onchange=()=>{if($('quiz-student').value)$('quiz-level').value='profile';describeStudent();};
   $('quiz-level').onchange=describeStudent;$('quiz-count').oninput=allocation;$('quiz-difficulty').onchange=allocation;
   $('quiz-student-view').onclick=()=>{teacher=false;drawResult();};$('quiz-teacher-view').onclick=()=>{teacher=true;drawResult();};$('quiz-format').onchange=drawDownload;
-  $('quiz-refresh-catalog').onclick=()=>refreshCatalog().catch(e=>showError(e.message));$('quiz-refresh-history').onclick=()=>refreshHistory().catch(e=>showError(e.message));
-  allocation();const catalogReady=refreshCatalog();Promise.all([catalogReady,refreshHistory()]).catch(e=>showError(e.message));
+  function historyError(e){$('quiz-history-error').textContent=e.message;$('quiz-history-error').hidden=false;}
+  $('quiz-refresh-catalog').onclick=()=>refreshCatalog().catch(e=>showError(e.message));$('quiz-refresh-history').onclick=()=>refreshHistory().catch(historyError);
+  window.addEventListener('quiz-history-open',()=>refreshHistory().catch(historyError));
+  allocation();const catalogReady=refreshCatalog();catalogReady.catch(e=>showError(e.message));refreshHistory().catch(historyError);
   const last=localStorage.getItem('activeQuizJob');if(last)watch(last).catch(()=>localStorage.removeItem('activeQuizJob'));
 })();

@@ -1,4 +1,8 @@
 .visual-options { max-height: 300px; overflow: auto; margin-top: 12px; }
+.visual-picker > summary { cursor: pointer; padding: 12px 14px; border: 1px solid #e1e6f0; border-radius: 8px; font-weight: 600; }
+.visual-picker > summary span { display: inline-block; margin-left: 8px; color: #64748b; font-size: 13px; font-weight: 400; }
+.visual-picker > summary:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+.visual-picker[open] > summary { margin-bottom: 12px; }
 .visual-option { display: flex; align-items: start; gap: 8px; margin: 14px 0 6px; }
 .visual-option input { width: auto; margin: 3px 0; }
 .visual-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }

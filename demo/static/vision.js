@@ -1,5 +1,9 @@
 "use strict";
 window.selectedVisualAnalyses = () => Array.from(document.querySelectorAll('#visual-evidence-options input:checked'), n => n.value);
+function updateVisualSelectionCount() {
+  const count = selectedVisualAnalyses().length;
+  $('visual-selection-count').textContent = count ? `已选 ${count} / 4 张` : '未选择 · 选填，最多 4 张';
+}
 async function refreshVisualEvidence() {
   const container = $('visual-evidence-options');
   const selected = new Set(selectedVisualAnalyses());
@@ -10,12 +14,13 @@ async function refreshVisualEvidence() {
     for (const item of data.analyses) {
       const label = el('label', undefined, 'visual-option');
       const checkbox = el('input'); checkbox.type = 'checkbox'; checkbox.value = item.id; checkbox.checked = selected.has(item.id); checkbox.disabled = busy;
-      checkbox.onchange = () => { if (selectedVisualAnalyses().length > 4) { checkbox.checked = false; error('每份讲义最多选择 4 张图片解析。'); } };
+      checkbox.onchange = () => { if (selectedVisualAnalyses().length > 4) { checkbox.checked = false; error('每份讲义最多选择 4 张图片解析。'); } updateVisualSelectionCount(); };
       label.append(checkbox, document.createTextNode(`${item.label}${item.page_no ? ' · 第' + item.page_no + '页' : ''} · ${item.model} · ${new Date(item.created_at).toLocaleString('zh-CN')}`));
       const details = el('details'); details.append(el('summary', '预览识读结果（需核对）'), el('p', item.content, 'visual-text'));
       container.append(label, details);
     }
   } catch (e) { container.replaceChildren(el('p', e.message, 'helper')); }
+  updateVisualSelectionCount();
 }
 async function showUploadImages(uploadId) {
   const container = $('upload-preview-images');
