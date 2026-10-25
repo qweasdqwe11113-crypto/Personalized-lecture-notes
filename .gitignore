@@ -31,13 +31,37 @@ dist/
 *.swo
 *~
 
-# 本机助手记录与协作文件
+# AI 助手配置、记忆与本地计划
 /.workbuddy/
 /.codex/
 /.agents/
+/.claude/
+/.gemini/
+/.cursor/
+/.windsurf/
+/.roo/
+/.kilocode/
+/.clinerules/
+/.aider*
+/.cursorrules
+/.windsurfrules
+/.clinerules
+/.mcp.json
+/.github/copilot-instructions.md
+/.github/instructions/
+AGENTS.md
+AGENTS.local.md
+CLAUDE.md
+CLAUDE.local.md
+GEMINI.md
+[Tt][Oo][Dd][Oo]
+[Tt][Oo][Dd][Oo].*
+
+# 已移除的旧周报
+/part1.*
+
+# 本机云服务凭据
 /.aws/
-/AGENTS.md
-/TODO.md
 
 # 操作系统生成的文件
 .DS_Store

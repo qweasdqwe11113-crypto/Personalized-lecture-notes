@@ -66,7 +66,7 @@
 
 教师使用的本地小型原型：从专用 PostgreSQL 库读取虚拟学生状态，按知识点 SQL 查询少量课程摘要，调用课题组 Qwen 生成讲义，并保留输入、问题和修订。T00—T08 必做工程与样例核查已完成；现存修订仍是助手草稿，教师评审及导师最终验收待确认。
 
-当前任务状态见 [TODO.md](TODO.md)，已有结果见 [实验汇总](experiments/2026-10-12-bayes/summary.md) 和 [验证记录](demo/VERIFICATION.md)。后续完成说明直接在对话中提供。
+当前实现与待完成事项见本文，已有结果见 [实验汇总](experiments/2026-10-12-bayes/summary.md) 和 [验证记录](demo/VERIFICATION.md)。后续完成说明直接在对话中提供。
 
 ## 启动
 
@@ -162,7 +162,6 @@
 | [retrieval.py](demo/retrieval.py)、[embed.py](demo/embed.py) | 分块、向量索引、可替换排序后端与嵌入调用 |
 | [schema.sql](demo/schema.sql)、[init_db.py](demo/init_db.py) | 专用库20张关系表、增量初始化 |
 | [tests/](demo/tests) | 隔离 schema 的文本 / 数据库 / HTTP 与队列验证 |
-| [TODO.md](TODO.md) | 必做项与额外候选 |
 | `.env` / `.env.example` / `requirements.txt` | 本地不提交配置 / 无密钥示例 / 依赖版本 |
 
 ## 在新环境配置
