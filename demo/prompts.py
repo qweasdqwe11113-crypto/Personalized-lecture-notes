@@ -3,7 +3,8 @@ from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
-from teaching import instructions
+from teaching import instructions, length_range
+from courses import course_family
 
 PROMPT_VERSION = 'lecture-math-v3'
 INPUT_VERSION = 'lecture-context-v4'
@@ -22,7 +23,8 @@ def prepare_request(context, goal, model):
     model_context = {**context, 'materials': [
         {**material, 'citation_id': f'M{material["id"]}'} for material in context['materials']
     ]}
-    version = 'lecture-general-v1' if context['topic'].get('custom') else 'lecture-probability-v2' if context['topic'].get('course') == '大学概率论' else PROMPT_VERSION
+    family = course_family(context['topic'])
+    version = {'general':'lecture-general-v1', 'probability':'lecture-probability-v2'}.get(family, PROMPT_VERSION)
     prompt_file = Path(__file__).with_name('prompts') / f'{version}.md'
     system = prompt_file.read_text(encoding='utf-8').strip()
     if context.get('learner_note') or context['topic'].get('preparation_copy'):
@@ -44,6 +46,10 @@ def prepare_request(context, goal, model):
         system += '\n' + (Path(__file__).with_name('prompts') / 'lecture-length-expanded-v1.md').read_text(encoding='utf-8').strip()
     if options:
         system += '\n' + instructions(options, expanded)
+    if context.get('lecture_workflow') == 'teacher-v2':
+        system += '\n' + (Path(__file__).with_name('prompts') / 'lecture-plan-v1.md').read_text(encoding='utf-8').strip()
+    if context.get('lecture_workflow') == 'teacher-v2':
+        system += '\n本次材料可能是带原文位置的节选，仅使用提供的内容，不声称阅读了完整原文；不足时明确说明。'
     payload = {'model': model, 'messages': [
         {'role': 'system', 'content': system},
         {'role': 'user', 'content': json.dumps({'goal': goal, 'context': model_context}, ensure_ascii=False)}
@@ -52,9 +58,13 @@ def prepare_request(context, goal, model):
         payload['max_tokens'] = min(8000, 4000 + options['examples'] * 300 + options['exercises'] * 160)
     if expanded:
         payload['max_tokens'] = 16000
+    policy_v2 = options and options.get('length_policy') == 'duration-v2'
+    if policy_v2:
+        payload['max_tokens'] = min(16000, max(3000, round(length_range(options,expanded)[1]*1.7)+1200))
     body = json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
     return PreparedRequest(body, hashlib.sha256(body.encode('utf-8')).hexdigest(),
-                           version + ('+teaching-v1' if options else '') + ('+expanded-v1' if expanded else ''),
+                           version + ('+teaching-v2' if policy_v2 else '+teaching-v1' if options else '') + ('+expanded-v1' if expanded else '') + ('+plan-v1' if context.get('lecture_workflow') == 'teacher-v2' else ''),
+                           'lecture-context-teacher-v2' if context.get('lecture_workflow') == 'teacher-v2' else
                            'lecture-context-teaching-v1' if options else
                            'lecture-context-vision-v1' if context.get('visual_evidence') else
                            'lecture-context-preparation-v1' if context.get('learner_note') or context['topic'].get('preparation_copy') else

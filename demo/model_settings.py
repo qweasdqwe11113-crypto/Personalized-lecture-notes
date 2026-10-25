@@ -15,6 +15,7 @@ from dotenv import dotenv_values, set_key
 from flask import jsonify, request
 from PIL import Image, ImageDraw
 from qwen import clean_content
+from model_runtime import request_timeout
 
 CHANNELS = {'llm': 'QWEN', 'vlm': 'VLM', 'embedding': 'QWEN_EMBEDDING'}
 SUFFIXES = {'base_url': 'BASE_URL', 'model': 'MODEL', 'api_key': 'API_KEY'}
@@ -115,7 +116,7 @@ def probe(name, channel):
     req = urllib.request.Request(channel['base_url'] + endpoint,
                                  data=json.dumps(payload).encode('utf-8'), headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=120) as response:
+        with urllib.request.urlopen(req, timeout=request_timeout() if name=='llm' else 120) as response:
             result = json.load(response)
     except urllib.error.HTTPError as exc:
         status = exc.code

@@ -63,6 +63,22 @@ class JobQueue:
         prepared = PreparedRequest(run['request_body'], run['request_sha256'], run['prompt_version'], run['input_version'])
         return self.submit(run['student_id'], run['topic_key'], run['goal'], run['context'], prepared, parent=run_id)
 
+    def cancel(self, job_id):
+        with self.condition:
+            with self.db() as conn:
+                row = conn.execute('SELECT * FROM generation_jobs WHERE id=%s FOR UPDATE', (job_id,)).fetchone()
+                if not row:
+                    raise JobError('任务不存在。',404)
+                if row['status'] == 'cancelled':
+                    return {'id':job_id,'status':'cancelled'}
+                if row['status'] != 'queued':
+                    raise JobError('仅可取消尚未开始的排队任务；已发送的模型调用仍需等待完成。',409)
+                fail_run(conn,row['run_id'],ModelError('cancelled','教师已取消排队任务，未调用模型。','queue'),0)
+                conn.execute("UPDATE generation_jobs SET status='cancelled',finished_at=now() WHERE id=%s", (job_id,))
+            self.pending = deque(item for item in self.pending if item[0] != job_id)
+            self.condition.notify_all()
+        return self.detail(job_id)
+
     def detail(self, job_id):
         with self.db() as conn:
             row = conn.execute('''SELECT j.*,r.lecture_id,r.error_message,r.error_code,r.usage,

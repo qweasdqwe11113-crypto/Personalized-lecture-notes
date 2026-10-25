@@ -33,7 +33,8 @@
      <fieldset class="teaching-controls"><legend>本次怎么讲</legend><div class="teaching-grid">
       <div><label for="lesson-duration">授课时长（分钟）</label><input id="lesson-duration" type="number" min="5" max="180" step="1" value="45" required></div>
       <div><label for="lesson-type">授课类型</label><select id="lesson-type"><option value="new">新授</option><option value="practice">巩固</option><option value="correction">纠错</option><option value="review">复习</option></select></div>
-      <div class="teaching-wide"><label for="lesson-detail">讲解详略</label><select id="lesson-detail"><option value="brief">简明提纲 · 约 1,500～2,500 字</option><option value="standard" selected>常规讲解 · 约 4,000～6,000 字</option><option value="detailed">详细讲解 · 约 6,000～8,000 字</option></select><p class="helper">建议篇幅，题量多时可适当增加，最多约 8,000 字。优先展开步骤、例题和答案，避免重复凑字。</p></div>
+      <div class="teaching-wide"><label for="lesson-detail">讲解详略</label><select id="lesson-detail"><option value="brief">简明提纲</option><option value="standard" selected>常规讲解</option><option value="detailed">详细讲解</option></select><p id="lesson-length-note" class="helper" role="status"></p></div>
+      <div class="teaching-wide"><label for="lesson-target">自定目标汉字数（选填）</label><input id="lesson-target" type="number" min="400" max="6600" step="100" placeholder="留空按时长与详略建议"><p class="helper">400—6600汉字，允许约20%浮动；课堂必讲与补充阅读分开。目标与题量冲突时说明取舍。</p></div>
       <div><label for="lesson-examples">完整例题数</label><input id="lesson-examples" type="number" min="0" max="6" step="1" value="2" required></div>
       <div><label for="lesson-exercises">课堂练习数</label><input id="lesson-exercises" type="number" min="0" max="10" step="1" value="3" required></div>
      </div><p class="helper">供教师授课使用，包含讲解步骤、课堂提问、错误引导与参考答案。时间分配为建议。</p></fieldset>
@@ -43,8 +44,9 @@
       <div class="setup-field"><label for="retrieval-mode">材料取用方式</label><select id="retrieval-mode"><option value="sql">全部关联材料 · 精确 SQL</option><option value="vector">按目标选取片段 · 向量检索</option></select><p id="retrieval-note" class="helper" role="status" aria-live="polite">默认直接读取关联材料。</p></div>
       <div class="setup-field"><label for="learner-note">本次学生观察 <span>选填</span></label><textarea id="learner-note" rows="2" maxlength="2000" placeholder="例如：今天负数运算仍容易漏符号。"></textarea><p class="helper">作为本次观察使用，不改写长期诊断；无画像对照不发送此项。</p></div>
      </details>
-     <div class="setup-field setup-goal"><details class="visual-picker"><summary>图片解析依据 <span id="visual-selection-count">未选择 · 选填，最多 4 张</span></summary><p class="helper">先在「上传资料」中解析图片，再选择用于本次讲义的解析。原图仅发送给本地视觉模型；语言模型只接收解析文字。</p><button id="refresh-visual-evidence" type="button" class="secondary">刷新图片解析</button><div id="visual-evidence-options" class="visual-options"></div></details></div>
+     <div class="setup-field setup-goal"><details class="visual-picker"><summary>图片解析依据 <span id="visual-selection-count">未选择 · 选填，最多 4 张</span></summary><p class="helper">先在「上传资料」中解析图片，再选择用于本次讲义的解析。原图仅发送给独立视觉模型；语言模型只接收解析文字。</p><button id="refresh-visual-evidence" type="button" class="secondary">刷新图片解析</button><div id="visual-evidence-options" class="visual-options"></div></details></div>
      <details class="scope-box"><summary>目标范围与材料覆盖</summary><div id="scope-check"><p class="helper">读取主题后展示。</p></div></details>
+     <details class="scope-box" id="lecture-plan-box"><summary>本次讲解安排 · 可调整</summary><div id="lecture-plan"></div><div id="input-budget-note" class="helper"></div></details>
      <button class="primary" id="generate" type="submit" disabled>生成个性化讲义 <span>↗</span></button>
      <p id="progress" class="helper" role="status" aria-live="polite">读取学生状态与课程证据后生成。</p>
     </form>
@@ -58,7 +60,7 @@
     <p id="input-trace-note" class="input-trace-note" hidden></p>
     <div id="empty" class="empty"><div class="page-symbol">Aa<span>＋</span></div><h2>从学生的起点出发</h2><p>选择一名学生，查看知识状态，<br>生成针对当前学习需要的讲义。</p><div class="steps"><span>学生状态</span><i>→</i><span>课程证据</span><i>→</i><span>专属讲义</span></div></div>
     <div id="loading" class="empty" hidden><div class="spinner"></div><h2>正在组织这份讲义</h2><p>Qwen 正在结合学生状态与课程材料生成。<br>完成后会自动保存到本地数据库。</p></div>
-    <div id="lecture-meta" class="lecture-meta" hidden></div><article id="lecture" class="lecture" hidden></article>
+    <div id="lecture-meta" class="lecture-meta" hidden></div><details id="result-plan" class="result-plan" hidden><summary>查看本份讲义的安排与定位</summary><div id="result-plan-content"></div></details><article id="lecture" class="lecture" hidden></article>
     <div id="review-note" class="review-note" hidden></div>
    </section>
    <section id="quality-panel" class="panel" hidden>
@@ -206,11 +208,12 @@
   </div>
  </section>
  <section class="workspace-page" id="page-records" hidden>
-  <div class="record-tabs" role="tablist" aria-label="生成记录类型"><a href="#records/lectures" id="record-tab-lectures" role="tab" aria-selected="true" aria-controls="record-panel-lectures">讲义记录</a><a href="#records/quizzes" id="record-tab-quizzes" role="tab" aria-selected="false" aria-controls="record-panel-quizzes" tabindex="-1">出题记录</a><a href="#records/grading" id="record-tab-grading" role="tab" aria-selected="false" aria-controls="record-panel-grading" tabindex="-1">阅卷记录</a></div>
+  <div class="record-tabs" role="tablist" aria-label="生成记录类型"><a href="#records/lectures" id="record-tab-lectures" role="tab" aria-selected="true" aria-controls="record-panel-lectures">讲义记录</a><a href="#records/quizzes" id="record-tab-quizzes" role="tab" aria-selected="false" aria-controls="record-panel-quizzes" tabindex="-1">出题记录</a><a href="#records/grading" id="record-tab-grading" role="tab" aria-selected="false" aria-controls="record-panel-grading" tabindex="-1">阅卷记录</a><a href="#records/experiments" id="record-tab-experiments" role="tab" aria-selected="false" aria-controls="record-panel-experiments" tabindex="-1">固定对照</a></div>
   <div id="record-panel-lectures" role="tabpanel" aria-labelledby="record-tab-lectures">
   <div class="records-grid"><section class="panel"><div class="section-heading"><h2>最近生成</h2></div><div id="history" class="history"><p class="helper">暂无已保存讲义</p></div></section><section class="panel"><div class="section-heading"><h2>后台任务</h2><button id="refresh-jobs" class="secondary" type="button">刷新任务</button></div><p class="helper">1 个任务处理，最多 3 个等待；仅本机单进程。提交时固定输入，刷新页面后可从任务恢复查看。</p><div id="jobs-list" class="history"></div></section></div>
 <section class="panel"><div class="section-heading"><h2>讲义生成记录</h2><button id="refresh-runs" type="button" class="secondary">刷新</button></div><p class="helper">最近 10 次请求 · 包含失败记录</p><div id="generation-runs" class="history"><p class="helper">正在读取…</p></div></section>
   </div><div id="record-panel-quizzes" role="tabpanel" aria-labelledby="record-tab-quizzes" hidden><section class="panel"><div class="section-heading"><h2>出题记录</h2><div class="quiz-actions"><a href="#quizzes" class="secondary">前往出题</a><button id="quiz-refresh-history" type="button" class="secondary">刷新记录</button></div></div><p class="helper">保存提交时的备课副本、学生依据和设置；点击记录可返回出题页查看题目与答案解析。</p><p id="quiz-history-error" class="error" role="alert" hidden></p><div id="quiz-history" class="quiz-history"></div></section></div>
+  <div id="record-panel-experiments" role="tabpanel" aria-labelledby="record-tab-experiments" hidden><section class="panel"><div class="section-heading"><h2>当前版本固定对照</h2><button id="prepare-experiment" class="secondary" type="button">冻结新一轮12份输入</button></div><p class="helper">大学概率专题、三类虚拟画像，有／无画像各两次。冻结时不调用模型；开始后顺序执行12次真实调用。成功与失败均保留，已有结果不替换。评审通过讲义的“编辑与审核”逐份记录；助手草稿不计教师批准。</p><div id="experiment-history" class="history"></div><p id="experiment-status" class="helper" role="status"></p><button id="run-experiment" type="button" class="primary" hidden>开始本轮真实生成</button><div id="experiment-detail"></div></section></div>
   <div id="record-panel-grading" role="tabpanel" aria-labelledby="record-tab-grading" hidden>
    <section class="panel">
     <div class="section-heading"><h2>阅卷记录</h2><div class="quiz-actions"><a href="#grading" class="secondary">前往阅卷</a><button type="button" id="grading-refresh" class="secondary">刷新记录</button></div></div>
@@ -388,4 +391,6 @@
 <link rel="stylesheet" href="/static/quizzes.css"><script defer src="/static/quizzes.js"></script>
 <link rel="stylesheet" href="/static/grading.css"><script defer src="/static/grading.js"></script>
 <link rel="stylesheet" href="/static/theme.css">
+<dialog id="source-dialog" aria-labelledby="source-title"><div class="editor-top editor-heading"><h2 id="source-title">核查来源</h2><button id="close-source" type="button" class="secondary">关闭</button></div><div class="dialog-body"><p id="source-status" class="helper"></p><div id="source-content"></div><div class="trace-actions" id="source-review-actions"><button type="button" class="secondary" data-source-support="supported">记录“支持”</button><button type="button" class="secondary" data-source-support="unsupported">记录“不支持”</button><button type="button" class="secondary" data-source-support="unclear">记录“不确定”</button></div><p class="helper">打开对应保存版本的问题表单，核对原文并填写依据、记录者后确认；不会自动保存审核判断。</p></div></dialog>
+<link rel="stylesheet" href="/static/lecture-workflow.css"><script defer src="/static/lecture-workflow.js"></script><script defer src="/static/evaluation.js"></script>
 </body></html>

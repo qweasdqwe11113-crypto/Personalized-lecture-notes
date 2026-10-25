@@ -95,7 +95,7 @@
     try{
       const d=await api('/api/course-tasks'+(editing?'/'+editing.key:''),{method:editing?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
       editing={key:d.key,...d.task};saved=true;await refreshCatalog(d.key);await refreshWorkspaceCatalog();
-      status('course-manager-status','备课副本已保存，可继续关联参考资料，或选择此副本生成讲义。');
+      status('course-manager-status',d.notice||'备课副本已保存，可继续关联参考资料，或选择此副本生成讲义。');
     }catch(e){status('course-manager-status',e.message,true);}
     finally{
       saving=false;$('managed-course-task').disabled=false;$('new-course-task').disabled=false;$('save-course-task').disabled=Boolean(editing&&!editing.custom);

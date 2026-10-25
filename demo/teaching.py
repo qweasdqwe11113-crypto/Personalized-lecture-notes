@@ -1,7 +1,7 @@
 """Validated per-lesson controls and versioned teacher-facing instructions."""
 
 DEFAULTS = {'duration': 45, 'lesson_type': 'new', 'detail': 'standard',
-            'examples': 2, 'exercises': 3, 'requirements': ''}
+            'examples': 2, 'exercises': 3, 'requirements': '', 'length_policy':'legacy-v1', 'target_characters':0}
 LESSON_TYPES = {'new': '新授', 'practice': '巩固', 'correction': '纠错', 'review': '复习'}
 DETAILS = {'brief': '简明提纲', 'standard': '常规讲解', 'detailed': '详细讲解'}
 
@@ -13,6 +13,11 @@ def teaching_options(data):
     if not isinstance(value, dict) or set(value) - set(DEFAULTS):
         raise ValueError('授课设置格式无效。')
     result = {**DEFAULTS, **value}
+    if result['length_policy'] not in ('legacy-v1','duration-v2'):
+        raise ValueError('篇幅策略无效，请刷新页面。')
+    target = result['target_characters']
+    if type(target) is not int or (target != 0 and not 400 <= target <= 6600):
+        raise ValueError('自定篇幅请填写400—6600汉字，或留空使用建议。')
     for key, low, high, label in [('duration', 5, 180, '授课时长'),
                                   ('examples', 0, 6, '例题数'), ('exercises', 0, 10, '练习数')]:
         if type(result[key]) is not int or not low <= result[key] <= high:
@@ -23,10 +28,21 @@ def teaching_options(data):
     if not isinstance(result['requirements'], str) or len(result['requirements'].strip()) > 2000:
         raise ValueError('本次授课要求请控制在 2000 字以内。')
     result['requirements'] = result['requirements'].strip()
+    # Preserve the request shape of existing clients and frozen fixtures.
+    for field in ('length_policy','target_characters'):
+        if field not in value:
+            result.pop(field)
     return result
 
 
 def length_range(options, expanded=False):
+    if options.get('length_policy') == 'duration-v2':
+        target = options.get('target_characters',0)
+        if target:
+            return round(target*.8), min(8000,round(target*1.2))
+        rate = {'brief':35, 'standard':100, 'detailed':145}[options['detail']]
+        base = min(6600, max(500, options['duration']*rate))
+        return max(400,round(base*.8)), min(8000,round(base*1.2))
     ranges = {'brief': (1500, 2500), 'standard': (4000, 6000), 'detailed': (6000, 8000)} if expanded else {
         'brief': (500, 1000), 'standard': (900, 1800), 'detailed': (1400, 2800)}
     base = ranges[options['detail']]
@@ -36,8 +52,9 @@ def length_range(options, expanded=False):
 
 def instructions(options, expanded=False):
     low, high = length_range(options, expanded)
+    version = 'teaching-v2' if options.get('length_policy') == 'duration-v2' else 'teaching-v1'
     return f'''
-【授课讲义规则 teaching-v1：以下结构与篇幅要求替代前面的固定章节与字数要求】
+【授课讲义规则 {version}：以下结构与篇幅要求替代前面的固定章节与字数要求】
 这份讲义供教师授课时使用。依据原有学科约束、材料和学生证据，组织可直接用于课堂的讲解。
 本次为 {options['duration']} 分钟{LESSON_TYPES[options['lesson_type']]}，{DETAILS[options['detail']]}，
 安排 {options['examples']} 道完整例题、{options['exercises']} 道课堂练习。例题与练习分别编号，练习附参考答案和判断要点。

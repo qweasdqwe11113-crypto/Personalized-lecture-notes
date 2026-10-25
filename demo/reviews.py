@@ -75,21 +75,26 @@ def insert_issue(conn, lecture, version, data, source='teacher', external_key=No
     recorder = text_field(data, 'recorder', 80)
     start, end = locate(version['content'], excerpt)
     material_id, support = data.get('material_id'), data.get('support', 'not_applicable')
+    visual_id = data.get('visual_citation_id')
     if category == 'citation_support':
         available = {m['id'] for m in lecture['context']['materials']}
-        if type(material_id) is not int or material_id not in available:
+        visuals = {v['citation_id'] for v in lecture['context'].get('visual_evidence', [])}
+        if visual_id is not None:
+            if not isinstance(visual_id, str) or visual_id not in visuals or material_id is not None:
+                raise ReviewError('请选择这份讲义快照中的图片解析编号。')
+        elif type(material_id) is not int or material_id not in available:
             raise ReviewError('请选择这份讲义材料快照中的来源编号。')
         if not isinstance(support, str) or support not in SUPPORT:
             raise ReviewError('请选择引用支持判断。')
-    elif material_id is not None or support != 'not_applicable':
+    elif material_id is not None or visual_id is not None or support != 'not_applicable':
         raise ReviewError('非引用问题不填写材料编号或引用支持判断。')
     result = conn.execute('''INSERT INTO lecture_issues
         (lecture_id,target_revision,category,excerpt,start_line,end_line,content_sha256,
-         detail,material_id,support,source,recorder,external_key)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id''',
+         detail,material_id,support,source,recorder,external_key,visual_citation_id)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id''',
         (lecture['id'], version['revision_number'], category, excerpt, start, end,
          hashlib.sha256(version['content'].encode()).hexdigest(), detail, material_id,
-         support, source, recorder, external_key)).fetchone()
+         support, source, recorder, external_key, visual_id)).fetchone()
     conn.execute('UPDATE lectures SET review_revision=review_revision+1 WHERE id=%s', (lecture['id'],))
     return result['id']
 
@@ -157,7 +162,7 @@ def save_revision(conn, lecture_id, data, *, preserve_whitespace=False):
     if status == 'reviewed' and (not all(checklist.values()) or issue_ids - seen):
         raise ReviewError('标记教师已审核前，须确认全部检查项，并说明每个已记录问题如何处理。')
     report = check_output(content, lecture['context'], lecture['goal'])
-    if status == 'reviewed' and any(c['invalid_ids'] for c in report['citation_locations']):
+    if status == 'reviewed' and report['invalid_source_ids']:
         raise ReviewError('正文仍含不存在的材料编号，不能标记教师已审核。')
     # Incremental version number is serialized by the lecture row lock.
     number = conn.execute('SELECT COALESCE(max(revision_number),0)+1 AS n FROM lecture_revisions WHERE lecture_id=%s', (lecture_id,)).fetchone()['n']

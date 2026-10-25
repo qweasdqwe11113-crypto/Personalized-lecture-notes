@@ -44,13 +44,13 @@ class CatalogTests(ProfileDatabaseFixture):
                 self.assertEqual(context['states'][0]['state'], 'unknown')
                 self.assertEqual(context['scope_check']['coverage'][0]['scope'], points[0])
                 prepared = prepare_request(context, saved['task']['goal'], 'fixture')
-                self.assertEqual(prepared.prompt_version, 'lecture-general-v1+expanded-v1')
+                self.assertEqual(prepared.prompt_version, 'lecture-general-v1+expanded-v1+plan-v1')
                 system = json.loads(prepared.body)['messages'][0]['content']
                 self.assertNotIn('初中数学教师', system)
                 report = check_output('导数与积分，去括号。', context, saved['task']['goal'])
                 self.assertFalse(any('可能超出' in w for w in report['scope']['warnings']))
                 self.assertNotIn('bracket_evidence', [c['code'] for c in report['automatic']])
-                self.assertEqual(report['version'], 'general-text-check-v1')
+                self.assertEqual(report['version'], 'general-text-check-v1+lecture-workflow-v2')
 
     def test_edit_preserves_point_ids_and_history_but_rejects_stale_revision(self):
         saved = self.create()
@@ -123,7 +123,7 @@ class CatalogTests(ProfileDatabaseFixture):
                 (saved['task']['knowledge_ids'][0],))
         def generate(prepared, on_attempt):
             on_attempt()
-            self.assertEqual(prepared.prompt_version, 'lecture-general-v1+expanded-v1')
+            self.assertEqual(prepared.prompt_version, 'lecture-general-v1+expanded-v1+plan-v1')
             return module.ModelResult('# 速度与加速度\n速度描述运动变化。[M100]')
         with patch.object(module, 'call_qwen', generate):
             response = self.client.post('/api/generate', json={'student_id':1, 'topic':key})

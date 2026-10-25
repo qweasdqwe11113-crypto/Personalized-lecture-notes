@@ -1,6 +1,6 @@
 # Prompt 与实际输入
 
-当前初中模板为 [lecture-math-v3.md](lecture-math-v3.md)，大学模板为 [lecture-probability-v2.md](lecture-probability-v2.md)，输入结构为 lecture-context-v4。此前 math v1 / v2、大学 v1 保持已使用正文。运行 #1 是 math v1 / context-v2，#2 是 math v2 / context-v3，大学固定对照 #3—#14 是 probability v1 / context-v4，后续 #15 / #16 使用 probability v2。旧输入不因更新模板而重建。
+当前初中模板为 [lecture-math-v3.md](lecture-math-v3.md)，大学模板为 [lecture-probability-v2.md](lecture-probability-v2.md)，新讲义输入结构为 lecture-context-teacher-v2，追加 [lecture-plan-v1.md](lecture-plan-v1.md) 的可编辑教学安排及定位要求；旧结构仍按原字节保存。此前 math v1 / v2、大学 v1 保持已使用正文。运行 #1 是 math v1 / context-v2，#2 是 math v2 / context-v3，大学固定对照 #3—#14 是 probability v1 / context-v4，后续 #15 / #16 使用 probability v2。旧输入不因更新模板而重建。
 
 ## 设计原因与检查边界
 
@@ -20,9 +20,9 @@
 
 动态消息用 JSON，包含本次 goal、课程任务、学生、状态与教学策略、各知识点最近 3 条证据、材料、scope_check 与 retrieval（本次材料取用方式的记录），大学任务增加固定 reference_examples。以顶层实际 goal 为本次要求，主题默认目标另存。无画像实际消息移除选中学生姓名 / 编号 / 说明、诊断、状态与策略，仅留下通用解释标识；共同课程名单元数据所有格子相同，数据库配对编号不进入选中学生字段。
 
-新生成讲义使用 `lecture_length_policy=expanded-v1`：常规建议 4000—6000 汉字，复杂内容约 8000 字；授课设置中简明提纲 1500—2500、常规讲解 4000—6000、详细讲解 6000—8000，题量增加时建议上限最多 8000。规则文件为 `lecture-length-expanded-v1.md`，追加在历史模板之后覆盖旧篇幅要求，提示词版本带 `+expanded-v1`。篇幅检查按新规则读取，旧快照继续按原规则检查。
+旧expanded流程使用 `lecture_length_policy=expanded-v1`：常规建议 4000—6000 汉字，复杂内容约 8000 字；授课设置中简明提纲 1500—2500、常规讲解 4000—6000、详细讲解 6000—8000，题量增加时建议上限最多 8000。规则文件为 `lecture-length-expanded-v1.md`，追加在历史模板之后覆盖旧篇幅要求，提示词版本带 `+expanded-v1`。篇幅检查按新规则读取，旧快照继续按原规则检查。
 
-新请求参数为 temperature=0.3、max_tokens=16000、enable_thinking=false，模型响应等待上限为 600 秒。tokens 是输出额度，不等同汉字数，也不保证模型一定达到建议篇幅。历史输入与按原输入重试保留原有参数。没有效果对比或最优性结论，重复输入不能保证同一输出。
+新页面使用 `length_policy=duration-v2`，按时长、详略或自定400—6600汉字计算建议范围（约20%浮动、上限8000），提示版本带 `+teaching-v2`；输出额度按建议篇幅设置3000—16000 tokens。temperature=0.3、enable_thinking=false；网络等待由 `QWEN_TIMEOUT_SECONDS` 控制，默认600秒。旧expanded输入仍保留16000额度。tokens 是输出额度，不等同汉字数，也不保证模型一定达到建议篇幅。历史输入与按原输入重试保留原有参数。没有效果对比或最优性结论，重复输入不能保证同一输出。
 
 ## 留存与版本
 
@@ -46,4 +46,13 @@ math-text-check-v1 和 probability-text-check-v1 / v2 分课程检查章节、�
 
 ## 自建课程模板
 
-`lecture-general-v1.md` 用于 `topic.custom = true` 的自建课程任务。它读取学段、课程、章节、任务层次与教学目标，适用于小学、初中、高中、大学及其他学科课程，使用通用案例和检验要求。自建任务即使命名为“大学概率论”，也不自动引入预设贝叶斯例题。原有数学和概率论模板及历史请求保持原样。
+`lecture-general-v1.md` 用于未继承专用课程规则的自建任务。新复制的数学／概率副本通过明确的 `prompt_family` 保留来源模板；仅修改课程名字不自动推断模板。它读取学段、课程、章节、任务层次与教学目标，适用于小学、初中、高中、大学及其他学科课程，使用通用案例和检验要求。自建任务即使命名为“大学概率论”，也不自动引入预设贝叶斯例题。原有数学和概率论模板及历史请求保持原样。
+
+
+## 本次安排、预算与审核
+
+`personalization_plan`保存知识点、原诊断、证据编号、讲解安排及待核对提醒。教师修改的是本次安排，不能借此写回诊断。`[K编号]`是定位标记，`[M编号]`和`[V编号]`才是来源；三者作用分别显示。无画像计划为空，系统规则和模型参数仍与有画像相同。
+
+`lecture-budget-v1`在保存和发出请求之前限制材料与动态上下文；节选保留原文位置和指纹，未纳入材料编号单独记录。可核对每次实际消息，不能从字符预算推断精确token数。教师看到的正文引用会打开生成时快照，来源支持仍由教师判断。新检查版本带`+lecture-workflow-v2`，新授课策略再带`+teaching-v2`；旧报告不回写。
+
+本轮固定对照存`lecture_experiments`和`lecture_experiment_cells`，实际生成继续使用`generation_runs`与原后台队列；固定输入、逐格保留失败和重启不自动重发的原则不变。

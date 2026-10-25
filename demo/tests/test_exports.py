@@ -5,6 +5,7 @@ from docx import Document
 
 from test_profiles import ProfileDatabaseFixture
 from quality import REVIEW_ITEMS
+from rendering import markdown_html
 
 
 class ExportTests(ProfileDatabaseFixture):
@@ -79,3 +80,22 @@ class ExportTests(ProfileDatabaseFixture):
                 response = self.download(fmt, 0)
                 self.assertEqual(response.status_code, 200)
                 self.assertIn('原稿未审核', self.text(response, fmt))
+
+    def test_visual_evidence_text_and_fingerprint_survive_every_export_format(self):
+        from psycopg.types.json import Jsonb
+        ctx = {**self.before_context, 'visual_evidence': [dict(citation_id='V1', label='条件概率图',
+               content='解析文字：P(A|B) 的分母为 P(B)>0；待核对。',model='fixture-vision',normalized_sha256='f'*64)]}
+        with self.fixture_db() as conn:
+            conn.execute('UPDATE lectures SET context=%s,content=%s WHERE id=%s',
+                         (Jsonb(ctx),'# 图片讲义\n分析 [V1]',self.lecture_id))
+        for fmt in ('md','txt','html','docx'):
+            text=self.text(self.download(fmt),fmt)
+            for part in ('[V1]','解析文字','fixture-vision','f'*64):self.assertIn(part,text)
+
+    def test_html_keeps_formula_blocks_and_ordered_list_numbers_without_executing_markup(self):
+        text=markdown_html('```\nP(A|B)=P(A∩B)/P(B)\n<script>not executed</script>\n```\n7. 第七步\n8. 第八步')
+        self.assertIn('<pre class="formula-block">',text)
+        self.assertIn('&lt;script&gt;',text)
+        self.assertNotIn('<script>',text)
+        self.assertIn('<li value="7">',text)
+        self.assertIn('<li value="8">',text)

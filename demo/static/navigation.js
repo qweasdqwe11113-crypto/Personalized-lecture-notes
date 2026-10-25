@@ -11,13 +11,13 @@
     settings: ['系统设置', '管理本地工作空间的服务连接与模型配置。'],
   };
   const aliases = {'lecture-results': 'workbench', 'support-modules': 'records'};
-  const recordTypes = ['lectures', 'quizzes', 'grading'];
+  const recordTypes = ['lectures', 'quizzes', 'grading', 'experiments'];
   let active;
   function navigate(focus = false) {
     const hash = location.hash.slice(1);
     const profileRoute = /^profiles\/(new|[1-9]\d*)$/.test(hash);
     const materialRoute = /^materials\/[\w-]+$/.test(hash);
-    const recordsRoute = /^records\/(lectures|quizzes|grading)$/.test(hash);
+    const recordsRoute = /^records\/(lectures|quizzes|grading|experiments)$/.test(hash);
     const page = recordsRoute ? 'records' : materialRoute ? 'materials' : profileRoute ? 'profiles' : pages[hash] ? hash : aliases[hash] || 'workbench';
     if (!pages[hash] && !profileRoute && !materialRoute && !recordsRoute) history.replaceState(null, '', '#' + page);
     if (active === hash) return;
@@ -39,6 +39,7 @@
       $('record-panel-' + key).hidden = !selected;
     }
     if (page === 'records' && recordsTab === 'quizzes') window.dispatchEvent(new Event('quiz-history-open'));
+    if (page === 'records' && recordsTab === 'experiments') window.dispatchEvent(new Event('experiment-history-open'));
     if (page === 'records' && recordsTab === 'grading') window.dispatchEvent(new Event('grading-history-open'));
     window.scrollTo({top: 0});
     if (focus) (recordsRoute ? $('record-tab-' + recordsTab) : $('page-title')).focus({preventScroll: true});

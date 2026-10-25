@@ -59,8 +59,8 @@ class GenerationTraceTests(ProfileDatabaseFixture):
         self.assertTrue(run['integrity_valid'])
         self.assertEqual(run['lecture_id'], response.get_json()['id'])
         self.assertEqual(run['response_metadata']['response_model'], 'provider-fixture')
-        self.assertEqual(run['prompt_version'], 'lecture-math-v3+expanded-v1')
-        self.assertEqual(run['input_version'], 'lecture-context-v4')
+        self.assertEqual(run['prompt_version'], 'lecture-math-v3+expanded-v1+plan-v1')
+        self.assertEqual(run['input_version'], 'lecture-context-teacher-v2')
         payload = run['request_payload']
         self.assertEqual(payload['temperature'], .3)
         self.assertEqual(payload['max_tokens'], 16000)
@@ -70,7 +70,7 @@ class GenerationTraceTests(ProfileDatabaseFixture):
         self.assertNotEqual(user['goal'], user['context']['topic']['goal'])
         self.assertEqual(user['context']['scope_check']['goal'], run['goal'])
         self.assertTrue(user['context']['scope_check']['custom_goal'])
-        self.assertEqual(run['citation_check']['quality_report']['version'], 'math-text-check-v1')
+        self.assertEqual(run['citation_check']['quality_report']['version'], 'math-text-check-v1+lecture-workflow-v2')
         self.assertEqual([m['citation_id'] for m in user['context']['materials']], ['M1', 'M2', 'M3'])
         self.assertNotIn(SECRET, json.dumps(run))
         download = self.client.get(f'/api/generation-runs/{run["id"]}/input')
@@ -79,15 +79,15 @@ class GenerationTraceTests(ProfileDatabaseFixture):
         lecture = self.client.get(f'/api/lectures/{run["lecture_id"]}').get_json()
         self.assertEqual(lecture['generation_run_id'], run['id'])
 
-    def test_missing_key_preserves_prepared_input_without_marking_attempt(self):
+    def test_keyless_service_is_called_without_an_authorization_header(self):
+        def transport(req, **kwargs):
+            self.assertIsNone(req.get_header('Authorization'))
+            return BytesIO(json.dumps(self.model_reply()).encode())
         with patch.dict(os.environ, {'QWEN_API_KEY': ''}):
-            response = self.generate()
+            response = self.generate(effect=transport)
         run = self.trace(response)
-        self.assertEqual((response.status_code, run['status'], run['error_code']), (502, 'failed', 'missing_key'))
-        self.assertIsNone(run['attempted_at'])
-        self.assertIsNotNone(run['finished_at'])
-        self.assertIsNone(run['lecture_id'])
-        self.assertEqual(self.counts()['lectures'], 1)
+        self.assertEqual((response.status_code, run['status']), (200, 'succeeded'))
+        self.assertIsNotNone(run['attempted_at'])
 
     def test_invalid_endpoint_does_not_persist_credential_strings(self):
         with patch.dict(os.environ, {'QWEN_BASE_URL': f'https://user:{SECRET}@example.invalid/v1'}):

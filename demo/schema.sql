@@ -46,6 +46,14 @@ CREATE TABLE IF NOT EXISTS course_tasks (
  created_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- A copied lesson owns its materials but reuses the original diagnostic identity.
+-- Existing unrelated points are never merged by name.
+CREATE TABLE IF NOT EXISTS knowledge_aliases (
+ knowledge_id integer PRIMARY KEY REFERENCES knowledge_points(id),
+ canonical_id integer NOT NULL REFERENCES knowledge_points(id),
+ CHECK (knowledge_id <> canonical_id)
+);
+
 ALTER TABLE students ADD COLUMN IF NOT EXISTS profile_revision integer NOT NULL DEFAULT 0;
 ALTER TABLE student_knowledge ADD COLUMN IF NOT EXISTS revision integer NOT NULL DEFAULT 0;
 ALTER TABLE student_knowledge ADD COLUMN IF NOT EXISTS updated_at timestamptz;
@@ -142,6 +150,7 @@ CREATE TABLE IF NOT EXISTS lecture_issues (
  created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS lecture_issues_history ON lecture_issues(lecture_id,id);
+ALTER TABLE lecture_issues ADD COLUMN IF NOT EXISTS visual_citation_id text;
 CREATE TABLE IF NOT EXISTS lecture_revisions (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  lecture_id bigint NOT NULL REFERENCES lectures(id),
@@ -170,6 +179,25 @@ CREATE TABLE IF NOT EXISTS generation_jobs (
  finished_at timestamptz
 );
 CREATE INDEX IF NOT EXISTS generation_jobs_recent ON generation_jobs(created_at DESC);
+ALTER TABLE generation_jobs DROP CONSTRAINT IF EXISTS generation_jobs_status_check;
+ALTER TABLE generation_jobs ADD CONSTRAINT generation_jobs_status_check
+ CHECK (status IN ('queued','running','succeeded','failed','interrupted','cancelled'));
+
+CREATE TABLE IF NOT EXISTS lecture_experiments (
+ id text PRIMARY KEY,
+ created_at timestamptz NOT NULL DEFAULT now(),
+ status text NOT NULL DEFAULT 'prepared' CHECK (status IN ('prepared','running','completed','interrupted')),
+ manifest jsonb NOT NULL
+);
+CREATE TABLE IF NOT EXISTS lecture_experiment_cells (
+ experiment_id text NOT NULL REFERENCES lecture_experiments(id),
+ cell integer NOT NULL CHECK (cell BETWEEN 1 AND 12),
+ snapshot jsonb NOT NULL,
+ status text NOT NULL DEFAULT 'prepared' CHECK (status IN ('prepared','dispatching','queued','succeeded','failed','interrupted')),
+ job_id text REFERENCES generation_jobs(id),
+ error text NOT NULL DEFAULT '',
+ PRIMARY KEY (experiment_id,cell)
+);
 
 -- Retrieval: one row per text chunk. Source metadata is duplicated here because a
 --   chunk must be usable without joining another store; the citation number stays

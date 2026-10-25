@@ -1,7 +1,7 @@
 (() => {
 let lecture=null, bundle=null, proposal=null, working=false, session=0;
 const dialog=$('section-editor');
-const labels={queued:'排队中',running:'正在生成本节',succeeded:'候选已生成',failed:'生成失败',interrupted:'任务已中断'};
+const labels={queued:'排队中',running:'正在生成本节',succeeded:'候选已生成',failed:'生成失败',interrupted:'任务已中断',cancelled:'已取消'};
 function message(text){$('section-error').textContent=text||'';$('section-error').hidden=!text;}
 function lock(value){working=value;for(const node of $('section-form').elements)node.disabled=value;$('close-section-editor').disabled=value;$('accept-section').disabled=value||!proposal||proposal.status!=='succeeded'||!!proposal.response_metadata.saved_revision;}
 function clearProposal(){proposal=null;$('accept-section').disabled=true;$('section-trace').hidden=true;$('section-after').replaceChildren(el('p','生成后在这里预览。','helper'));$('section-progress').textContent='';}
@@ -38,7 +38,7 @@ async function watchSectionJob(id){
    job=await api('/api/jobs/'+id);
    $('section-progress').textContent=`${labels[job.status]} · 输入记录 #${job.run_id}`+(job.status==='queued'?` · 等待位置 ${job.queue_position}`:'');
    if(job.confirmation_pending)throw new Error('任务状态尚未确认，请从后台任务核查后恢复。');
-   if(['succeeded','failed','interrupted'].includes(job.status))break;
+   if(['succeeded','failed','interrupted','cancelled'].includes(job.status))break;
    await new Promise(resolve=>setTimeout(resolve,1000));
   }
   if(token!==session)return;
@@ -74,9 +74,7 @@ $('accept-section').onclick=async()=>{
  try{
   const data=await api(`/api/section-rewrites/${proposal.id}/accept`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmed:true})});
   if(typeof openWorkspacePage==='function')openWorkspacePage('workbench');
-  const key=Object.keys(topics).find(k=>topics[k].title===lecture.topic);if(key)$('topic').value=key;
-  filterStudents(lecture.student_id);$('personalization-mode').value=lecture.context.personalization_mode||'profile';
-  $('retrieval-mode').value=lecture.context.retrieval?.mode||'sql';$('goal').value=lecture.goal;drawContext(lecture.context,true);
+  restoreLectureSettings(lecture);
   displaySectionRevision(lecture,data);dialog.close();proposal=null;await refreshHistory();
  }catch(e){message(e.message+(e.status===409?' 候选保留在生成输入记录中；请基于最新版本重新调整，避免覆盖其他修改。':''));}
  finally{lock(false);}

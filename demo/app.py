@@ -22,14 +22,18 @@ from runs import create_run, fail_run, mark_attempt, recent_runs, run_detail, sa
 from quality import assess_scope, check_output
 from reviews import (ReviewError, STATUS_LABELS, add_issue, lecture_row,
                      review_bundle, save_revision, version_row)
-from courses import TOPICS, REFERENCE_EXAMPLES
+from courses import TOPICS, REFERENCE_EXAMPLES, course_family
 from catalog import load_catalog, register_catalog
 from comparisons import comparison_options, compare_lectures
 from jobs import JobError, JobQueue
 from teaching import teaching_options
+from model_runtime import request_timeout
+from lecture_policy import LectureInputError, finalize_context
 from sections import execute_section, register_sections
 from quizzes import QuizQueue, register_quizzes
 from grading import register_grading
+from evaluation import register_evaluation
+from rendering import markdown_html, visual_appendix
 from uploads import read_upload, register_uploads
 from embed import EmbeddingError, OllamaEmbedder, QwenEmbedder
 from retrieval import (MODES as RETRIEVAL_MODES, RetrievalError, adopt_content, build_query,
@@ -80,11 +84,11 @@ def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql', goa
         student = conn.execute('SELECT * FROM students WHERE id=%s', (student_id,)).fetchone()
         if not student:
             return None
-        states = conn.execute('''SELECT k.id, k.name, COALESCE(s.state,'unknown') AS state,
+        states = conn.execute('''SELECT k.id, k.name, COALESCE(a.canonical_id,k.id) AS profile_knowledge_id, COALESCE(s.state,'unknown') AS state,
             COALESCE(s.evidence,'没有诊断记录。') AS evidence,
             COALESCE(s.revision,0) AS revision,s.evidence_id,s.updated_at
-            FROM knowledge_points k LEFT JOIN student_knowledge s
-            ON s.knowledge_id=k.id AND s.student_id=%s
+            FROM knowledge_points k LEFT JOIN knowledge_aliases a ON a.knowledge_id=k.id
+            LEFT JOIN student_knowledge s ON s.knowledge_id=COALESCE(a.canonical_id,k.id) AND s.student_id=%s
             WHERE k.id=ANY(%s) ORDER BY k.id''', (student_id,topic['knowledge_ids'])).fetchall()
         # Exact SQL lookup, restricted to the selected topic.
         materials = conn.execute('SELECT * FROM materials WHERE knowledge_id=ANY(%s) ORDER BY id',
@@ -99,7 +103,8 @@ def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql', goa
             materials = to_materials(retrieval['items'])
         # Fetch each point separately so a frequently updated point cannot crowd
         # another point's evidence out of the model input.
-        recent = {s['id']: evidence_history(conn, student_id, [s['id']], limit=3) for s in states}
+        recent = {s['id']: evidence_history(conn, student_id, [s['profile_knowledge_id']], limit=3) for s in states}
+        topic = {**topic, 'canonical_knowledge_ids': {str(s['id']): s['profile_knowledge_id'] for s in states}}
     decorate_states(states)
     for s in states:
         s['recent_evidence'] = recent[s['id']]
@@ -108,14 +113,16 @@ def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql', goa
     ctx['personalization_mode'] = mode
     if mode == 'profile' and learner_note:
         ctx['learner_note'] = learner_note
-    if not topic.get('custom') and topic.get('course') == '大学概率论':
-        ctx['reference_examples'] = REFERENCE_EXAMPLES[:1] if topic_key.endswith('basic') else REFERENCE_EXAMPLES
+    if course_family(topic) == 'probability':
+        ctx['reference_examples'] = REFERENCE_EXAMPLES[:1] if (topic.get('reference_origin') or topic_key).endswith('basic') else REFERENCE_EXAMPLES
     if mode == 'none':
         # Paired runs retain their selected student ID in the database, while the
         # actual model context contains no learner identifiers or diagnostics.
         ctx['student'] = {'name': '通用讲义', 'profile': '未提供学生画像；使用通用适中解释。'}
         ctx['states'] = []
-    ctx['scope_check'] = assess_scope(ctx, topic['goal'])
+    ctx['lecture_workflow'] = 'teacher-v2'
+    ctx = finalize_context(ctx, goal or topic['goal'])
+    ctx['scope_check'] = assess_scope(ctx, goal or topic['goal'])
     return ctx
 
 
@@ -151,7 +158,7 @@ def bootstrap():
         history = conn.execute('''SELECT l.id,s.name,l.topic,l.created_at FROM lectures l
                                   JOIN students s ON s.id=l.student_id ORDER BY l.id DESC LIMIT 8''').fetchall()
     return jsonify(students=students, topics=topic_catalog(), model=MODEL, history=history,
-                   database='PostgreSQL · 已连接', configured=all(config_flags().values()),
+                   database='PostgreSQL · 已连接', configured=config_flags()['endpoint_format_ok'] and config_flags()['model_present'],
                    embed_model=EMBEDDER.model)
 
 
@@ -276,12 +283,13 @@ def generate():
     if not GENERATION_LOCK.acquire(blocking=False):
         return jsonify(error='已有讲义正在生成，请等待完成后再试。'), 429
     result, status = generate_locked(sid, topic_key, goal, mode, retrieval_mode=retrieval_mode,
-                                     visual_evidence=evidence, learner_note=note, teaching_options=options)
+                                     visual_evidence=evidence, learner_note=note, teaching_options=options,
+                                     plan_overrides=data.get('plan_overrides'))
     return jsonify(result), status
 
 
 def generate_locked(sid, topic_key, goal, mode='profile', frozen=None, prepared=None, run_id=None,
-                    job_id=None, retrieval_mode='sql', visual_evidence=None, learner_note='', teaching_options=None):
+                    job_id=None, retrieval_mode='sql', visual_evidence=None, learner_note='', teaching_options=None, plan_overrides=None):
     # Caller owns GENERATION_LOCK; release it for every result and exception.
     output, check, stage = ModelResult(''), {}, 'preparation'
     start = time.monotonic()
@@ -294,6 +302,7 @@ def generate_locked(sid, topic_key, goal, mode='profile', frozen=None, prepared=
         if frozen is None and teaching_options:
             ctx['teaching_options'] = teaching_options
         if frozen is None:
+            ctx = finalize_context(ctx, goal, plan_overrides)
             ctx['scope_check'] = assess_scope(ctx, goal)
         prepared = prepared or prepare_request(ctx, goal, MODEL)
         if run_id is None:
@@ -313,7 +322,7 @@ def generate_locked(sid, topic_key, goal, mode='profile', frozen=None, prepared=
         check = {'cited_ids': sorted(cited), 'has_citations': bool(cited), 'invalid_ids': invalid,
                  'note': '仅核对引用编号；内容正确性与引用支持关系仍需人工检查。'}
         check['quality_report'] = check_output(output.content, ctx, goal)
-        if invalid:
+        if invalid or check['quality_report']['invalid_source_ids']:
             raise ModelError('invalid_citation', '模型引用了不存在的材料，未保存为完整讲义，请重试。',
                              'output', output)
         elapsed = round(time.monotonic() - start, 2)
@@ -325,6 +334,9 @@ def generate_locked(sid, topic_key, goal, mode='profile', frozen=None, prepared=
         import json
         return dict(**row, content=output.content, context=ctx, model=json.loads(prepared.body)['model'], elapsed_seconds=elapsed,
                     citation_check=check, usage=output.usage, goal=goal, generation_run_id=run_id), 200
+    except LectureInputError as exc:
+        error = ModelError('input_budget', str(exc), 'preparation')
+        status = 400
     except ModelError as exc:
         error = exc
         status = 400 if exc.code == 'no_materials' else 502
@@ -349,7 +361,10 @@ def execute_job(job_id, run_id, sid, topic, goal, context, prepared):
     GENERATION_LOCK.acquire()
     try:
         with db() as conn:
-            conn.execute("UPDATE generation_jobs SET status='running',started_at=now() WHERE id=%s", (job_id,))
+            row = conn.execute("UPDATE generation_jobs SET status='running',started_at=now() WHERE id=%s AND status='queued' RETURNING id", (job_id,)).fetchone()
+            if not row:
+                GENERATION_LOCK.release()
+                return
     except Exception:
         GENERATION_LOCK.release()
         raise
@@ -373,6 +388,10 @@ TASKS = JobQueue(lambda: db(), execute_job)
 register_sections(app, lambda: db(), lambda: TASKS, lambda: MODEL)
 QUIZZES = QuizQueue(lambda: db(), lambda prepared, attempted: call_qwen(prepared, attempted), GENERATION_LOCK)
 register_quizzes(app, lambda: db(), lambda: QUIZZES, topic_catalog, get_context, lambda: MODEL)
+recover_evaluation = register_evaluation(
+    app, lambda: db(), lambda: TASKS, get_context, lambda: MODEL,
+    lambda: not GENERATION_LOCK.locked() and QUIZZES.wait_idle(0)
+    and not app.extensions['grading_busy']())
 
 
 @app.errorhandler(JobError)
@@ -388,6 +407,11 @@ def retrieval_error(exc):
 @app.errorhandler(EmbeddingError)
 def embedding_error(exc):
     return jsonify(error=str(exc)), 502
+
+
+@app.errorhandler(LectureInputError)
+def lecture_input_error(exc):
+    return jsonify(error=str(exc)), 400
 
 
 def learner_note(data):
@@ -435,6 +459,7 @@ def submit_job():
     options = validated_teaching_options(request.get_json())
     if options:
         ctx['teaching_options'] = options
+    ctx = finalize_context(ctx, goal, request.get_json().get('plan_overrides'))
     ctx['scope_check'] = assess_scope(ctx, goal)
     return jsonify(TASKS.submit(sid, topic, goal, ctx, prepare_request(ctx, goal, MODEL))), 202
 
@@ -447,6 +472,11 @@ def recent_jobs():
 @app.get('/api/jobs/<job_id>')
 def job_detail(job_id):
     return jsonify(TASKS.detail(job_id))
+
+
+@app.post('/api/jobs/<job_id>/cancel')
+def cancel_job(job_id):
+    return jsonify(TASKS.cancel(job_id))
 
 
 @app.post('/api/generation-runs/<int:run_id>/retry')
@@ -522,6 +552,7 @@ def health():
     except psycopg.Error:
         pass
     return jsonify(database_ok=database_ok, **config_flags(),
+                   request_timeout_seconds=request_timeout(),
                    queue_capacity=4, workers=1, embed_model=EMBEDDER.model,
                    embedding_configured=EMBEDDER.configured(),
                    note='本机配置与数据库检查；未调用模型，不能证明密钥有效、服务可达或支持嵌入接口。')
@@ -559,8 +590,9 @@ def lecture(lecture_id):
     with db() as conn:
         row = conn.execute('SELECT * FROM lectures WHERE id=%s',(lecture_id,)).fetchone()
         if row:
-            trace = conn.execute("SELECT id FROM generation_runs WHERE lecture_id=%s AND NOT (context ? 'section_edit') ORDER BY id LIMIT 1", (lecture_id,)).fetchone()
+            trace = conn.execute("SELECT id,topic_key FROM generation_runs WHERE lecture_id=%s AND NOT (context ? 'section_edit') ORDER BY id LIMIT 1", (lecture_id,)).fetchone()
             row['generation_run_id'] = trace['id'] if trace else None
+            row['topic_key'] = trace['topic_key'] if trace else row['context']['topic'].get('key')
             row['quality_report'] = row['citation_check'].get('quality_report') or check_output(row['content'], row['context'], row['goal'])
             row['quality_report_origin'] = '生成时留存' if 'quality_report' in row['citation_check'] else '本次读取时检查，未改写原稿'
     return jsonify(row) if row else (jsonify(error='讲义不存在。'),404)
@@ -636,7 +668,7 @@ def build_reference_text(row):
         for m in row['context']['materials']
     )
     warning = row['citation_check'].get('review_warning', '')
-    text = row.get('export_note', '') + row['content'] + '\n\n## 参考材料\n\n' + sources
+    text = row.get('export_note', '') + row['content'] + '\n\n## 参考材料\n\n' + sources + visual_appendix(row['context'])
     text += '\n\n说明：虚拟学生演示；模型生成内容需人工审核。\n'
     if warning:
         text += '\n审核提醒：' + warning + '\n'
@@ -659,45 +691,7 @@ def build_export_text(row):
 
 def build_export_html(row):
     """把模型返回的 Markdown 做保守转换；所有模型文本都先转义。"""
-    body_parts = []
-    in_list = False
-
-    def inline_markdown(text):
-        text = html.escape(text)
-        text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-        text = re.sub(r'\[M(\d+)\]', r'<span class="citation">[M\1]</span>', text)
-        return text
-
-    for raw in row['content'].splitlines():
-        line = raw.strip()
-        if not line:
-            if in_list:
-                body_parts.append('</ul>')
-                in_list = False
-            continue
-
-        heading = re.match(r'^(#{1,3})\s+(.+)$', line)
-        item = re.match(r'^([-*]|\d+[.、])\s+(.+)$', line)
-
-        if heading:
-            if in_list:
-                body_parts.append('</ul>')
-                in_list = False
-            level = len(heading.group(1))
-            body_parts.append(f'<h{level}>{inline_markdown(heading.group(2))}</h{level}>')
-        elif item:
-            if not in_list:
-                body_parts.append('<ul>')
-                in_list = True
-            body_parts.append(f'<li>{inline_markdown(item.group(2))}</li>')
-        else:
-            if in_list:
-                body_parts.append('</ul>')
-                in_list = False
-            body_parts.append(f'<p>{inline_markdown(line)}</p>')
-
-    if in_list:
-        body_parts.append('</ul>')
+    body_parts = [markdown_html(row['content']), markdown_html(visual_appendix(row['context']))]
 
     sources_html = []
     for m in row['context']['materials']:
@@ -727,6 +721,8 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Noto Sans SC", "Microso
 h1 {{ font-size: 28px; }}
 h2 {{ font-size: 20px; margin-top: 32px; border-bottom: 1px solid #e4e8ef; padding-bottom: 8px; }}
 .citation {{ color: #2858dc; font-size: 13px; font-weight: 600; }}
+.formula-block {{ white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.7; padding:12px; background:#f6f7fb; }}
+@media print {{ h1,h2,h3 {{ break-after:avoid-page; }} pre,li {{ break-inside:avoid-page; }} }}
 .meta {{ color: #68758a; font-size: 13px; margin-bottom: 28px; }}
 .warning {{ background: #f3f6fb; padding: 12px 15px; border-radius: 6px; color: #66738a; font-size: 13px; }}
 a {{ color: #4268ba; }}
@@ -779,6 +775,10 @@ def build_export_docx(row):
             style='List Bullet'
         )
 
+    for line in visual_appendix(row['context']).splitlines():
+        if line.startswith('### '):doc.add_heading(line[4:],level=3)
+        elif line.startswith('## '):doc.add_heading(line[3:],level=2)
+        elif line:doc.add_paragraph(line)
     doc.add_paragraph('说明：虚拟学生演示；模型生成内容需人工审核。')
     warning = row['citation_check'].get('review_warning', '')
     if warning:
@@ -796,7 +796,7 @@ def export_response(row, markdown, note, filename):
         return jsonify(error='不支持的下载格式。'), 400
     export_row = {**row, 'export_note': note}
     if fmt == 'md':
-        content, mime = markdown, 'text/markdown; charset=utf-8'
+        content, mime = markdown + visual_appendix(row['context']), 'text/markdown; charset=utf-8'
     elif fmt == 'txt':
         content, mime = build_export_text(export_row), 'text/plain; charset=utf-8'
     elif fmt == 'html':
@@ -852,4 +852,5 @@ if __name__ == '__main__':
     recover_grading()
     TASKS.recover()
     QUIZZES.recover()
+    recover_evaluation()
     app.run(host='127.0.0.1', port=int(os.environ.get('PORT','5055')), debug=False, threaded=True)

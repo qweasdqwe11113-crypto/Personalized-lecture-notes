@@ -4,7 +4,7 @@ from uuid import uuid4
 from flask import jsonify, request
 from psycopg.types.json import Jsonb
 
-from courses import TOPICS
+from courses import TOPICS, course_family
 from uploads import read_upload
 
 
@@ -22,7 +22,7 @@ def load_catalog(conn):
         if task.get('preparation_copy'):
             task['student_ids'] = students
         custom[row['key']] = task
-    return {**TOPICS, **custom}
+    return {key: {**task, 'key': key} for key, task in {**TOPICS, **custom}.items()}
 
 
 def text(data, key, maximum, label):
@@ -32,7 +32,7 @@ def text(data, key, maximum, label):
     return value.strip()
 
 
-def save_task(conn, data, key=None):
+def save_task(conn, data, key=None, origin=None):
     if not isinstance(data, dict):
         raise CatalogError('请提交课程任务信息。')
     payload = {field: text(data, field, size, label) for field, size, label in (
@@ -68,22 +68,35 @@ def save_task(conn, data, key=None):
         if type(data.get('revision')) is not int or data['revision'] != previous['revision']:
             raise CatalogError('任务已被修改，请重新读取后再保存。', 409)
     conn.execute('LOCK TABLE knowledge_points IN EXCLUSIVE MODE')
-    old = dict(zip(previous['payload']['knowledge_names'], previous['payload']['knowledge_ids'])) if previous else {}
+    same_subject = previous and previous['payload']['course'] == payload['course'] and previous['payload']['stage'] == payload['stage']
+    old = dict(zip(previous['payload']['knowledge_names'], previous['payload']['knowledge_ids'])) if same_subject else {}
+    origin_ids = dict(zip(origin['knowledge_names'], origin['knowledge_ids'])) if origin else {}
     ids = []
     for name in points:
         kid = old.get(name)
         if kid is None:
             kid = conn.execute('''INSERT INTO knowledge_points(id,name)
                 VALUES ((SELECT COALESCE(max(id),0)+1 FROM knowledge_points),%s) RETURNING id''', (name,)).fetchone()['id']
+            if name in origin_ids:
+                source_id = origin_ids[name]
+                alias = conn.execute('SELECT canonical_id FROM knowledge_aliases WHERE knowledge_id=%s', (source_id,)).fetchone()
+                conn.execute('INSERT INTO knowledge_aliases VALUES (%s,%s)', (kid, alias['canonical_id'] if alias else source_id))
         ids.append(kid)
     payload.update(knowledge_names=points, knowledge_ids=ids, student_ids=students,
                    preparation_copy=preparation_copy, lesson_plan=lesson_plan.strip(),
                    custom=True, length_range=[600, 1000], check_version='general-text-check-v1')
+    inherited = origin or (previous['payload'] if same_subject else None)
+    if inherited:
+        payload['prompt_family'] = course_family(inherited)
+        payload['check_version'] = inherited.get('check_version', 'math-text-check-v1')
+        payload['reference_origin'] = inherited.get('reference_origin', inherited.get('key'))
     key = key or 'custom_' + uuid4().hex
     row = conn.execute('''INSERT INTO course_tasks(key,payload) VALUES (%s,%s)
         ON CONFLICT(key) DO UPDATE SET payload=EXCLUDED.payload, revision=course_tasks.revision+1
         RETURNING revision''', (key, Jsonb(payload))).fetchone()
-    return {'key': key, 'task': {**payload, 'revision': row['revision']}}
+    notice = ('学段或课程已改变，已建立新的知识点身份；原资料与诊断仍保留，请为新课程重新关联材料并确认诊断。'
+              if previous and not same_subject else '')
+    return {'key': key, 'task': {**payload, 'revision': row['revision']}, 'notice': notice}
 
 
 def register_catalog(app, db, root):
@@ -134,7 +147,7 @@ def register_catalog(app, db, root):
                        original.get('course') == '大学概率论' else '初中'),
                        'chapter': original.get('chapter', original['title']),
                        'knowledge_names': [names[k] for k in original['knowledge_ids']]}
-            result = save_task(conn, payload)
+            result = save_task(conn, payload, origin={**original, 'knowledge_names': payload['knowledge_names']})
             mapping = dict(zip(original['knowledge_ids'], result['task']['knowledge_ids']))
             conn.execute('LOCK TABLE materials IN EXCLUSIVE MODE')
             for material in conn.execute('SELECT * FROM materials WHERE knowledge_id=ANY(%s) ORDER BY id',

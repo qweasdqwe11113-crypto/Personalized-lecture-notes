@@ -55,6 +55,7 @@ function drawQuality(report, origin, teacherRecord=null) {
       const m=reviewLecture?.context.materials.find(m=>String(m.id)===id);
       box.append(el('p',m?`M${id} · ${m.title}\n${m.content}`:`M${id} 不在材料快照中。`,'current-summary'));
     }
+    for(const id of c.visual_ids||[]){const v=reviewLecture?.context.visual_evidence?.find(v=>v.citation_id===id);box.append(el('p',v?id+' · '+v.content:id+' 不在来源快照中。','current-summary'));}
     $('citation-checks').append(box);
   }
   if(!report.citation_locations.length)$('citation-checks').append(el('p','未检测到引用标记。','helper'));
@@ -65,6 +66,7 @@ function issueCards(issues, resolutions, container) {
     const card=el('details',undefined,'history-card');
     const source=issue.target_revision===0?'原稿':`R${issue.target_revision}`;
     card.append(el('summary',`问题 #${issue.id} · ${categoryLabels[issue.category]} · ${source} 第 ${issue.start_line}—${issue.end_line} 行`),el('p',issue.excerpt,'current-summary'),el('p',issue.detail,'helper'));
+    if(issue.visual_citation_id)card.append(el('p',`${issue.visual_citation_id} 引用判断：${supportLabels[issue.support]}（记录者判断）`,'helper'));
     if(issue.material_id)card.append(el('p',`M${issue.material_id} 引用判断：${supportLabels[issue.support]}（记录者判断）`,'helper'));
     const handled=resolutions?.find(r=>r.issue_id===issue.id);
     card.append(el('p',handled?'此版本的处理说明：'+handled.note:'此版本没有记录该问题的处理说明。','helper'),el('p',`${issue.source==='feedback'?'回复稿问题核对':'教师记录'} · ${issue.recorder} · ${new Date(issue.created_at).toLocaleString('zh-CN')}`,'helper'));
@@ -151,14 +153,15 @@ function drawEditor(preserve=false){
   if(!preserve){
     $('revision-content').value=base.content;$('revision-status').value='draft';$('revision-recorder').value='';$('revision-reason').value='';$('revision-seconds').value='0';
     $('revision-checklist').replaceChildren(...Object.entries(editorData.review_items).map(([key,text])=>{const label=el('label',undefined,'check-row');const input=el('input');input.type='checkbox';input.dataset.checkKey=key;input.checked=false;label.append(input,document.createTextNode(text));return label;}));
-    $('issue-form').reset();$('issue-material').replaceChildren(...reviewLecture.context.materials.map(m=>{const o=el('option',`M${m.id} · ${m.title}`);o.value=m.id;return o;}));
+    $('issue-form').reset();$('issue-material').replaceChildren(...reviewLecture.context.materials.map(m=>{const o=el('option',`M${m.id} · ${m.title}`);o.value='M'+m.id;return o;}),...(reviewLecture.context.visual_evidence||[]).map(v=>{const o=el('option',v.citation_id+' · '+v.label);o.value=v.citation_id;return o;}));
   }
   $('revision-confirmed').checked=false;$('issue-confirmed').checked=false;drawResolutions(preserve);drawEditorHistory();drawIssueMaterial();$('lecture-editor-content').hidden=false;
 }
 function drawIssueMaterial(){
   $('issue-source-fields').hidden=$('issue-category').value!=='citation_support';
-  const m=reviewLecture?.context.materials.find(m=>m.id===Number($('issue-material').value));
-  $('issue-material-content').textContent=m?m.content+'\n来源：'+m.source_title+' · '+m.section:'没有对应材料。';
+  const m=reviewLecture?.context.materials.find(m=>'M'+m.id===$('issue-material').value);
+  const v=(reviewLecture?.context.visual_evidence||[]).find(v=>v.citation_id===$('issue-material').value);
+  $('issue-material-content').textContent=m?m.content+'\n来源：'+m.source_title+' · '+m.section:v?v.content+'\n识读模型：'+v.model:'没有对应来源。';
 }
 $('issue-category').onchange=drawIssueMaterial;$('issue-material').onchange=drawIssueMaterial;
 $('revision-content').addEventListener('input',()=>{for(const c of $('revision-checklist').querySelectorAll('input'))c.checked=false;$('revision-confirmed').checked=false;});
@@ -184,11 +187,22 @@ $('issue-form').onsubmit=async e=>{
   e.preventDefault();if(editorSaving||!editorData)return;editorError('');setEditorBusy(true);
   const citation=$('issue-category').value==='citation_support';
   try{
-    const data=await api(`/api/lectures/${reviewLecture.id}/issues`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_revision:editorData.expected_revision,target_revision:editorBase,category:$('issue-category').value,excerpt:$('issue-excerpt').value,detail:$('issue-detail').value,material_id:citation?Number($('issue-material').value):null,support:citation?$('issue-support').value:'not_applicable',recorder:$('issue-recorder').value,confirmed:$('issue-confirmed').checked})});
+    const data=await api(`/api/lectures/${reviewLecture.id}/issues`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_revision:editorData.expected_revision,target_revision:editorBase,category:$('issue-category').value,excerpt:$('issue-excerpt').value,detail:$('issue-detail').value,material_id:citation&&$('issue-material').value.startsWith('M')?Number($('issue-material').value.slice(1)):null,visual_citation_id:citation&&$('issue-material').value.startsWith('V')?$('issue-material').value:null,support:citation?$('issue-support').value:'not_applicable',recorder:$('issue-recorder').value,confirmed:$('issue-confirmed').checked})});
     lectureReviewData=data;editorData=data;drawVersionControls();drawEditor(true);$('lecture-editor-status').textContent='问题已保存，原文位置与引用判断已留存；正文输入保持不变。';
   }catch(err){editorError(err.message);$('issue-confirmed').checked=false;}finally{setEditorBusy(false);}
 };
 
 function displaySectionRevision(lecture,bundle){reviewSession++;reviewLecture=lecture;lectureReviewData=bundle;selectedRevision=bundle.saved_revision;showReviewVersion(selectedRevision);$('edit-lecture').disabled=busy;}
+async function prefillCitationReview(sourceId,lineNumber,support){
+ await openLectureEditor();if(!editorData||!$('lecture-editor').open)return;
+ const version=currentReviewVersion();const lines=version.content.split('\n');
+ let start=Math.max(0,lineNumber),end=Math.min(lines.length,start+1),excerpt=lines.slice(start,end).join('\n');
+ if(lineNumber<0){const found=lines.findIndex(line=>line.includes('['+sourceId+']'));start=Math.max(0,found);end=start+1;excerpt=lines.slice(start,end).join('\n');}
+ while(excerpt&&version.content.indexOf(excerpt)!==version.content.lastIndexOf(excerpt)&&(start>0||end<lines.length)){start=Math.max(0,start-1);end=Math.min(lines.length,end+1);excerpt=lines.slice(start,end).join('\n');if(excerpt.length>1200){excerpt='';break;}}
+ $('issue-category').value='citation_support';$('issue-material').value=sourceId;$('issue-support').value=support;$('issue-excerpt').value=excerpt.length<=1200?excerpt:'';
+ $('issue-confirmed').checked=false;drawIssueMaterial();$('issue-detail').focus();
+ $('lecture-editor-status').textContent='已定位来源与保存版本，请核对原文、填写判断依据和记录者后确认保存。';
+}
+window.prefillCitationReview=prefillCitationReview;
 Object.assign(window, {drawScope, loadLectureReview, clearLectureReview, setReviewBusy, displaySectionRevision});
 })();

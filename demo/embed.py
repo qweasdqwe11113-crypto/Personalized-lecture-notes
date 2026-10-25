@@ -42,14 +42,12 @@ class QwenEmbedder:
                      and not any([parsed.username, parsed.password, parsed.query, parsed.fragment]))
         except ValueError:
             valid = False
-        return bool(self._key) and valid and bool(self.model)
+        return valid and bool(self.model)
 
     def embed(self, texts):
         texts = list(texts)
         if not texts:
             return []
-        if not self._key:
-            raise EmbeddingError('missing_key', '请在本地 .env 中配置 QWEN_API_KEY。')
         try:
             parsed = urlsplit(self.base)
             if (parsed.scheme not in ('http', 'https') or not parsed.hostname or
@@ -59,8 +57,10 @@ class QwenEmbedder:
         except ValueError:
             raise EmbeddingError('invalid_endpoint', '请检查本地 QWEN_BASE_URL 的服务地址格式。') from None
         payload = json.dumps({'model': self.model, 'input': texts}, ensure_ascii=False).encode('utf-8')
-        request = urllib.request.Request(url, data=payload, headers={
-            'Content-Type': 'application/json', 'Authorization': 'Bearer ' + self._key})
+        headers = {'Content-Type': 'application/json'}
+        if self._key:
+            headers['Authorization'] = 'Bearer ' + self._key
+        request = urllib.request.Request(url, data=payload, headers=headers)
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 result = json.load(response)

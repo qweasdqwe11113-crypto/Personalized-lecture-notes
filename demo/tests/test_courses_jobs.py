@@ -60,7 +60,7 @@ class CourseJobTests(ProfileDatabaseFixture):
         self.assertIsNone(module.get_context(1,'probability_basic'))
         self.assertEqual([m['id'] for m in module.get_context(1,'linear')['materials']],[1,2,3])
         prepared=prepare_request(advanced,advanced['topic']['goal'],module.MODEL)
-        self.assertEqual((prepared.prompt_version,prepared.input_version),('lecture-probability-v2+expanded-v1','lecture-context-v4'))
+        self.assertEqual((prepared.prompt_version,prepared.input_version),('lecture-probability-v2+expanded-v1+plan-v1','lecture-context-teacher-v2'))
 
     def test_ablation_removes_selected_learner_fields_and_has_identical_actual_bytes(self):
         bodies=[]
@@ -93,7 +93,7 @@ class CourseJobTests(ProfileDatabaseFixture):
         from quality import check_output
         ctx=module.get_context(11,'probability_advanced')
         report=check_output('# 概率\n互斥完备 P(B)>0\n'+('概'*4500)+' [M13]',ctx,ctx['topic']['goal'])
-        self.assertEqual(report['version'],'probability-text-check-v2')
+        self.assertEqual(report['version'],'probability-text-check-v2+lecture-workflow-v2')
         self.assertEqual(report['scope']['warnings'],[])
         self.assertEqual(next(c for c in report['automatic'] if c['code']=='length')['status'],'pass')
         legacy=copy.deepcopy(ctx);legacy.pop('lecture_length_policy')
@@ -216,14 +216,14 @@ class CourseJobTests(ProfileDatabaseFixture):
             job=self.post().get_json();self.assertTrue(self.tasks.wait_idle(5))
         run=self.client.get(f'/api/generation-runs/{job["run_id"]}').get_json()
         self.assertEqual(run['status'],'failed');self.assertIsNone(run['lecture_id']);self.assertEqual(run['usage']['total_tokens'],12)
-        self.assertEqual(run['citation_check']['quality_report']['version'],'probability-text-check-v2')
+        self.assertEqual(run['citation_check']['quality_report']['version'],'probability-text-check-v2+lecture-workflow-v2')
 
     def test_new_hints_preserve_frozen_old_rules_and_do_not_certify_math(self):
         from quality import check_output
         ctx=module.get_context(11,'probability_advanced')
         report=check_output('P(B) = Σi P(Ai∩Bi)。仅在 P(A)=P(B) 时相等。',ctx,ctx['topic']['goal'])
         self.assertEqual(next(c for c in report['automatic'] if c['code']=='known_probability_hints')['status'],'warning')
-        old=copy.deepcopy(ctx);old['topic'].pop('check_version');old['topic']['length_range']=[900,1400]
+        old=copy.deepcopy(ctx);old.pop('lecture_workflow',None);old['topic'].pop('check_version');old['topic']['length_range']=[900,1400]
         earlier=check_output('概'*700,old,old['topic']['goal'])
         self.assertEqual(earlier['version'],'probability-text-check-v1')
         self.assertEqual(next(c for c in earlier['automatic'] if c['code']=='length')['status'],'warning')

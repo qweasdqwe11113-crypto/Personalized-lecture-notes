@@ -87,7 +87,7 @@ class ReviewIntegrationTests(ProfileDatabaseFixture):
             before = c.execute('SELECT * FROM lectures WHERE id=%s',(self.lecture_id,)).fetchone()
         data = self.client.get(f'/api/lectures/{self.lecture_id}').get_json()
         self.assertEqual(data['quality_report_origin'],'本次读取时检查，未改写原稿')
-        self.assertEqual(data['quality_report']['version'],'math-text-check-v1')
+        self.assertEqual(data['quality_report']['version'],'math-text-check-v1+lecture-workflow-v2')
         with self.fixture_db() as c:
             self.assertEqual(before,c.execute('SELECT * FROM lectures WHERE id=%s',(self.lecture_id,)).fetchone())
 

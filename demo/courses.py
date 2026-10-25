@@ -16,6 +16,11 @@ TOPICS = {
                             'goal': '从条件概率和互斥完备划分推导全概率与贝叶斯公式，说明所有正分母条件；完成固定双产线例题及先验变化对照，核对后验归一，区分 P(A|B) 与 P(B|A)。'},
 }
 
+def course_family(topic):
+    return topic.get('prompt_family') or ('general' if topic.get('custom') else
+        'probability' if topic.get('course') == '大学概率论' else 'math')
+
+
 REFERENCE_EXAMPLES = [
     {'name': '双产线基准', 'events': 'A1、A2 为互斥完备的产线来源，D 为次品',
      'prior': [0.6, 0.4], 'likelihood': [0.02, 0.05],

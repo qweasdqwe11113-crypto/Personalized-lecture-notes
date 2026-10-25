@@ -1,14 +1,18 @@
 "use strict";
-window.selectedVisualAnalyses = () => Array.from(document.querySelectorAll('#visual-evidence-options input:checked'), n => n.value);
+let visualOrder=[], visualSnapshot=[], visualRestoreVersion=0;
+window.selectedVisualAnalyses = () => {const checked=Array.from(document.querySelectorAll('#visual-evidence-options input:checked'), n=>n.value);visualOrder=[...visualOrder.filter(id=>checked.includes(id)),...checked.filter(id=>!visualOrder.includes(id))];return [...visualOrder];};
+function restoreVisualSelection(evidence){visualRestoreVersion++;visualSnapshot=evidence;visualOrder=evidence.map(v=>v.id);const ids=new Set(visualOrder);for(const n of document.querySelectorAll('#visual-evidence-options input'))n.checked=ids.has(n.value);for(const v of evidence){if(!Array.from(document.querySelectorAll('#visual-evidence-options input')).some(n=>n.value===v.id)){const label=el('label',undefined,'visual-option');const n=el('input');n.type='checkbox';n.value=v.id;n.checked=true;n.disabled=busy;n.onchange=updateVisualSelectionCount;label.append(n,document.createTextNode(v.label+' · 历史所选解析'));$('visual-evidence-options').append(label);}}updateVisualSelectionCount();}
 function updateVisualSelectionCount() {
   const count = selectedVisualAnalyses().length;
   $('visual-selection-count').textContent = count ? `已选 ${count} / 4 张` : '未选择 · 选填，最多 4 张';
 }
 async function refreshVisualEvidence() {
   const container = $('visual-evidence-options');
-  const selected = new Set(selectedVisualAnalyses());
+  const version=visualRestoreVersion;let selected = new Set(selectedVisualAnalyses());
   try {
     const data = await api('/api/vision/analyses');
+    if(version!==visualRestoreVersion)selected=new Set(visualOrder);
+    for(const v of visualSnapshot)if(!data.analyses.some(a=>a.id===v.id))data.analyses.push(v);
     container.replaceChildren();
     if (!data.analyses.length) container.append(el('p', '尚无图片解析，请先到「上传资料」上传并识读。', 'helper'));
     for (const item of data.analyses) {
@@ -31,10 +35,10 @@ async function showUploadImages(uploadId) {
   for (const image of data.images) {
     const card = el('section', undefined, 'visual-card');
     const img = el('img'); img.src = '/api/vision/images/' + image.id; img.alt = image.label; img.loading = 'lazy';
-    const button = el('button', '使用本地 VLM 解析图片', 'secondary'); button.type = 'button';
+    const button = el('button', '使用视觉模型解析图片', 'secondary'); button.type = 'button';
     const output = el('p', '识读后请核对数值、公式和单位。', 'visual-text');
     button.onclick = async () => {
-      button.disabled = true; output.textContent = '本地视觉模型正在识读，请稍候…';
+      button.disabled = true; output.textContent = '视觉模型正在识读，请稍候…';
       try {
         const result = await api('/api/vision/images/' + image.id + '/analyse', {method: 'POST'});
         output.textContent = result.analysis.content + '\n\n解析已保存，可在讲义工作台选择；仍需教师核对。';

@@ -66,7 +66,7 @@ class PreparationWorkflowTests(ProfileDatabaseFixture):
         source = self.client.post('/api/course-tasks/linear/copy')
         self.assertEqual(source.status_code, 201)
         source_key = source.json['key']
-        payload = self.payload(knowledge_names=source.json['task']['knowledge_names'], revision=0)
+        payload = self.payload(knowledge_names=source.json['task']['knowledge_names'], revision=0, course=source.json['task']['course'], stage=source.json['task']['stage'])
         self.assertEqual(self.client.put('/api/course-tasks/' + source_key, json=payload).status_code, 200)
         duplicate = self.client.post('/api/course-tasks/' + source_key + '/copy')
         self.assertEqual(duplicate.status_code, 201)

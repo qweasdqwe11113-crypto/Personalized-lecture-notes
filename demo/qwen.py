@@ -6,6 +6,7 @@ import re
 import urllib.error
 import urllib.request
 from urllib.parse import urlsplit
+from model_runtime import request_timeout
 
 
 @dataclass
@@ -44,8 +45,6 @@ def clean_content(content):
 
 def call_qwen(prepared, on_attempt):
     key = os.environ.get('QWEN_API_KEY', '')
-    if not key:
-        raise ModelError('missing_key', '请在本地 .env 中配置 QWEN_API_KEY。', 'configuration')
     base = os.environ.get('QWEN_BASE_URL', '').rstrip('/')
     try:
         parsed = urlsplit(base)
@@ -53,13 +52,15 @@ def call_qwen(prepared, on_attempt):
                 parsed.username or parsed.password or parsed.query or parsed.fragment):
             raise ValueError
         url = base + '/chat/completions'
-        req = urllib.request.Request(url, data=prepared.body.encode('utf-8'), headers={
-            'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key})
+        headers = {'Content-Type': 'application/json'}
+        if key:
+            headers['Authorization'] = 'Bearer ' + key
+        req = urllib.request.Request(url, data=prepared.body.encode('utf-8'), headers=headers)
     except ValueError:
         raise ModelError('invalid_endpoint', '请检查本地 QWEN_BASE_URL 的服务地址格式。', 'configuration') from None
     on_attempt()  # Commit the attempt before network I/O; never recompute the body.
     try:
-        with urllib.request.urlopen(req, timeout=600) as response:
+        with urllib.request.urlopen(req, timeout=request_timeout()) as response:
             result = json.load(response)
     except urllib.error.HTTPError as exc:
         code = exc.code

@@ -132,6 +132,7 @@ def read_document(raw, filename):
 def register_grading(app, root, call_model, generation_lock):
     path = Path(root) / '.runtime' / 'grading.sqlite3'
     admission = Lock()
+    app.extensions['grading_busy'] = admission.locked
 
     def connect():
         path.parent.mkdir(parents=True, exist_ok=True)

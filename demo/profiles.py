@@ -66,10 +66,10 @@ def compare_lecture_profile(conn, lecture):
                            (lecture['student_id'],)).fetchone()
     if not student:
         raise ProfileError('学生不存在。', 404)
-    states = conn.execute('''SELECT k.id,k.name,COALESCE(s.state,'unknown') AS state,
+    states = conn.execute('''SELECT k.id,k.name,COALESCE(a.canonical_id,k.id) AS profile_knowledge_id,COALESCE(s.state,'unknown') AS state,
         COALESCE(s.evidence,'没有诊断记录。') AS evidence,COALESCE(s.revision,0) AS revision,
-        s.evidence_id,s.updated_at FROM knowledge_points k LEFT JOIN student_knowledge s
-        ON s.knowledge_id=k.id AND s.student_id=%s WHERE k.id=ANY(%s) ORDER BY k.id''',
+        s.evidence_id,s.updated_at FROM knowledge_points k LEFT JOIN knowledge_aliases a ON a.knowledge_id=k.id
+        LEFT JOIN student_knowledge s ON s.knowledge_id=COALESCE(a.canonical_id,k.id) AND s.student_id=%s WHERE k.id=ANY(%s) ORDER BY k.id''',
         (lecture['student_id'], knowledge_ids)).fetchall()
     current = {s['id']: s for s in decorate_states(states)}
     points = []
@@ -77,7 +77,7 @@ def compare_lecture_profile(conn, lecture):
         before = previous.get(knowledge_id)
         after = current.get(knowledge_id)
         if after:
-            after['recent_evidence'] = evidence_history(conn, student['id'], [knowledge_id], limit=3)
+            after['recent_evidence'] = evidence_history(conn, student['id'], [after['profile_knowledge_id']], limit=3)
         changes = [field for field in ('state', 'evidence', 'strategy')
                    if before and after and isinstance(before.get(field), str)
                    and before[field] != after[field]]
@@ -89,8 +89,8 @@ def compare_lecture_profile(conn, lecture):
             added_count = conn.execute('''SELECT count(*) AS n FROM learning_evidence e
                 JOIN knowledge_state_history h ON h.evidence_id=e.id
                 WHERE e.student_id=%s AND e.knowledge_id=%s AND h.new_revision>%s''',
-                (student['id'], knowledge_id, revision)).fetchone()['n']
-            added = evidence_history(conn, student['id'], [knowledge_id], limit=3, after_revision=revision)
+                (student['id'], after['profile_knowledge_id'], revision)).fetchone()['n']
+            added = evidence_history(conn, student['id'], [after['profile_knowledge_id']], limit=3, after_revision=revision)
         missing = [field for field in ('state', 'evidence', 'strategy', 'revision', 'recent_evidence')
                    if before is None or before.get(field) is None]
         if before and not revision_known and 'revision' not in missing:
@@ -151,7 +151,8 @@ def get_profile(conn, student_id):
     states = conn.execute('''SELECT k.id,k.name,COALESCE(s.state,'unknown') AS state,
         COALESCE(s.evidence,'没有诊断记录。') AS evidence, COALESCE(s.revision,0) AS revision,
         s.evidence_id,s.updated_at FROM knowledge_points k LEFT JOIN student_knowledge s
-        ON s.knowledge_id=k.id AND s.student_id=%s ORDER BY k.id''', (student_id,)).fetchall()
+        ON s.knowledge_id=k.id AND s.student_id=%s
+        WHERE NOT EXISTS (SELECT 1 FROM knowledge_aliases a WHERE a.knowledge_id=k.id) ORDER BY k.id''', (student_id,)).fetchall()
     edits = conn.execute('''SELECT * FROM student_profile_history
         WHERE student_id=%s ORDER BY id DESC LIMIT 20''', (student_id,)).fetchall()
     count = conn.execute('SELECT count(*) AS n FROM learning_evidence WHERE student_id=%s',
@@ -231,6 +232,9 @@ def record_evidence(conn, student_id, data):
     except (ValueError, TypeError, OverflowError):
         raise ProfileError('观察时间须包含时区，且不能晚于当前时间。') from None
     lock_student(conn, student_id)
+    alias = conn.execute('SELECT canonical_id FROM knowledge_aliases WHERE knowledge_id=%s', (knowledge_id,)).fetchone()
+    if alias:
+        knowledge_id = alias['canonical_id']
     if not conn.execute('SELECT id FROM knowledge_points WHERE id=%s', (knowledge_id,)).fetchone():
         raise ProfileError('知识点不存在。', 404)
     conn.execute('''INSERT INTO student_knowledge (student_id,knowledge_id,state,evidence)
