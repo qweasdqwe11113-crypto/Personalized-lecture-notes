@@ -1,9 +1,48 @@
+# 本地配置与凭据；保留可提交的配置示例
 .env
 .env.*
 !.env.example
+
+# Python 环境、缓存与构建产物
 .venv/
+venv/
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# 本地运行数据、日志与临时文件
 .runtime/
-AGENTS.md
-TODO.md
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.log
+/demo/test-results-*.txt
+*.tmp
+*.swp
+*.swo
+*~
+
+# 本机助手记录与协作文件
+/.workbuddy/
+/.codex/
+/.agents/
+/.aws/
+/AGENTS.md
+/TODO.md
+
+# 操作系统生成的文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 课程资料、测试夹具、提示模板和已有实验记录应继续跟踪，
+# 不使用 *.txt、*.pdf、*.png、artifacts/ 等宽泛规则。
