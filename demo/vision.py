@@ -18,7 +18,7 @@ from flask import jsonify, request, send_file
 import assets
 from qwen import clean_content
 
-MAX_IMAGES = 8
+MAX_IMAGES = 128
 MAX_SELECTED = 4
 VLM_LOCK = Lock()
 PROMPT_VERSION = 'image-reading-v1'
@@ -53,16 +53,30 @@ def connect(root):
     return conn
 
 
-def prepare_images(raw, filename):
+def prepare_images(raw, filename, warnings=None):
+    warnings = warnings if warnings is not None else []
     ext = Path(filename).suffix.lower()
     if ext not in assets.EXTENSIONS | {'.pdf', '.docx'}:
         return []
     try:
         sources = assets.extract(raw, filename, limit=MAX_IMAGES + 1)
         if len(sources) > MAX_IMAGES:
-            raise VisionError(f'每份资料最多支持 {MAX_IMAGES} 张图片，请拆分文件后上传。')
-        return [(s, assets.build(s.raw)) for s in sources]
+            warnings.append(f'本次仅提取前 {MAX_IMAGES} 张插图，其余插图未提取；原文件完整保存，可拆分文档后补充上传。')
+        images, failed = [], 0
+        for source in sources[:MAX_IMAGES]:
+            try:
+                images.append((source, assets.build(source.raw)))
+            except assets.AssetError:
+                if ext in assets.EXTENSIONS:
+                    raise
+                failed += 1
+        if failed:
+            warnings.append(f'{failed} 张插图无法解析，已跳过；正文与原文件仍保留。')
+        return images
     except assets.AssetError as exc:
+        if ext in {'.pdf', '.docx'}:
+            warnings.append('文档插图提取失败，正文与原文件仍保留；如需识图，请单独上传图片。')
+            return []
         raise VisionError(str(exc)) from None
 
 

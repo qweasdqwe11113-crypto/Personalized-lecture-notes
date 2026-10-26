@@ -101,7 +101,7 @@ class VisionTests(unittest.TestCase):
             self.assertEqual(r.status_code, 400)
             self.assertEqual(self.client.get('/api/vision/analyses').json['analyses'], [])
 
-    def test_image_only_docx_extracts_and_limit_is_explicit(self):
+    def test_image_only_docx_extracts_and_large_document_limit_is_nonfatal(self):
         from docx import Document
         raw = BytesIO(); Image.new('RGB', (50, 50), 'blue').save(raw, format='PNG'); raw.seek(0)
         doc = Document(); doc.add_picture(raw)
@@ -109,6 +109,24 @@ class VisionTests(unittest.TestCase):
         r = self.client.post('/api/uploads', data={'file': (BytesIO(data.getvalue()), 'images.docx')})
         self.assertEqual(r.status_code, 201)
         self.assertEqual(r.json['upload']['images'], 1)
-        with patch('vision.assets.extract', return_value=[None] * 9):
-            with self.assertRaises(vision.VisionError):
-                vision.prepare_images(b'', 'images.pdf')
+        source = vision.assets.Source(raw.getvalue(), 'figure.png')
+        with patch('vision.assets.extract', return_value=[source] * 9):
+            self.assertEqual(len(vision.prepare_images(b'', 'images.pdf')), 9)
+        warnings = []
+        with patch('vision.assets.extract', return_value=[source] * (vision.MAX_IMAGES + 1)):
+            self.assertEqual(len(vision.prepare_images(b'', 'images.pdf', warnings=warnings)), vision.MAX_IMAGES)
+        self.assertIn('128', warnings[0])
+
+    def test_bad_document_image_does_not_discard_text_and_warning_persists(self):
+        source = vision.assets.Source(b'not an image', 'broken.png')
+        with patch('uploads.extract', return_value='正文完整保留'), patch('vision.assets.extract', return_value=[source]):
+            response = self.client.post('/api/uploads', data={'file': (BytesIO(b'fixture'), 'paper.pdf')})
+        self.assertEqual(response.status_code, 201, response.json)
+        item = response.json['upload']
+        self.assertEqual(item['images'], 0)
+        self.assertTrue(item['warnings'])
+        detail = self.client.get('/api/uploads/' + item['id']).json['upload']
+        self.assertEqual(detail['content'], '正文完整保留')
+        self.assertEqual(detail['warnings'], item['warnings'])
+        self.assertEqual(self.client.get('/api/uploads').json['uploads'][0]['warnings'], item['warnings'])
+        self.assertEqual(self.client.get('/api/uploads/' + item['id'] + '/download').data, b'fixture')

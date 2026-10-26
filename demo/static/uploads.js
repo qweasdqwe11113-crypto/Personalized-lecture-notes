@@ -49,6 +49,7 @@
           try { const data = await api('/api/uploads/' + item.id); $('upload-preview-title').textContent = data.upload.title; $('upload-preview-meta').textContent = item.kind === 'url' ? item.source_url : item.filename; $('upload-preview-content').textContent = data.upload.content; $('upload-preview-images').replaceChildren(); $('upload-preview-dialog').showModal(); await showUploadImages(item.id); } catch (e) { status(e.message, true); }
         };
         info.append(preview, el('p', `${item.kind === 'url' ? '网址导入' : '本地上传'} · ${item.characters.toLocaleString()} 字符 · ${new Date(item.created_at).toLocaleString('zh-CN')}`));
+        for (const warning of item.warnings || []) info.append(el('p', warning, 'check-warning'));
         const download = el('a', '下载原文件', 'secondary'); download.href = '/api/uploads/' + item.id + '/download'; download.download = item.filename;
         const pictures = el('button', '图片识读', 'secondary'); pictures.type = 'button'; pictures.onclick = () => preview.click();
         row.append(icon, info, pictures, download); list.append(row);
@@ -62,7 +63,7 @@
     status('正在读取和解析资料，请稍候…');
     try {
       const data = await api('/api/uploads', options);
-      status(`「${data.upload.title}」已保存，提取 ${data.upload.characters.toLocaleString()} 个字符、${data.upload.images || 0} 张图片。可点击「图片识读」继续解析。`);
+      status(`「${data.upload.title}」已保存，提取 ${data.upload.characters.toLocaleString()} 个字符、${data.upload.images || 0} 张图片。可点击「图片识读」继续解析。` + (data.upload.warnings?.length ? ' 提醒：' + data.upload.warnings.join(' ') : ''));
       await refreshUploads();
     } catch (e) { status(e.message, true); }
     finally { uploading = false; panes.forEach(pane => pane.querySelectorAll('input,button').forEach(control => control.disabled = false)); }

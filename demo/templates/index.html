@@ -162,7 +162,7 @@
     <div class="upload-tabs" role="tablist" aria-label="资料上传模式"><button id="upload-file-tab" role="tab" aria-selected="true" aria-controls="upload-file-pane" type="button">本地上传</button><button id="upload-url-tab" role="tab" aria-selected="false" aria-controls="upload-url-pane" tabindex="-1" type="button">网址上传</button></div>
     <form id="upload-file-pane" role="tabpanel" aria-labelledby="upload-file-tab">
      <label for="upload-file-title">资料名称 <span>选填，默认使用文件名</span></label><input id="upload-file-title" maxlength="120" placeholder="例如：一元一次方程教学参考">
-     <label class="upload-dropzone" id="upload-dropzone" for="upload-file"><span class="upload-symbol" aria-hidden="true">↥</span><strong>点击选择文件，或拖拽到这里</strong><span>支持 TXT、MD、PDF、DOCX 和图片 · 单个文件不超过 10 MB，最多 8 张插图</span><input id="upload-file" type="file" accept=".txt,.md,.pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp,.gif,.tif,.tiff" required></label>
+     <label class="upload-dropzone" id="upload-dropzone" for="upload-file"><span class="upload-symbol" aria-hidden="true">↥</span><strong>点击选择文件，或拖拽到这里</strong><span>支持 TXT、MD、PDF、DOCX 和图片 · 单个文件不超过 10 MB，最多提取 128 张插图；超出不影响正文保存</span><input id="upload-file" type="file" accept=".txt,.md,.pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp,.gif,.tif,.tiff" required></label>
      <p id="upload-file-selection" class="helper" role="status">尚未选择文件</p>
      <button id="upload-file-submit" type="submit" class="primary">上传并解析资料 <span>↗</span></button>
     </form>

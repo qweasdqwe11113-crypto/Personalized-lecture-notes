@@ -5,6 +5,7 @@ from html.parser import HTMLParser
 from io import BytesIO
 import http.client
 import ipaddress
+import json
 from pathlib import Path
 import socket
 import sqlite3
@@ -180,6 +181,8 @@ def register_uploads(app, root):
             id TEXT PRIMARY KEY, title TEXT NOT NULL, filename TEXT NOT NULL,
             kind TEXT NOT NULL, source_url TEXT NOT NULL, content TEXT NOT NULL,
             raw BLOB NOT NULL, created_at TEXT NOT NULL)''')
+        conn.execute('''CREATE TABLE IF NOT EXISTS upload_notices (
+            upload_id TEXT PRIMARY KEY, warnings TEXT NOT NULL)''')
         conn.commit()
         return conn
 
@@ -190,7 +193,8 @@ def register_uploads(app, root):
     def list_uploads():
         with closing(connect()) as conn:
             rows = conn.execute('SELECT id,title,filename,kind,source_url,created_at,length(content) AS characters FROM uploads ORDER BY created_at DESC LIMIT 100').fetchall()
-        return jsonify(uploads=[{**summary(row), 'characters': row['characters']} for row in rows])
+            notices = {r['upload_id']: json.loads(r['warnings']) for r in conn.execute('SELECT * FROM upload_notices')}
+        return jsonify(uploads=[{**summary(row), 'characters': row['characters'], 'warnings': notices.get(row['id'], [])} for row in rows])
 
     @app.post('/api/uploads')
     def create_upload():
@@ -232,7 +236,8 @@ def register_uploads(app, root):
                     raise ImportError('资料名称格式不正确。')
                 title = custom_title.strip() or title
                 kind = 'url'
-            images = prepare_images(raw, filename)
+            warnings = []
+            images = prepare_images(raw, filename, warnings=warnings)
             content = content.strip()
             if (not content and not images) or '\x00' in content:
                 raise ImportError('未提取到有效文字。扫描版 PDF 请先进行文字识别。')
@@ -246,7 +251,8 @@ def register_uploads(app, root):
             with closing(connect()) as conn, conn:
                 conn.execute('INSERT INTO uploads VALUES (:id,:title,:filename,:kind,:source_url,:content,:raw,:created_at)', record)
                 store_images(conn, record['id'], images)
-            return jsonify(upload={**summary(record), 'characters': len(content), 'images': len(images)}), 201
+                conn.execute('INSERT INTO upload_notices VALUES (?,?)', (record['id'], json.dumps(warnings, ensure_ascii=False)))
+            return jsonify(upload={**summary(record), 'characters': len(content), 'images': len(images), 'warnings': warnings}), 201
         except (ImportError, VisionError) as exc:
             return jsonify(error=str(exc)), 400
 
@@ -254,9 +260,10 @@ def register_uploads(app, root):
     def upload_detail(upload_id):
         with closing(connect()) as conn:
             row = conn.execute('SELECT * FROM uploads WHERE id=?', (upload_id,)).fetchone()
+            notice = conn.execute('SELECT warnings FROM upload_notices WHERE upload_id=?', (upload_id,)).fetchone()
         if row is None:
             return jsonify(error='资料不存在。'), 404
-        return jsonify(upload={**summary(row), 'content': row['content'], 'characters': len(row['content'])})
+        return jsonify(upload={**summary(row), 'content': row['content'], 'characters': len(row['content']), 'warnings': json.loads(notice['warnings']) if notice else []})
 
     @app.get('/api/uploads/<upload_id>/download')
     def download_upload(upload_id):
