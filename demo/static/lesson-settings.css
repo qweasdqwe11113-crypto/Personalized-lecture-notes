@@ -1,0 +1,29 @@
+.lesson-setting-links{display:grid;gap:10px;min-width:0}
+#generate-form .lesson-setting-link{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;min-height:76px;padding:15px 16px;margin:0;border:1px solid var(--line);border-radius:10px;background:#f8fafc;color:#18344c;text-align:left;font:inherit;cursor:pointer;box-shadow:none;transition:background .15s,border-color .15s}
+.lesson-setting-link>span:first-child{display:grid;gap:5px;min-width:0}
+.lesson-setting-link strong{font-size:13px;font-weight:600;line-height:1.5}
+.lesson-setting-link strong+span{font-size:12px;color:var(--muted);line-height:1.5;overflow-wrap:anywhere}
+.lesson-setting-link .setting-chevron{font-size:25px;font-weight:400;color:#8290a6;flex-shrink:0}
+#generate-form .lesson-setting-link:hover{background:#f0f4fc;border-color:#bdcbed}
+.lesson-setting-link:focus-visible,.lesson-dialog-close:focus-visible{outline:3px solid #bfd0ff;outline-offset:3px}
+dialog.lesson-settings-dialog{width:min(640px,calc(100vw - 32px));inline-size:min(640px,calc(100vw - 32px));height:auto;block-size:auto;max-height:calc(100dvh - 48px);max-block-size:calc(100dvh - 48px);padding:0;border:1px solid var(--line);border-radius:16px;color:#18344c;background:#fff;box-shadow:0 24px 80px #152b4a30}
+.lesson-settings-dialog::backdrop{background:#14253d66;backdrop-filter:blur(3px)}
+.lesson-dialog-header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;padding:20px 24px;border-bottom:1px solid var(--line)}
+.lesson-dialog-header h2{margin:0;font-size:19px;font-weight:600;line-height:1.5}
+.lesson-dialog-close{display:grid;place-items:center;flex-shrink:0;width:32px;height:32px;padding:0;border:0;border-radius:8px;background:#f1f5f9;color:#64748b;font-size:24px;line-height:1;cursor:pointer}
+.lesson-dialog-close:hover{background:#e2e8f0;color:#18344c}
+.lesson-settings-dialog .dialog-body{padding:20px 24px 24px;min-height:0;overflow:auto;scrollbar-gutter:auto}
+.lesson-dialog-intro{margin:0 0 20px;color:var(--muted);font-size:13px;line-height:1.8}
+.lesson-settings-dialog .setup-field+.setup-field{margin-top:20px}
+.lesson-settings-dialog label{display:block;margin-bottom:8px;font-size:13px;font-weight:600}
+.lesson-settings-dialog select,.lesson-settings-dialog textarea{box-sizing:border-box;width:100%;max-width:100%;border:1px solid var(--line);border-radius:8px;padding:11px 12px;background:#fff;color:inherit;font:inherit;font-size:13px;line-height:1.7}
+.lesson-settings-dialog textarea{resize:vertical}
+.lesson-settings-dialog .plan-item:first-child{border-top:0;padding-top:0}
+.lesson-settings-dialog .plan-item textarea{margin-top:8px;min-height:90px}
+#lesson-teaching-dialog .teaching-controls{padding:0;border:0;background:transparent}
+#lesson-teaching-dialog .teaching-controls legend{display:none}
+.lesson-dialog-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;padding:16px 24px;border-top:1px solid var(--line);background:#fafbfd}
+.lesson-dialog-footer>span{color:var(--muted);font-size:12px;line-height:1.6}
+.lesson-dialog-footer .primary{width:auto;min-width:88px;margin:0;justify-content:center;padding:10px 22px}
+@media(max-width:600px){dialog.lesson-settings-dialog{width:calc(100vw - 24px);inline-size:calc(100vw - 24px);max-height:calc(100dvh - 24px);max-block-size:calc(100dvh - 24px)}.lesson-dialog-header,.lesson-dialog-footer{padding:16px 18px}.lesson-settings-dialog .dialog-body{padding:18px}.lesson-dialog-header h2{font-size:17px}}
+@media(prefers-reduced-motion:reduce){#generate-form .lesson-setting-link{transition:none}}

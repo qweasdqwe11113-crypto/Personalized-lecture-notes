@@ -30,6 +30,7 @@ from teaching import teaching_options
 from model_runtime import request_timeout
 from lecture_policy import LectureInputError, finalize_context
 from sections import execute_section, register_sections
+from presentations import execute_presentation, register_presentations
 from quizzes import QuizQueue, register_quizzes
 from grading import register_grading
 from evaluation import register_evaluation
@@ -368,14 +369,15 @@ def execute_job(job_id, run_id, sid, topic, goal, context, prepared):
     except Exception:
         GENERATION_LOCK.release()
         raise
-    if context.get('section_edit'):
+    if context.get('section_edit') or context.get('ppt_export'):
         start = time.monotonic()
         try:
-            return execute_section(lambda: db(), call_qwen, job_id, run_id, context, prepared)
+            execute = execute_presentation if context.get('ppt_export') else execute_section
+            return execute(lambda: db(), call_qwen, job_id, run_id, context, prepared)
         except ModelError as exc:
             persist_failure(run_id, exc, round(time.monotonic() - start, 2), {}, job_id)
         except Exception:
-            persist_failure(run_id, ModelError('section_error', '章节修改未完成，请核查生成记录后重试。', 'output'),
+            persist_failure(run_id, ModelError('output_error', '课件或章节处理未完成，请核查生成记录后重试。', 'output'),
                             round(time.monotonic() - start, 2), {}, job_id)
         finally:
             GENERATION_LOCK.release()
@@ -386,6 +388,7 @@ def execute_job(job_id, run_id, sid, topic, goal, context, prepared):
 
 TASKS = JobQueue(lambda: db(), execute_job)
 register_sections(app, lambda: db(), lambda: TASKS, lambda: MODEL)
+register_presentations(app, lambda: db(), lambda: TASKS)
 QUIZZES = QuizQueue(lambda: db(), lambda prepared, attempted: call_qwen(prepared, attempted), GENERATION_LOCK)
 register_quizzes(app, lambda: db(), lambda: QUIZZES, topic_catalog, get_context, lambda: MODEL)
 recover_evaluation = register_evaluation(
@@ -590,7 +593,7 @@ def lecture(lecture_id):
     with db() as conn:
         row = conn.execute('SELECT * FROM lectures WHERE id=%s',(lecture_id,)).fetchone()
         if row:
-            trace = conn.execute("SELECT id,topic_key FROM generation_runs WHERE lecture_id=%s AND NOT (context ? 'section_edit') ORDER BY id LIMIT 1", (lecture_id,)).fetchone()
+            trace = conn.execute("SELECT id,topic_key FROM generation_runs WHERE lecture_id=%s AND NOT (context ? 'section_edit') AND NOT (context ? 'ppt_export') ORDER BY id LIMIT 1", (lecture_id,)).fetchone()
             row['generation_run_id'] = trace['id'] if trace else None
             row['topic_key'] = trace['topic_key'] if trace else row['context']['topic'].get('key')
             row['quality_report'] = row['citation_check'].get('quality_report') or check_output(row['content'], row['context'], row['goal'])

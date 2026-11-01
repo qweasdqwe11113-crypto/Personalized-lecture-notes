@@ -89,7 +89,8 @@
     const content = dialog.querySelector('#trace-content') || body;
     const resetScroll = () => {
       if (dialog.open && !content.hidden) {
-        dialog.querySelector('.editor-top').scrollTop = 0;
+        const header = dialog.querySelector('.editor-top, .lesson-dialog-header');
+        if (header) header.scrollTop = 0;
         body.scrollTop = 0;
       }
     };

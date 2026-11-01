@@ -47,7 +47,7 @@ def register_evaluation(app, db, queue, context_builder, model, other_tasks_idle
 
     @app.before_request
     def protect_comparison():
-        if gate.locked() and request.method=='POST' and (request.path in ('/api/jobs','/api/generate','/api/quizzes','/api/grading') or request.path.endswith('/section-rewrites') or request.path.endswith('/retry')):
+        if gate.locked() and request.method=='POST' and (request.path in ('/api/jobs','/api/generate','/api/quizzes','/api/grading') or request.path.endswith('/section-rewrites') or request.path.endswith('/presentations') or request.path.endswith('/retry')):
             return jsonify(error='固定对照正在顺序执行，请完成后再提交其他生成。'),409
 
     @app.post('/api/lecture-experiments')

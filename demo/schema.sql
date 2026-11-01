@@ -127,8 +127,10 @@ CREATE TABLE IF NOT EXISTS generation_runs (
 CREATE INDEX IF NOT EXISTS generation_runs_recent ON generation_runs(id DESC);
 -- A lecture has one original generation and may have many section proposals.
 ALTER TABLE generation_runs DROP CONSTRAINT IF EXISTS generation_runs_lecture_id_key;
-CREATE UNIQUE INDEX IF NOT EXISTS generation_runs_original_lecture
- ON generation_runs(lecture_id) WHERE NOT (context ? 'section_edit');
+-- Slide adaptations and section proposals refer to their source lecture.
+DROP INDEX IF EXISTS generation_runs_original_lecture;
+CREATE UNIQUE INDEX IF NOT EXISTS generation_runs_original_lecture_v2
+ ON generation_runs(lecture_id) WHERE NOT (context ? 'section_edit') AND NOT (context ? 'ppt_export');
 
 -- Review event revision changes only on issue/revision writes; original prose stays intact.
 ALTER TABLE lectures ADD COLUMN IF NOT EXISTS review_revision integer NOT NULL DEFAULT 0;

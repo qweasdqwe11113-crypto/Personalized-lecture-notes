@@ -1,5 +1,7 @@
 # Prompt 与实际输入
 
+授课课件使用独立模板 [lecture-ppt-v1.md](lecture-ppt-v1.md)，输入结构为 `lecture-ppt-context-v1`。实际发送的是所选已保存讲义、教学目标、授课设置、材料及课件要求，不额外发送学生画像、诊断或本次观察字段。该模板要求简洁投屏内容与详细逐页教师讲稿分开，使用固定页数和可读 Unicode 公式；后台对 JSON 结构、文字预算、封面、末页总结及 M/V 来源编号进行检查。程序检查不替代教师对课件正确性及教学可用性的审核；原讲义中的个体描述仍应在内容复核时检查。
+
 当前初中模板为 [lecture-math-v3.md](lecture-math-v3.md)，大学模板为 [lecture-probability-v2.md](lecture-probability-v2.md)，新讲义输入结构为 lecture-context-teacher-v2，追加 [lecture-plan-v1.md](lecture-plan-v1.md) 的可编辑教学安排及定位要求；旧结构仍按原字节保存。此前 math v1 / v2、大学 v1 保持已使用正文。运行 #1 是 math v1 / context-v2，#2 是 math v2 / context-v3，大学固定对照 #3—#14 是 probability v1 / context-v4，后续 #15 / #16 使用 probability v2。旧输入不因更新模板而重建。
 
 ## 设计原因与检查边界

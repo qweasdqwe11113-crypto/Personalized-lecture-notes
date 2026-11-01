@@ -26,7 +26,7 @@ def teaching_options(data):
             or not isinstance(result['detail'], str) or result['detail'] not in DETAILS):
         raise ValueError('请选择有效的授课类型与讲解详略。')
     if not isinstance(result['requirements'], str) or len(result['requirements'].strip()) > 2000:
-        raise ValueError('本次授课要求请控制在 2000 字以内。')
+        raise ValueError('备注请控制在 2000 字以内。')
     result['requirements'] = result['requirements'].strip()
     # Preserve the request shape of existing clients and frozen fixtures.
     for field in ('length_policy','target_characters'):

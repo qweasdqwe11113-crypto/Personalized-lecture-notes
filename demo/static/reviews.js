@@ -3,28 +3,7 @@ const categoryLabels = {math:'数学运算或条件', terminology:'术语', cita
 const supportLabels = {not_applicable:'不适用', unreviewed:'尚未核查', supported:'支持', unsupported:'不支持', unclear:'依据不足或不确定'};
 const statusLabels = {unreviewed:'原稿未审核', draft:'草稿', needs_revision:'待修订', reviewed:'教师已审核'};
 let reviewLecture = null, lectureReviewData = null, selectedRevision = 0, reviewSession = 0;
-let editorSession = 0, editorBase = 0, editorData = null, editorSaving = false, scopeSession = 0, scopeTimer;
-
-function drawScope(scope) {
-  if (!scope) return;
-  const panel=$('scope-check').parentElement;
-  panel.querySelector('summary').textContent='目标范围与材料覆盖'+(scope.warnings.length?` · ${scope.warnings.length} 项提醒`:'');
-  if(scope.warnings.length)panel.open=true;
-  $('scope-check').replaceChildren(el('p','共同默认目标：'+scope.default_goal,'helper'),el('p','本次目标：'+scope.goal,'helper'));
-  for (const point of scope.coverage) $('scope-check').append(el('p',point.scope+' → '+(point.has_material?point.material_ids.map(id=>'M'+id).join('、'):'缺少关联材料'),'helper'));
-  for (const warning of scope.warnings) $('scope-check').append(el('p',warning,'check-warning'));
-  $('scope-check').append(el('p',scope.note,'helper'));
-}
-async function refreshScope() {
-  const session = ++scopeSession;
-  const sid=$('student').value, topic=$('topic').value, goal=$('goal').value;
-  if (!sid || !topic) return;
-  try {
-    const ctx=await api('/api/context?'+new URLSearchParams({student_id:sid,topic,goal}));
-    if (session===scopeSession && sid===$('student').value && topic===$('topic').value && goal===$('goal').value) drawScope(ctx.scope_check);
-  } catch (err) { if(session===scopeSession)$('scope-check').replaceChildren(el('p',err.message,'check-warning')); }
-}
-$('goal').addEventListener('input',()=>{clearTimeout(scopeTimer);scopeSession++;$('scope-check').replaceChildren(el('p','正在核查本次目标…','helper'));scopeTimer=setTimeout(refreshScope,300);});
+let editorSession = 0, editorBase = 0, editorData = null, editorSaving = false;
 
 function drawQuality(report, origin, teacherRecord=null) {
   $('quality-panel').hidden=!report;
@@ -75,7 +54,7 @@ function issueCards(issues, resolutions, container) {
   if(!issues.length)container.append(el('p','尚无具体问题记录；不表示讲义已通过审核。','helper'));
 }
 function clearLectureReview(){
-  reviewSession++;scopeSession++;reviewLecture=null;lectureReviewData=null;selectedRevision=0;
+  reviewSession++;reviewLecture=null;lectureReviewData=null;selectedRevision=0;
   $('edit-lecture').disabled=true;$('version-controls').hidden=true;$('quality-panel').hidden=true;
   updateDownloadLabel();
 }
@@ -98,7 +77,6 @@ async function loadLectureReview(result){
   const session=++reviewSession;reviewLecture=result;selectedRevision=0;lectureReviewData=null;
   $('edit-lecture').disabled=true;$('version-controls').hidden=true;$('lecture-issues').replaceChildren(el('p','正在读取问题与版本…','helper'));
   drawQuality(result.quality_report || result.citation_check.quality_report,result.quality_report_origin || '生成时留存');
-  drawScope((result.quality_report || result.citation_check.quality_report)?.scope);
   try{
     const data=await api(`/api/lectures/${result.id}/review`);
     if(session!==reviewSession)return;
@@ -204,5 +182,5 @@ async function prefillCitationReview(sourceId,lineNumber,support){
  $('lecture-editor-status').textContent='已定位来源与保存版本，请核对原文、填写判断依据和记录者后确认保存。';
 }
 window.prefillCitationReview=prefillCitationReview;
-Object.assign(window, {drawScope, loadLectureReview, clearLectureReview, setReviewBusy, displaySectionRevision});
+Object.assign(window, {loadLectureReview, clearLectureReview, setReviewBusy, displaySectionRevision});
 })();

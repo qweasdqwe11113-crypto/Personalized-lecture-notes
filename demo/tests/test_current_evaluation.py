@@ -32,7 +32,9 @@ class CurrentEvaluationTests(ProfileDatabaseFixture):
         return response.json['id']
 
     def wait(self,identity):
-        deadline=time.monotonic()+10
+        # Twelve real PostgreSQL job transactions can exceed 10s on Windows.
+        # This bounds the fixture wait, not the production model timeout.
+        deadline=time.monotonic()+30
         while time.monotonic()<deadline:
             row=self.client.get('/api/lecture-experiments/'+identity).json
             if row['status']!='running':return row
@@ -79,6 +81,7 @@ class CurrentEvaluationTests(ProfileDatabaseFixture):
                 self.assertEqual(response.status_code,202,response.json)
                 self.assertTrue(entered.wait(5))
                 self.assertEqual(self.client.post('/api/jobs',json=dict(student_id=2,topic='linear')).status_code,409)
+                self.assertEqual(self.client.post('/api/lectures/1/presentations',json=dict(base_revision=0)).status_code,409)
             finally:release.set()
             row=self.wait(identity)
         self.assertEqual(len(calls),12)

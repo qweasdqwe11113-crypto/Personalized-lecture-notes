@@ -30,23 +30,13 @@
      <div class="setup-field"><label for="topic">选择备课材料副本</label><select id="topic" disabled></select><p id="task-level" class="helper"></p><details id="preparation-preview" hidden><summary>查看副本目标与教案</summary><p id="preparation-preview-goal" class="helper"></p><p id="preparation-preview-plan" class="current-summary"></p></details></div>
      <div class="setup-field"><label for="student">选择学生</label><select id="student" disabled></select><div id="student-profile" class="profile"></div></div>
      <div class="setup-field setup-goal"><label for="goal">本次教学目标</label><textarea id="goal" rows="3" maxlength="400"></textarea></div>
-     <fieldset class="teaching-controls"><legend>本次怎么讲</legend><div class="teaching-grid">
-      <div><label for="lesson-duration">授课时长（分钟）</label><input id="lesson-duration" type="number" min="5" max="180" step="1" value="45" required></div>
-      <div><label for="lesson-type">授课类型</label><select id="lesson-type"><option value="new">新授</option><option value="practice">巩固</option><option value="correction">纠错</option><option value="review">复习</option></select></div>
-      <div class="teaching-wide"><label for="lesson-detail">讲解详略</label><select id="lesson-detail"><option value="brief">简明提纲</option><option value="standard" selected>常规讲解</option><option value="detailed">详细讲解</option></select><p id="lesson-length-note" class="helper" role="status"></p></div>
-      <div class="teaching-wide"><label for="lesson-target">自定目标汉字数（选填）</label><input id="lesson-target" type="number" min="400" max="6600" step="100" placeholder="留空按时长与详略建议"><p class="helper">400—6600汉字，允许约20%浮动；课堂必讲与补充阅读分开。目标与题量冲突时说明取舍。</p></div>
-      <div><label for="lesson-examples">完整例题数</label><input id="lesson-examples" type="number" min="0" max="6" step="1" value="2" required></div>
-      <div><label for="lesson-exercises">课堂练习数</label><input id="lesson-exercises" type="number" min="0" max="10" step="1" value="3" required></div>
-     </div><p class="helper">供教师授课使用，包含讲解步骤、课堂提问、错误引导与参考答案。时间分配为建议。</p></fieldset>
-     <div class="setup-field setup-goal"><label for="teaching-requirements">本次授课要求 <span>选填</span></label><textarea id="teaching-requirements" rows="3" maxlength="2000" placeholder="例如：多讲负号处理，沿用教案例题，今天不讲拓展；增加错误解法对比。"></textarea><div class="teaching-presets" aria-label="常用授课要求"><button type="button" class="secondary" data-teaching-preset="每个关键步骤说明理由。">多讲步骤</button><button type="button" class="secondary" data-teaching-preset="增加正确与错误解法的对比。">错例对比</button><button type="button" class="secondary" data-teaching-preset="沿用教案中的例题，不额外拓展知识范围。">沿用教案</button></div><p class="helper">仅用于本次讲义，随生成输入保存；长期学生信息请到「学生画像」维护。</p></div>
-     <details class="teaching-advanced"><summary>高级设置 · 画像、材料取用与学生观察</summary>
-      <div class="setup-field"><label for="personalization-mode">生成依据</label><select id="personalization-mode"><option value="profile">使用学生画像</option><option value="none">无画像对照 · 通用讲义</option></select></div>
-      <div class="setup-field"><label for="retrieval-mode">材料取用方式</label><select id="retrieval-mode"><option value="sql">全部关联材料 · 精确 SQL</option><option value="vector">按目标选取片段 · 向量检索</option></select><p id="retrieval-note" class="helper" role="status" aria-live="polite">默认直接读取关联材料。</p></div>
-      <div class="setup-field"><label for="learner-note">本次学生观察 <span>选填</span></label><textarea id="learner-note" rows="2" maxlength="2000" placeholder="例如：今天负数运算仍容易漏符号。"></textarea><p class="helper">作为本次观察使用，不改写长期诊断；无画像对照不发送此项。</p></div>
-     </details>
-     <div class="setup-field setup-goal"><details class="visual-picker"><summary>图片解析依据 <span id="visual-selection-count">未选择 · 选填，最多 4 张</span></summary><p class="helper">先在「上传资料」中解析图片，再选择用于本次讲义的解析。原图仅发送给独立视觉模型；语言模型只接收解析文字。</p><button id="refresh-visual-evidence" type="button" class="secondary">刷新图片解析</button><div id="visual-evidence-options" class="visual-options"></div></details></div>
-     <details class="scope-box"><summary>目标范围与材料覆盖</summary><div id="scope-check"><p class="helper">读取主题后展示。</p></div></details>
-     <details class="scope-box" id="lecture-plan-box"><summary>本次讲解安排 · 可调整</summary><div id="lecture-plan"></div><div id="input-budget-note" class="helper"></div></details>
+     <div class="lesson-setting-links" aria-label="更多讲义设置">
+      <button type="button" class="lesson-setting-link" data-setting-dialog="lesson-teaching-dialog" aria-haspopup="dialog" aria-controls="lesson-teaching-dialog"><span><strong>本次怎么讲</strong><span id="teaching-summary">45 分钟 · 新授 · 常规讲解</span></span><span class="setting-chevron" aria-hidden="true">›</span></button>
+      <button type="button" class="lesson-setting-link" data-setting-dialog="lesson-advanced-dialog" aria-haspopup="dialog" aria-controls="lesson-advanced-dialog"><span><strong>高级设置</strong><span>画像与材料取用</span></span><span class="setting-chevron" aria-hidden="true">›</span></button>
+      <button type="button" class="lesson-setting-link" data-setting-dialog="lesson-visual-dialog" aria-haspopup="dialog" aria-controls="lesson-visual-dialog"><span><strong>图片解析依据</strong><span id="visual-selection-count">未选择 · 选填，最多 4 张</span></span><span class="setting-chevron" aria-hidden="true">›</span></button>
+      <button type="button" class="lesson-setting-link" id="lecture-plan-box" data-setting-dialog="lesson-plan-dialog" aria-haspopup="dialog" aria-controls="lesson-plan-dialog"><span><strong>本次讲解安排</strong><span>按知识点查看与调整讲法</span></span><span class="setting-chevron" aria-hidden="true">›</span></button>
+     </div>
+     <div class="setup-field setup-goal"><label for="teaching-requirements">备注 <span>选填</span></label><textarea id="teaching-requirements" rows="3" maxlength="2000" placeholder="无"></textarea><p class="helper">默认无，按需填写。仅用于本次讲义，随生成输入保存。</p></div>
      <button class="primary" id="generate" type="submit" disabled>生成个性化讲义 <span>↗</span></button>
      <p id="progress" class="helper" role="status" aria-live="polite">读取学生状态与课程证据后生成。</p>
     </form>
@@ -393,4 +383,48 @@
 <link rel="stylesheet" href="/static/theme.css">
 <dialog id="source-dialog" aria-labelledby="source-title"><div class="editor-top editor-heading"><h2 id="source-title">核查来源</h2><button id="close-source" type="button" class="secondary">关闭</button></div><div class="dialog-body"><p id="source-status" class="helper"></p><div id="source-content"></div><div class="trace-actions" id="source-review-actions"><button type="button" class="secondary" data-source-support="supported">记录“支持”</button><button type="button" class="secondary" data-source-support="unsupported">记录“不支持”</button><button type="button" class="secondary" data-source-support="unclear">记录“不确定”</button></div><p class="helper">打开对应保存版本的问题表单，核对原文并填写依据、记录者后确认；不会自动保存审核判断。</p></div></dialog>
 <link rel="stylesheet" href="/static/lecture-workflow.css"><script defer src="/static/lecture-workflow.js"></script><script defer src="/static/evaluation.js"></script>
+<dialog id="ppt-dialog" aria-labelledby="ppt-title">
+ <div class="editor-top"><div class="editor-heading"><div><h2 id="ppt-title">授课 PPT</h2><p id="ppt-source" class="helper"></p></div><button id="close-ppt" type="button" class="secondary">关闭</button></div></div>
+ <div class="dialog-body">
+  <form id="ppt-form"><div class="ppt-settings"><label>总页数（含封面）<input id="ppt-count" type="number" min="6" max="20" value="12" required></label><label>课件要求（选填）<textarea id="ppt-instruction" maxlength="1000" rows="2" placeholder="例如：例题分步展示，课堂练习的答案放在教师讲稿中。"></textarea></label></div>
+   <p class="helper">根据已保存的讲义版本改编，含投屏要点、课堂提问与逐页教师讲稿。课件需单独复核；第一版使用简洁文字与 Unicode 公式，暂不自动配图或制作动画。</p>
+   <div class="ppt-actions"><button id="ppt-submit" type="submit" class="primary">生成授课 PPT</button><a id="ppt-download" class="secondary" hidden>下载可编辑 PPTX</a><button id="ppt-trace" type="button" class="secondary" hidden>查看生成输入 / 重试</button></div>
+  </form>
+  <p id="ppt-status" class="current-summary" role="status" aria-live="polite"></p>
+  <details><summary>这份讲义的课件记录</summary><div id="ppt-history" class="ppt-history"></div></details>
+  <div id="ppt-preview"></div>
+ </div>
+</dialog>
+<link rel="stylesheet" href="/static/presentations.css"><script defer src="/static/presentations.js"></script>
+<dialog id="lesson-teaching-dialog" class="lesson-settings-dialog" aria-labelledby="lesson-teaching-title">
+ <div class="lesson-dialog-header"><h2 id="lesson-teaching-title">本次怎么讲</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭本次怎么讲">×</button></div>
+ <div class="dialog-body"><fieldset class="teaching-controls"><legend>本次怎么讲</legend><div class="teaching-grid">
+      <div><label for="lesson-duration">授课时长（分钟）</label><input form="generate-form" id="lesson-duration" type="number" min="5" max="180" step="1" value="45" required></div>
+      <div><label for="lesson-type">授课类型</label><select form="generate-form" id="lesson-type"><option value="new">新授</option><option value="practice">巩固</option><option value="correction">纠错</option><option value="review">复习</option></select></div>
+      <div class="teaching-wide"><label for="lesson-detail">讲解详略</label><select form="generate-form" id="lesson-detail"><option value="brief">简明提纲</option><option value="standard" selected>常规讲解</option><option value="detailed">详细讲解</option></select><p id="lesson-length-note" class="helper" role="status"></p></div>
+      <div class="teaching-wide"><label for="lesson-target">自定目标汉字数（选填）</label><input form="generate-form" id="lesson-target" type="number" min="400" max="6600" step="100" placeholder="留空按时长与详略建议"><p class="helper">400—6600汉字，允许约20%浮动；课堂必讲与补充阅读分开。目标与题量冲突时说明取舍。</p></div>
+      <div><label for="lesson-examples">完整例题数</label><input form="generate-form" id="lesson-examples" type="number" min="0" max="6" step="1" value="2" required></div>
+      <div><label for="lesson-exercises">课堂练习数</label><input form="generate-form" id="lesson-exercises" type="number" min="0" max="10" step="1" value="3" required></div>
+     </div><p class="helper">供教师授课使用，包含讲解步骤、课堂提问、错误引导与参考答案。时间分配为建议。</p></fieldset></div>
+ <div class="lesson-dialog-footer"><span>设置会保留到本次生成</span><button type="button" class="primary" data-close-setting>完成</button></div>
+</dialog>
+<dialog id="lesson-advanced-dialog" class="lesson-settings-dialog" aria-labelledby="lesson-advanced-title">
+ <div class="lesson-dialog-header"><h2 id="lesson-advanced-title">高级设置</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭高级设置">×</button></div>
+ <div class="dialog-body"><p class="lesson-dialog-intro">选择本次讲义的生成依据与材料取用方式。</p>
+  <div class="setup-field"><label for="personalization-mode">生成依据</label><select id="personalization-mode"><option value="profile">使用学生画像</option><option value="none">无画像对照 · 通用讲义</option></select></div>
+  <div class="setup-field"><label for="retrieval-mode">材料取用方式</label><select id="retrieval-mode"><option value="sql">全部关联材料 · 精确 SQL</option><option value="vector">按目标选取片段 · 向量检索</option></select><p id="retrieval-note" class="helper" role="status" aria-live="polite">默认直接读取关联材料。</p></div>
+ </div><div class="lesson-dialog-footer"><span>设置用于本次生成</span><button type="button" class="primary" data-close-setting>完成</button></div>
+</dialog>
+<dialog id="lesson-visual-dialog" class="lesson-settings-dialog" aria-labelledby="lesson-visual-title">
+ <div class="lesson-dialog-header"><h2 id="lesson-visual-title">图片解析依据</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭图片解析依据">×</button></div>
+ <div class="dialog-body"><p class="lesson-dialog-intro">选择与本次教学目标相关的图片解析，最多 4 条。</p><p class="helper">先在「上传资料」中解析图片，再选择用于本次讲义的解析。原图仅发送给独立视觉模型；语言模型只接收解析文字。</p><button id="refresh-visual-evidence" type="button" class="secondary">刷新图片解析</button><div id="visual-evidence-options" class="visual-options"></div></div>
+ <div class="lesson-dialog-footer"><span>选择会保留到本次生成</span><button type="button" class="primary" data-close-setting>完成</button></div>
+</dialog>
+
+<dialog id="lesson-plan-dialog" class="lesson-settings-dialog" aria-labelledby="lesson-plan-title">
+ <div class="lesson-dialog-header"><h2 id="lesson-plan-title">本次讲解安排</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭本次讲解安排">×</button></div>
+ <div class="dialog-body"><p class="lesson-dialog-intro">根据学生已有诊断提供讲法建议，可逐项调整；修改仅用于本次讲义。</p><div id="lecture-plan"></div><div id="input-budget-note" class="helper"></div></div>
+ <div class="lesson-dialog-footer"><span>调整会保留到本次生成</span><button type="button" class="primary" data-close-setting>完成</button></div>
+</dialog>
+<link rel="stylesheet" href="/static/lesson-settings.css"><script defer src="/static/lesson-settings.js"></script>
 </body></html>
