@@ -113,16 +113,16 @@
    <div hidden><button id="new-course-task" type="button">新建备课副本</button><select id="managed-course-task"><option value="">新建副本</option></select></div>
    <div class="trace-actions" id="course-saved-actions" hidden><button id="duplicate-course-task" type="button" class="secondary" disabled>复制为新副本</button><button id="use-course-task" type="button" class="secondary" disabled>选择此副本生成讲义</button></div>
    <form id="course-task-form">
-    <div class="course-fields">
-     <div><label for="course-stage">学段</label><input id="course-stage" list="course-stages" maxlength="40" required placeholder="选择或填写学段"><datalist id="course-stages"><option value="小学"><option value="初中"><option value="高中"><option value="大学"><option value="职业教育"><option value="其他 / 培训"></datalist></div>
-     <div><label for="course-name">课程名称</label><input id="course-name" maxlength="80" required placeholder="例如：高中物理、大学英语"></div>
-     <div><label for="course-chapter">章节</label><input id="course-chapter" maxlength="100" required placeholder="例如：第一章 运动的描述"></div>
-     <div><label for="course-task-title">副本名称</label><input id="course-task-title" maxlength="120" required placeholder="例如：速度与加速度 · 第一课时教案"></div>
-     <div><label for="course-task-level">任务层次</label><input id="course-task-level" maxlength="40" required placeholder="例如：概念入门、巩固练习、拓展应用"></div>
+    <p class="helper">以下信息均可留空，先保存副本，之后可随时补充。</p><div class="course-fields">
+     <div><label for="course-stage">学段</label><input id="course-stage" list="course-stages" maxlength="40" placeholder="选择或填写学段"><datalist id="course-stages"><option value="小学"><option value="初中"><option value="高中"><option value="大学"><option value="职业教育"><option value="其他 / 培训"></datalist></div>
+     <div><label for="course-name">课程名称</label><input id="course-name" maxlength="80" placeholder="例如：高中物理、大学英语"></div>
+     <div><label for="course-chapter">章节</label><input id="course-chapter" maxlength="100" placeholder="例如：第一章 运动的描述"></div>
+     <div><label for="course-task-title">副本名称</label><input id="course-task-title" maxlength="120" placeholder="例如：速度与加速度 · 第一课时教案"></div>
+     <div><label for="course-task-level">任务层次</label><input id="course-task-level" maxlength="40" placeholder="例如：概念入门、巩固练习、拓展应用"></div>
     </div>
-    <label for="course-goal">教学目标</label><textarea id="course-goal" maxlength="400" rows="3" required placeholder="描述本次要理解的概念、掌握的方法或完成的任务"></textarea>
+    <label for="course-goal">教学目标</label><textarea id="course-goal" maxlength="400" rows="3" placeholder="描述本次要理解的概念、掌握的方法或完成的任务"></textarea>
     <label for="course-lesson-plan">教案 / 备课正文</label><textarea id="course-lesson-plan" maxlength="20000" rows="8" placeholder="填写导入、教学重点、难点、讲解顺序、例题安排与课堂小结。也可从自己的教案复制粘贴。"></textarea>
-    <label for="course-knowledge">知识点（每行一个，最多 20 个）</label><textarea id="course-knowledge" rows="4" required placeholder="位移与路程&#10;速度与速率&#10;加速度"></textarea>
+    <label for="course-knowledge">知识点（每行一个，最多 20 个）</label><textarea id="course-knowledge" rows="4" placeholder="位移与路程&#10;速度与速率&#10;加速度"></textarea>
     <p class="helper">编辑时保持原知识点名称可沿用已关联材料；新增或更名的知识点需要重新关联资料，历史讲义保留原快照。</p>
     <p class="helper">副本不绑定学生。生成讲义时再选择同学，并补充本次薄弱点或讲解要求。</p>
     <button id="save-course-task" class="primary" type="submit">保存备课副本</button>
@@ -386,7 +386,8 @@
 <dialog id="ppt-dialog" aria-labelledby="ppt-title">
  <div class="editor-top"><div class="editor-heading"><div><h2 id="ppt-title">授课 PPT</h2><p id="ppt-source" class="helper"></p></div><button id="close-ppt" type="button" class="secondary">关闭</button></div></div>
  <div class="dialog-body">
-  <form id="ppt-form"><div class="ppt-settings"><label>总页数（含封面）<input id="ppt-count" type="number" min="6" max="20" value="12" required></label><label>课件要求（选填）<textarea id="ppt-instruction" maxlength="1000" rows="2" placeholder="例如：例题分步展示，课堂练习的答案放在教师讲稿中。"></textarea></label></div>
+  <form id="ppt-form"><div class="ppt-settings"><label>总页数（含封面）<input id="ppt-count" type="number" min="6" max="20" value="12" required></label><label>课件模板<select id="ppt-template" required><option value="simple-clear">简洁浅色</option></select><span id="ppt-template-hint" class="helper">保留模板原始页面比例。</span></label><label class="ppt-instruction-label">课件要求（选填）<textarea id="ppt-instruction" maxlength="1000" rows="2" placeholder="例如：例题分步展示，课堂练习的答案放在教师讲稿中。"></textarea></label></div>
+   <img id="ppt-template-preview" alt="所选模板原版预览" hidden>
    <p class="helper">根据已保存的讲义版本改编，含投屏要点、课堂提问与逐页教师讲稿。课件需单独复核；第一版使用简洁文字与 Unicode 公式，暂不自动配图或制作动画。</p>
    <div class="ppt-actions"><button id="ppt-submit" type="submit" class="primary">生成授课 PPT</button><a id="ppt-download" class="secondary" hidden>下载可编辑 PPTX</a><button id="ppt-trace" type="button" class="secondary" hidden>查看生成输入 / 重试</button></div>
   </form>

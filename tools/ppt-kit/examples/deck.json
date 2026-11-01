@@ -1,0 +1,203 @@
+{
+  "meta": {
+    "title": "课程知识库问答系统",
+    "subtitle": "每条回答都能点回原文的中期汇报",
+    "en_title": "Answering Course Questions with Locatable Citations",
+    "org": "智能助教小组",
+    "date": "2026-11",
+    "tone": ["学术严谨", "证据驱动", "克制"],
+    "chapters": ["问题在哪里", "我们怎么解", "解到什么程度"]
+  },
+  "theme": {
+    "primary": "#0E3F8C",
+    "accent": "#3D7BD9",
+    "text": "#1A2230",
+    "muted": "#4A5568",
+    "hint": "#8B97A8",
+    "bg_sub": "#F7F9FC",
+    "line": "#D8E2F0",
+    "font_cn": "Microsoft YaHei",
+    "font_en": "Microsoft YaHei"
+  },
+  "slides": [
+    {
+      "type": "cover",
+      "role": "hero",
+      "rhythm": "peak",
+      "layout": "cover_split",
+      "eyebrow": "中期检查 · 智能助教小组",
+      "title": "课程知识库问答",
+      "en_title": "Answering Course Questions with Locatable Citations",
+      "subtitle": "每条回答都能点回原文的中期汇报",
+      "footnote": "智能助教小组 · 2026 年 11 月",
+      "bullets": [
+        "不做通用问答，只做课程材料这一条线",
+        "回答里每一句都带可定位的原文引用",
+        "教师复核是主流程的一步，不是事后抽查"
+      ],
+      "anti_pattern": ["满版深色底", "艺术字标题", "把三条要点做成彩色图标卡"]
+    },
+    {
+      "type": "catalog",
+      "role": "transition",
+      "rhythm": "transition",
+      "layout": "catalog",
+      "title": "目录",
+      "subtitle": "先说清问题，再讲怎么解，最后交代解到什么程度。",
+      "items": [
+        { "no": "01", "title": "问题在哪里", "desc": "学生找答案的成本，被流畅的误答放大了" },
+        { "no": "02", "title": "我们怎么解", "desc": "检索、锚定、生成、复核四步闭环" },
+        { "no": "03", "title": "解到什么程度", "desc": "120 条真实提问的量化结果与能力边界" }
+      ],
+      "anti_pattern": ["圆球编号", "英文比中文抢眼", "条目超过 4 条"]
+    },
+    {
+      "type": "section",
+      "role": "transition",
+      "rhythm": "transition",
+      "layout": "section",
+      "no": "01",
+      "title": "问题在哪里",
+      "points": [
+        "课程材料散在讲义、往年题、答疑记录里，检索全靠人肉翻",
+        "通用模型答得流畅，但页码经常是编出来的",
+        "答错一次，学生要花更多时间去验证，比不答更贵"
+      ],
+      "anti_pattern": ["满版蓝底", "PART 01 式英文水印", "放四张卡片预告本章"]
+    },
+    {
+      "type": "content",
+      "role": "supporting",
+      "rhythm": "valley",
+      "layout": "split_title_body",
+      "eyebrow": "问题定位 / PROBLEM",
+      "title": "答得快不是问题，答错位置才是",
+      "subtitle": "带引用的错误答案，比「不知道」更难被识破",
+      "body": [
+        {
+          "heading": "成本转移到了验证环节",
+          "text": "学生拿到一段像样的回答，还得自己翻讲义确认对不对。一次误答带来的核对时间，通常超过直接查目录的时间。"
+        },
+        {
+          "heading": "错误披着引用的外衣",
+          "text": "模型给出「见第 3 讲第 12 页」这样的表述，形式上完全可信，页码却可能整段虚构。学生缺乏核对的动机，也缺乏核对的入口。"
+        },
+        {
+          "heading": "教师的负担被低估",
+          "text": "课程组每学期要回复上百条重复提问。若引入生成能力却不给复核入口，等于把「答题」换成「审题」，总工作量并没有下降。"
+        }
+      ],
+      "insight": "缺的不是生成能力，是让每一句都能被追责的引用机制。",
+      "anti_pattern": ["左右 50:50 分栏", "把三段做成等宽卡片", "标题超过两行"]
+    },
+    {
+      "type": "content",
+      "role": "supporting",
+      "rhythm": "peak",
+      "layout": "flow_axis",
+      "eyebrow": "方法总览 / METHOD",
+      "title": "四步闭环：先给位置，再给表述",
+      "subtitle": "生成环节不允许自由发挥，只能重写已锚定的片段",
+      "nodes": [
+        { "label": "检索", "desc": "按课程与章节过滤候选片段" },
+        { "label": "锚定", "desc": "片段编号写入约束，禁止越界引用" },
+        { "label": "生成", "desc": "先输出引用位置，再写答案" },
+        { "label": "复核", "desc": "教师逐句确认，修改留痕" }
+      ],
+      "insight": "把「引用」从答案的装饰品，改成生成的前置条件。",
+      "anti_pattern": ["环形流程图", "节点超过 5 个", "节点内塞三行以上文字"]
+    },
+    {
+      "type": "section",
+      "role": "transition",
+      "rhythm": "transition",
+      "layout": "section",
+      "no": "02",
+      "title": "我们怎么解",
+      "points": [
+        "把检索范围压到单门课、单章节，牺牲覆盖面换准确率",
+        "引用编号进入生成约束，模型不能引用未检索到的内容",
+        "复核结果写回知识库，同一问题第二次回答更准"
+      ],
+      "anti_pattern": ["满版蓝底", "PART 02 式英文水印", "与封面版式雷同"]
+    },
+    {
+      "type": "content",
+      "role": "supporting",
+      "rhythm": "valley",
+      "layout": "asym_two_col",
+      "eyebrow": "设计取舍 / TRADEOFF",
+      "title": "不做通用问答，只做材料这一条线",
+      "subtitle": "收窄范围不是妥协，是让「可定位」成为可验证的承诺",
+      "left": {
+        "heading": "为什么主动放弃覆盖面",
+        "body": [
+          "跨课程检索看起来更聪明，实际上让引用失去意义：学生分不清一句话来自本课讲义还是别的课的补充材料。",
+          "收窄到单门课之后，候选片段从数万条降到一两千条，检索准确率上升，模型编造页码的空间也被压缩。",
+          "代价很明确：问「这门课没讲过的东西」，系统会直接说不知道。我们认为这是正确行为。"
+        ]
+      },
+      "right": {
+        "heading": "三条硬约束",
+        "items": [
+          { "no": "1", "title": "引用必须可解析", "desc": "输出格式固定为「课程-讲次-页」，解析失败即视为未通过" },
+          { "no": "2", "title": "不得跨课混检", "desc": "检索阶段就按课程 ID 硬过滤，不依赖模型自觉" },
+          { "no": "3", "title": "复核结论落库", "desc": "教师的删改作为下一轮检索的先验，而不是一次性反馈" }
+        ]
+      },
+      "insight": "能说「不知道」，才有资格说「在这里」。",
+      "anti_pattern": ["左右等分 50:50", "右栏做成横向卡片", "标题写成「系统设计」"]
+    },
+    {
+      "type": "content",
+      "role": "supporting",
+      "rhythm": "valley",
+      "layout": "table_insight",
+      "eyebrow": "相关工作 / RELATED",
+      "title": "三条技术路线，都没解决留痕问题",
+      "subtitle": "对比只看一件事：出问题时能不能追到具体位置",
+      "table": {
+        "header": ["路线", "原文引用", "课程边界", "复核留痕", "可直接上课用"],
+        "rows": [
+          ["通用模型直出", "无，页码常为虚构", "无", "无", "不能"],
+          ["教材 RAG 问答", "段落级，粒度偏粗", "弱，易跨课混检", "无", "部分"],
+          ["自适应学习平台", "无，产出题目与路径", "有", "无", "不能"],
+          ["本项目", "页 + 段落，可解析", "强，按课程硬过滤", "有，逐句留痕", "可以"]
+        ],
+        "col_widths": [1.15, 1.15, 1.05, 1.0, 0.95]
+      },
+      "insight": "前三列都不难做到，第四列才是分水岭：留痕决定了它能不能进课堂。",
+      "anti_pattern": ["表格只列自身优点", "用表格代替判断", "超过 6 行"]
+    },
+    {
+      "type": "section",
+      "role": "transition",
+      "rhythm": "transition",
+      "layout": "section",
+      "no": "03",
+      "title": "解到什么程度",
+      "points": [
+        "120 条真实提问，来自 3 门课、两个学期",
+        "引用可定位率 92%，但仍有 11% 的答案不完整",
+        "样本全部来自同一批课程，结论不能外推到其他学科"
+      ],
+      "anti_pattern": ["满版蓝底", "PART 03 式英文水印", "只报好数字"]
+    },
+    {
+      "type": "content",
+      "role": "hero",
+      "rhythm": "peak",
+      "layout": "big_number_insight",
+      "eyebrow": "结果 / RESULT",
+      "title": "引用可定位率 92%，11% 的答案不完整",
+      "subtitle": "数字来自 120 条冻结提问，未做任何筛选",
+      "numbers": [
+        { "value": "120", "unit": "条真实提问", "label": "来自 3 门课、两个学期，覆盖期中和期末复习场景" },
+        { "value": "92%", "unit": "引用可定位率", "label": "能精确解析到「讲次-页-段落」，而非仅给出段落大意" },
+        { "value": "11%", "unit": "答案不完整", "label": "检索到相关片段，但没覆盖问题的全部子问" }
+      ],
+      "insight": "可定位不等于答得好。下一轮优化目标是那 11%，而不是把 92% 刷到 95%。",
+      "anti_pattern": ["只给百分比不给基数", "数字超过 4 个", "数字含义需要读正文才懂"]
+    }
+  ]
+}

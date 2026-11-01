@@ -1,5 +1,8 @@
 #ppt-dialog { width:min(1120px,96vw); max-width:96vw; }
 .ppt-settings { display:grid; grid-template-columns:140px 1fr; gap:16px; align-items:start; }
+.ppt-instruction-label { grid-column:1 / -1; }
+#ppt-template-preview { display:block; max-width:220px; max-height:140px; object-fit:contain; margin:12px 0; border:1px solid #d5e0e7; }
+#ppt-template-preview[hidden] { display:none; }
 .ppt-actions,.ppt-history { display:flex; flex-wrap:wrap; gap:10px; margin:14px 0; }
 .ppt-actions .primary { width:auto; flex:0 0 auto; }
 .ppt-history { max-height:150px; overflow:auto; }

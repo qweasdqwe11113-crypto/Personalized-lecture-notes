@@ -14,6 +14,10 @@ from jobs import JobQueue
 from presentations import MIME, fingerprint, parse_deck, prepare_slides
 from pptx_export import A, P, build_pptx
 from quality import REVIEW_ITEMS
+from pptkit_export import build_pptx as build_kit_pptx, EXPORT_VERSION, check as check_layout
+from presentations import build_pptx as build_versioned_pptx
+from pptx import Presentation
+from ppt_templates import PROFILES, template_record, MAPPING_VERSION
 
 
 def fixture_deck(count=6):
@@ -38,6 +42,78 @@ def fixture_context():
 
 
 class PresentationUnitTests(unittest.TestCase):
+    def test_kit_preserves_maximum_classroom_content_notes_and_sources(self):
+        ctx = fixture_context()
+        ctx['ppt_export']['slide_count'] = 20
+        ctx['visual_evidence'] = [dict(citation_id='V1', label='公式图片', content='识读结果待核对',
+                                      model='fixture-vlm', normalized_sha256='a'*64)]
+        deck = fixture_deck(20)
+        for i, slide in enumerate(deck['slides']):
+            slide['kind'] = 'cover' if i == 0 else 'summary' if i == 19 else ['concept', 'example', 'question'][i % 3]
+            slide['title'] = '长标题' * 11 + '题'
+            slide['bullets'] = ['已知条件' * 16, '关键步骤' * 4] if i == 0 else ['条件' * 32, '步骤' * 32, '结论' * 25, '核对']
+            slide['question'] = '' if i == 0 else '为什么' * 23 + '？'
+            slide['notes'] = '完整解答仅供教师查看。' + '讲稿' * 780
+            slide['sources'] = ['M3', 'V1']
+        deck = parse_deck(json.dumps(deck, ensure_ascii=False), ctx)
+        payload = build_kit_pptx(deck, ctx['ppt_export'], ctx)
+        self.assertEqual([issue for issue in check_layout(BytesIO(payload)) if issue[0] != 'ok'], [])
+        prs = Presentation(BytesIO(payload))
+        self.assertEqual(len(prs.slides), 20)
+        self.assertEqual(prs.slide_width, 1280 * 12700)
+        for i, (slide, content) in enumerate(zip(prs.slides, deck['slides'])):
+            visible = '\n'.join(sh.text for sh in slide.shapes if sh.has_text_frame)
+            self.assertIn(content['title'], visible)
+            for bullet in content['bullets']:
+                self.assertIn(bullet, visible)
+            self.assertIn(content['question'], visible)
+            self.assertNotIn('完整解答仅供教师查看', visible)
+            notes = slide.notes_slide.notes_text_frame.text
+            for expected in (content['notes'], 'fixture-vlm', 'a'*64, '待核对',
+                             ctx['ppt_export']['content_sha256'], 'https://example.invalid/equality'):
+                self.assertIn(expected, notes)
+
+    def test_export_version_routes_legacy_and_kit_and_rejects_unknown(self):
+        ctx = fixture_context()
+        legacy = Presentation(BytesIO(build_versioned_pptx(fixture_deck(), ctx['ppt_export'], ctx)))
+        self.assertEqual(legacy.slide_width, 12192000)
+        ctx['ppt_export']['export_version'] = EXPORT_VERSION
+        kit = Presentation(BytesIO(build_versioned_pptx(fixture_deck(), ctx['ppt_export'], ctx)))
+        self.assertEqual(kit.slide_width, 1280 * 12700)
+        ctx['ppt_export']['export_version'] = 'unknown'
+        with self.assertRaises(module.ReviewError):
+            build_versioned_pptx(fixture_deck(), ctx['ppt_export'], ctx)
+
+    def test_kit_geometry_errors_reject_export_before_success(self):
+        ctx = fixture_context()
+        with patch('pptkit_export.check', return_value=[('error', '测试排版越界')]):
+            with self.assertRaises(module.ModelError) as caught:
+                build_kit_pptx(fixture_deck(), ctx['ppt_export'], ctx)
+        self.assertEqual(caught.exception.code, 'invalid_ppt')
+
+    def test_all_templates_preserve_native_masters_and_sample_content_is_removed(self):
+        ctx = fixture_context()
+        deck = fixture_deck()
+        for identity in PROFILES:
+            with self.subTest(template=identity):
+                record = template_record(identity)
+                source = {**ctx['ppt_export'], 'template_id': identity, 'template_sha256': record['sha256'],
+                          'template_mapping_version': MAPPING_VERSION}
+                payload = build_kit_pptx(deck, source, ctx)
+                prs = Presentation(BytesIO(payload))
+                original = Presentation(record['path'])
+                self.assertEqual(prs.slide_width, original.slide_width)
+                self.assertEqual(prs.slide_height, original.slide_height)
+                self.assertEqual(len(prs.slide_masters), len(original.slide_masters))
+                self.assertEqual(len(prs.slides), 6)
+                visible = '\n'.join(s.text for page in prs.slides for s in page.shapes if s.has_text_frame)
+                self.assertNotIn('Lorem ipsum', visible)
+                self.assertIn('等式的性质', visible)
+                self.assertIn(record['sha256'], prs.slides[1].notes_slide.notes_text_frame.text)
+                source['template_sha256'] = 'tampered'
+                with self.assertRaises(module.ReviewError):
+                    build_kit_pptx(deck, source, ctx)
+
     def test_bad_json_wrong_count_missing_notes_and_overflow_are_rejected(self):
         cases = ['不是 JSON', '[]']
         for key, value in [('notes', ''), ('bullets', ['很长'*80]), ('title', '标题'*40),
@@ -133,6 +209,7 @@ class PresentationIntegrationTests(ProfileDatabaseFixture):
         self.assertEqual(detail.status_code, 200, detail.json)
         self.assertEqual(len(detail.json['deck']['slides']), 6)
         self.assertNotIn('base_content', detail.json['source'])
+        self.assertEqual(detail.json['source']['export_version'], EXPORT_VERSION)
         original = self.client.get(f'/api/lectures/{self.lecture_id}').json
         self.assertEqual(original['content'], '# 隔离测试讲义\n历史原稿 [M3]')
         self.assertIsNone(original['generation_run_id'])
@@ -144,6 +221,14 @@ class PresentationIntegrationTests(ProfileDatabaseFixture):
         self.assertIn('.pptx', download.headers['Content-Disposition'])
         with ZipFile(BytesIO(download.data)) as archive:
             self.assertIn('ppt/notesSlides/notesSlide1.xml', archive.namelist())
+        self.assertEqual(Presentation(BytesIO(download.data)).slide_width, template_record('simple-clear')['width'])
+        # Pre-integration records lack the frozen renderer field.
+        with self.fixture_db() as conn:
+            conn.execute("UPDATE generation_runs SET context=context #- '{ppt_export,export_version}' WHERE id=%s",
+                         (job['run_id'],))
+        legacy = self.client.get(f'/api/presentations/{job["run_id"]}/download')
+        self.assertEqual(legacy.status_code, 200)
+        self.assertEqual(Presentation(BytesIO(legacy.data)).slide_width, 12192000)
 
     def test_multiple_decks_and_schema_migration_are_idempotent(self):
         first, second = self.submit(), self.submit()
@@ -187,10 +272,25 @@ class PresentationIntegrationTests(ProfileDatabaseFixture):
 
     def test_invalid_parameters_missing_version_and_record_are_rejected(self):
         for data in ([], {}, {'base_revision':True}, {'base_revision':0,'slide_count':21},
-                     {'base_revision':0,'instruction':['bad']}, {'base_revision':0,'slide_count':False}):
+                     {'base_revision':0,'instruction':['bad']}, {'base_revision':0,'slide_count':False},
+                     {'base_revision':0,'template_id':'../../other'}, {'base_revision':0,'template_id':False}):
             self.assertEqual(self.client.post(f'/api/lectures/{self.lecture_id}/presentations', json=data).status_code, 400)
         self.assertEqual(self.client.post(f'/api/lectures/{self.lecture_id}/presentations', json={'base_revision':99}).status_code, 404)
         self.assertEqual(self.client.get('/api/presentations/99999/download').status_code, 404)
+
+    def test_template_catalog_preview_and_selection_are_persisted(self):
+        catalog = self.client.get('/api/presentation-templates')
+        self.assertEqual(len(catalog.json['templates']), 8)
+        self.assertEqual(catalog.json['default'], 'simple-clear')
+        preview = self.client.get(catalog.json['templates'][0]['preview_url'])
+        self.assertEqual(preview.status_code, 200)
+        self.assertEqual(preview.mimetype, 'image/png')
+        preview.close()
+        job = self.submit(template_id='cinema')
+        detail = self.client.get(f'/api/presentations/{job["run_id"]}')
+        self.assertEqual(detail.json['source']['template_id'], 'cinema')
+        download = self.client.get(f'/api/presentations/{job["run_id"]}/download')
+        self.assertEqual(Presentation(BytesIO(download.data)).slide_width, template_record('cinema')['width'])
 
     def test_restart_marks_queued_ppt_interrupted_and_does_not_resend(self):
         stopped = JobQueue(lambda: module.db(), module.execute_job)

@@ -25,29 +25,29 @@ def load_catalog(conn):
     return {key: {**task, 'key': key} for key, task in {**TOPICS, **custom}.items()}
 
 
-def text(data, key, maximum, label):
-    value = data.get(key)
-    if not isinstance(value, str) or not value.strip() or len(value.strip()) > maximum:
-        raise CatalogError(f'{label}请填写 1—{maximum} 个字符。')
+def text(data, key, maximum, label, optional=False):
+    value = data.get(key, '' if optional else None)
+    if not isinstance(value, str) or (not optional and not value.strip()) or len(value.strip()) > maximum:
+        raise CatalogError(f'{label}请填写 {0 if optional else 1}—{maximum} 个字符。')
     return value.strip()
 
 
 def save_task(conn, data, key=None, origin=None):
     if not isinstance(data, dict):
         raise CatalogError('请提交课程任务信息。')
-    payload = {field: text(data, field, size, label) for field, size, label in (
-        ('stage', 40, '学段'), ('course', 80, '课程名称'), ('chapter', 100, '章节名称'), ('title', 120, '任务名称'),
-        ('goal', 400, '教学目标'), ('task_level', 40, '任务层次'))}
-    points = data.get('knowledge_names')
-    if (not isinstance(points, list) or not 1 <= len(points) <= 20
-            or any(not isinstance(p, str) or not p.strip() or len(p.strip()) > 80 for p in points)):
-        raise CatalogError('请填写 1—20 个知识点，每个不超过 80 字。')
-    points = [p.strip() for p in points]
-    if len(set(points)) != len(points):
-        raise CatalogError('知识点名称不能重复。')
     preparation_copy = data.get('preparation_copy', False)
     if type(preparation_copy) is not bool:
         raise CatalogError('备课副本类型无效。')
+    payload = {field: text(data, field, size, label, optional=preparation_copy) for field, size, label in (
+        ('stage', 40, '学段'), ('course', 80, '课程名称'), ('chapter', 100, '章节名称'), ('title', 120, '任务名称'),
+        ('goal', 400, '教学目标'), ('task_level', 40, '任务层次'))}
+    points = data.get('knowledge_names', [] if preparation_copy else None)
+    if (not isinstance(points, list) or not (0 if preparation_copy else 1) <= len(points) <= 20
+            or any(not isinstance(p, str) or not p.strip() or len(p.strip()) > 80 for p in points)):
+        raise CatalogError(f'请填写 {0 if preparation_copy else 1}—20 个知识点，每个不超过 80 字。')
+    points = [p.strip() for p in points]
+    if len(set(points)) != len(points):
+        raise CatalogError('知识点名称不能重复。')
     lesson_plan = data.get('lesson_plan', '')
     if not isinstance(lesson_plan, str) or len(lesson_plan) > 20000:
         raise CatalogError('教案正文请控制在 20000 字以内。')

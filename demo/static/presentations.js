@@ -7,6 +7,29 @@ $('print-lecture').insertAdjacentElement('afterend', openButton);
 const labels = {queued:'排队中', running:'生成中', succeeded:'课件已生成', failed:'失败', interrupted:'已中断', cancelled:'已取消'};
 const kinds = {cover:'封面', concept:'概念讲解', example:'例题', question:'课堂练习', summary:'总结'};
 let source = null, working = false, session = 0;
+let templates = [];
+function showTemplate() {
+  const item = templates.find(t => t.id === $('ppt-template').value);
+  const preview = $('ppt-template-preview');
+  preview.hidden = !item;
+  if(item) {
+    preview.src = item.preview_url;
+    preview.alt = item.name + '原版模板预览';
+    $('ppt-template-hint').textContent = `原始比例 ${(item.width/item.height).toFixed(2)}:1。下方课件区域为内容预览，下载文件应用此模板。`;
+  }
+}
+async function loadTemplates(selected) {
+  if(!templates.length) {
+    const data = await api('/api/presentation-templates');
+    templates = data.templates;
+    $('ppt-template').replaceChildren(...templates.map(item => {
+      const option = el('option', item.name); option.value = item.id; return option;
+    }));
+  }
+  if(selected && templates.some(t => t.id === selected)) $('ppt-template').value = selected;
+  showTemplate();
+}
+$('ppt-template').onchange = showTemplate;
 const version = number => number ? 'R' + number : '原稿';
 function message(text) { $('ppt-status').textContent = text; }
 function syncButton() { openButton.disabled = !lastResult || busy; }
@@ -14,7 +37,7 @@ function resetPreview() {
   $('ppt-preview').replaceChildren(); $('ppt-download').hidden = true; $('ppt-trace').hidden = true;
 }
 function sourceLabel(item) {
-  return `依据讲义 #${item.lecture_id} / ${version(item.base_revision)}；源版本保存时状态：${item.source_status}。`;
+  return `依据讲义 #${item.lecture_id} / ${version(item.base_revision)}；源版本保存时状态：${item.source_status}；模板：${item.template_name || '旧版简洁版式'}。`;
 }
 async function refreshList(lectureId, token) {
   const data = await api(`/api/lectures/${lectureId}/presentations`);
@@ -55,6 +78,8 @@ async function watchPresentationJob(id) {
     const run = await api('/api/generation-runs/' + job.run_id);
     if(token !== session) return;
     const saved = run.context.ppt_export;
+    await loadTemplates(saved.template_id);
+    if(token !== session) return;
     source = {id:saved.lecture_id, revision_number:saved.base_revision};
     $('ppt-source').textContent = sourceLabel(saved);
     $('ppt-count').value = saved.slide_count; $('ppt-instruction').value = saved.instruction;
@@ -89,7 +114,7 @@ openButton.onclick = async () => {
   $('ppt-source').textContent = `依据当前阅读的讲义 #${source.id} / ${version(source.revision_number)}。`;
   message('先设置页数，再生成课件。网页显示内容预览；实际字体与分页请在 PowerPoint 中复核。');
   $('ppt-history').replaceChildren(); dialog.showModal();
-  try { await refreshList(source.id, token); } catch(e) { if(token === session) message(e.message); }
+  try { await loadTemplates(); if(token === session) await refreshList(source.id, token); } catch(e) { if(token === session) message(e.message); }
 };
 $('ppt-form').onsubmit = async e => {
   e.preventDefault(); if(working || !source) return;
@@ -98,7 +123,7 @@ $('ppt-form').onsubmit = async e => {
   message('正在固定讲义版本并提交课件任务…');
   try {
     const job = await api(`/api/lectures/${frozen.id}/presentations`, {method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({base_revision:frozen.revision_number, slide_count:Number($('ppt-count').value), instruction:$('ppt-instruction').value})});
+      body:JSON.stringify({base_revision:frozen.revision_number, slide_count:Number($('ppt-count').value), instruction:$('ppt-instruction').value, template_id:$('ppt-template').value})});
     if(token === session) await watchPresentationJob(job.id);
     else refreshWorkspaceJobs().catch(() => {});
   } catch(e) { if(token === session) { message(e.message); working = false; $('ppt-submit').disabled = false; } }

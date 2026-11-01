@@ -16,3 +16,4 @@ pypdf==6.20.1
 
 pillow==13.0.0
 pypdfium2==5.14.0
+python-pptx==1.0.2

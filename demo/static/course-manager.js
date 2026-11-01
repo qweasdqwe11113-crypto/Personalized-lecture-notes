@@ -5,7 +5,7 @@
   function drawList() {
     const cards = custom => Object.entries(catalog).filter(([,t])=>Boolean(t.custom)===custom).map(([key,t])=>{
       const link=el('a',undefined,'student-card');link.href='#materials/'+encodeURIComponent(key);
-      link.append(el('strong',t.title),el('span',[t.stage,t.course,t.chapter].filter(Boolean).join(' · '),'helper'),el('p',t.goal,'evidence'),el('span','查看副本 →','student-card-action'));return link;
+      link.append(el('strong',t.title||'未命名备课副本'),el('span',[t.stage,t.course,t.chapter].filter(Boolean).join(' · '),'helper'),el('p',t.goal,'evidence'),el('span','查看副本 →','student-card-action'));return link;
     });
     const copies=cards(true);$('course-list-title').textContent='我的备课副本 · '+copies.length+' 份';
     $('course-copy-list').replaceChildren(...copies);
@@ -34,7 +34,7 @@
     if(key==='new'){fillTask();$('course-editor-heading').textContent='新建备课副本';return;}
     if(!catalogLoaded)return;
     if(!catalog[key]){fillTask();$('course-task-form').hidden=true;status('course-manager-status','找不到这份副本，请返回材料列表。',true);return;}
-    $('course-task-form').hidden=false;fillTask(key);$('course-editor-heading').textContent=catalog[key].title;
+    $('course-task-form').hidden=false;fillTask(key);$('course-editor-heading').textContent=catalog[key].title||'未命名备课副本';
     $('attach-topic').value=key;drawKnowledge();$('course-reference-panel').hidden=false;
     $('course-attach-details').hidden=!catalog[key].custom;drawReferences(key);
   }
@@ -61,7 +61,7 @@
   async function refreshCatalog(preferred) {
     const d = await api('/api/course-tasks'); catalog = d.topics; pointNames = new Map(d.knowledge_points.map(k=>[k.id,k.name]));
     const attach = preferred || $('attach-topic').value;
-    const label=t=>`${t.custom?'':'示例 · '}${t.stage?t.stage+' · ':''}${t.course} / ${t.title}`;
+    const label=t=>`${t.custom?'':'示例 · '}${[t.stage,t.course,t.title].filter(Boolean).join(' / ')||'未命名备课副本'}`;
     $('managed-course-task').replaceChildren(option('', '新建备课副本'), ...Object.entries(catalog).map(([k,t])=>option(k,label(t))));
     $('attach-topic').replaceChildren(...Object.entries(catalog).map(([k,t])=>option(k,label(t))));
     if(catalog[attach])$('attach-topic').value=attach;

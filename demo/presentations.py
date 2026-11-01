@@ -6,21 +6,34 @@ import re
 import time
 from pathlib import Path
 
-from flask import Response, jsonify, request
+from flask import Response, jsonify, request, send_file
 from psycopg.types.json import Jsonb
 
 from prompts import PreparedRequest
 from qwen import ModelError
 from reviews import ReviewError, STATUS_LABELS, lecture_row, version_row
 from runs import mark_attempt, run_detail
-from pptx_export import build_pptx
+from pptx_export import build_pptx as build_legacy_pptx
+from pptkit_export import build_pptx as build_kit_pptx, EXPORT_VERSION
+from ppt_templates import (DEFAULT_TEMPLATE, MAPPING_VERSION, ROOT as TEMPLATE_ROOT,
+                           available_templates, template_record)
 
 MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-PROMPT = (Path(__file__).with_name('prompts') / 'lecture-ppt-v1.md').read_text(encoding='utf-8').strip()
+PROMPT_VERSION = 'lecture-ppt-v2'
+PROMPT = (Path(__file__).with_name('prompts') / f'{PROMPT_VERSION}.md').read_text(encoding='utf-8').strip()
 
 
 def fingerprint(text):
     return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+
+def build_pptx(deck, source, context):
+    version = source.get('export_version', 'pptx-v1')
+    if version == 'pptx-v1':
+        return build_legacy_pptx(deck, source, context)
+    if version == EXPORT_VERSION:
+        return build_kit_pptx(deck, source, context)
+    raise ReviewError('课件渲染版本不受支持，请核对生成记录。', 409)
 
 
 def prepare_slides(context, model):
@@ -38,7 +51,7 @@ def prepare_slides(context, model):
     body = json.dumps(dict(model=model, messages=[dict(role='system', content=PROMPT),
                       dict(role='user', content=user_text)], temperature=0.3, max_tokens=16000,
                       chat_template_kwargs={'enable_thinking': False}), ensure_ascii=False, separators=(',', ':'))
-    return PreparedRequest(body, fingerprint(body), 'lecture-ppt-v1', 'lecture-ppt-context-v1')
+    return PreparedRequest(body, fingerprint(body), PROMPT_VERSION, 'lecture-ppt-context-v1')
 
 
 def parse_deck(content, context):
@@ -115,7 +128,8 @@ def execute_presentation(db, call_model, job_id, run_id, context, prepared):
             elapsed_seconds=%s,content=%s,usage=%s,response_metadata=%s,lecture_id=%s
             WHERE id=%s AND status='running' RETURNING id''',
             (round(time.monotonic()-start, 2), json.dumps(deck, ensure_ascii=False), Jsonb(output.usage),
-             Jsonb({**output.metadata, 'operation': 'ppt_export', 'export_version': 'pptx-v1'}),
+             Jsonb({**output.metadata, 'operation': 'ppt_export',
+                    'export_version': context['ppt_export'].get('export_version', 'pptx-v1')}),
              context['ppt_export']['lecture_id'], run_id)).fetchone()
         if not row:
             raise RuntimeError('PPT run is no longer running.')
@@ -123,6 +137,18 @@ def execute_presentation(db, call_model, job_id, run_id, context, prepared):
 
 
 def register_presentations(app, db, queue):
+    @app.get('/api/presentation-templates')
+    def presentation_templates():
+        return jsonify(templates=available_templates(), default=DEFAULT_TEMPLATE)
+
+    @app.get('/api/presentation-templates/<identity>/preview')
+    def template_preview(identity):
+        try:
+            template_record(identity)
+        except ValueError as exc:
+            raise ReviewError(str(exc), 404) from exc
+        return send_file(TEMPLATE_ROOT / 'converted-pptx' / (identity + '.preview.png'), mimetype='image/png')
+
     @app.post('/api/lectures/<int:lecture_id>/presentations')
     def create_presentation(lecture_id):
         data = request.get_json(silent=True)
@@ -130,6 +156,10 @@ def register_presentations(app, db, queue):
             raise ReviewError('请求必须为 JSON 对象。')
         number, count = data.get('base_revision'), data.get('slide_count', 12)
         instruction = data.get('instruction', '')
+        try:
+            template = template_record(data.get('template_id', DEFAULT_TEMPLATE))
+        except ValueError as exc:
+            raise ReviewError(str(exc)) from exc
         if type(number) is not int or number < 0:
             raise ReviewError('请选择有效的讲义版本。')
         if type(count) is not int or not 6 <= count <= 20:
@@ -145,7 +175,9 @@ def register_presentations(app, db, queue):
         edit = dict(lecture_id=lecture_id, base_revision=number, base_content=version['content'],
                     content_sha256=fingerprint(version['content']), slide_count=count,
                     instruction=instruction.strip(), goal=lecture['goal'],
-                    source_status=STATUS_LABELS.get(version['status'], '原稿未审核'))
+                    source_status=STATUS_LABELS.get(version['status'], '原稿未审核'),
+                    export_version=EXPORT_VERSION, template_id=template['id'], template_name=template['name'],
+                    template_sha256=template['sha256'], template_mapping_version=MAPPING_VERSION)
         context = {**lecture['context'], 'ppt_export': edit}
         prepared = prepare_slides(context, os.environ.get('QWEN_MODEL', 'qwen3.8-27b'))
         return jsonify(queue().submit(lecture['student_id'], 'ppt_export', lecture['goal'], context, prepared)), 202
