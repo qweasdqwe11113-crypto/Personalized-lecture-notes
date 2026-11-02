@@ -386,9 +386,9 @@
 <dialog id="ppt-dialog" aria-labelledby="ppt-title">
  <div class="editor-top"><div class="editor-heading"><div><h2 id="ppt-title">授课 PPT</h2><p id="ppt-source" class="helper"></p></div><button id="close-ppt" type="button" class="secondary">关闭</button></div></div>
  <div class="dialog-body">
-  <form id="ppt-form"><div class="ppt-settings"><label>总页数（含封面）<input id="ppt-count" type="number" min="6" max="20" value="12" required></label><label>课件模板<select id="ppt-template" required><option value="simple-clear">简洁浅色</option></select><span id="ppt-template-hint" class="helper">保留模板原始页面比例。</span></label><label class="ppt-instruction-label">课件要求（选填）<textarea id="ppt-instruction" maxlength="1000" rows="2" placeholder="例如：例题分步展示，课堂练习的答案放在教师讲稿中。"></textarea></label></div>
+  <form id="ppt-form"><div class="ppt-settings"><label>总页数（含封面）<input id="ppt-count" type="number" min="6" max="20" value="12" required></label><label>课件风格<select id="ppt-template" required><option value="teaching-blue">蓝白教学 · 内容自适应</option></select><span id="ppt-template-hint" class="helper">根据内容安排概念、推导、对比与练习页面。</span></label><label class="ppt-instruction-label">课件要求（选填）<textarea id="ppt-instruction" maxlength="1000" rows="2" placeholder="例如：例题分步展示，课堂练习的答案放在教师讲稿中。"></textarea></label></div>
    <img id="ppt-template-preview" alt="所选模板原版预览" hidden>
-   <p class="helper">根据已保存的讲义版本改编，含投屏要点、课堂提问与逐页教师讲稿。课件需单独复核；第一版使用简洁文字与 Unicode 公式，暂不自动配图或制作动画。</p>
+   <p class="helper">根据已保存的讲义版本改编，按内容安排概念、步骤、对比与练习。教师讲稿和练习答案保存在演讲者备注，课件需单独复核。暂不自动配图或制作动画。</p>
    <div class="ppt-actions"><button id="ppt-submit" type="submit" class="primary">生成授课 PPT</button><a id="ppt-download" class="secondary" hidden>下载可编辑 PPTX</a><button id="ppt-trace" type="button" class="secondary" hidden>查看生成输入 / 重试</button></div>
   </form>
   <p id="ppt-status" class="current-summary" role="status" aria-live="polite"></p>

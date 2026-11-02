@@ -14,8 +14,10 @@ function showTemplate() {
   preview.hidden = !item;
   if(item) {
     preview.src = item.preview_url;
-    preview.alt = item.name + '原版模板预览';
-    $('ppt-template-hint').textContent = `原始比例 ${(item.width/item.height).toFixed(2)}:1。下方课件区域为内容预览，下载文件应用此模板。`;
+    preview.alt = item.name + '样例预览';
+    $('ppt-template-hint').textContent = item.asset_kind === 'design'
+      ? '16:9 蓝白教学风格，按内容安排概念、推导、对比、表格和练习。网页展示内容结构，最终排版请查看下载文件。'
+      : `传统母版，原始比例 ${(item.width/item.height).toFixed(2)}:1。网页为内容预览，下载文件应用此母版。`;
   }
 }
 async function loadTemplates(selected) {
@@ -48,16 +50,45 @@ async function refreshList(lectureId, token) {
   }));
   if(!data.presentations.length) $('ppt-history').append(el('p', '这份讲义尚无课件记录。', 'helper'));
 }
+function drawVisual(visual) {
+  const root = el('div', undefined, 'ppt-visual ppt-visual-' + visual.type);
+  const paragraph = value => el('p', value);
+  const list = items => { const node = el('div'); items.forEach(value => node.append(paragraph(value))); return node; };
+  const section = (title, items) => { const node = el('div', undefined, 'ppt-visual-section'); node.append(el('h4', title), list(items)); return node; };
+  switch(visual.type) {
+    case 'cover': root.append(paragraph(visual.subtitle), list(visual.goals)); break;
+    case 'definition':
+      root.append(el('h4', visual.term), paragraph(visual.definition));
+      if(visual.formula) root.append(el('p', visual.formula, 'ppt-formula'));
+      root.append(list(visual.conditions)); break;
+    case 'steps':
+      root.append(el('p', visual.problem, 'ppt-problem'));
+      visual.steps.forEach((step, i) => { const row = el('div', undefined, 'ppt-step'); row.append(el('strong', String(i+1)), paragraph(step.expression), el('span', step.reason)); root.append(row); });
+      if(visual.check) root.append(paragraph('检验：' + visual.check)); break;
+    case 'comparison': root.append(section(visual.left.title, visual.left.items), section(visual.right.title, visual.right.items)); break;
+    case 'table': {
+      const table = el('table'), head = el('tr'); visual.headers.forEach(value => head.append(el('th', value))); table.append(head);
+      visual.rows.forEach(values => { const row = el('tr'); values.forEach(value => row.append(el('td', value))); table.append(row); }); root.append(table); break;
+    }
+    case 'process': visual.nodes.forEach((node, i) => root.append(section(`${i+1}. ${node.title}`, [node.detail]))); break;
+    case 'metrics': visual.items.forEach(item => root.append(section(item.value + ' ' + item.unit, [item.label, item.context]))); break;
+    case 'practice': root.append(el('p', visual.problem, 'ppt-problem'), list(visual.prompts), el('div', '作答区域', 'ppt-answer-space')); break;
+    case 'recap': visual.items.forEach(item => root.append(section(item.title, [item.detail]))); break;
+    default: root.append(el('p', visual.lead, 'ppt-lead'), list(visual.items));
+  }
+  return root;
+}
 function drawDeck(data) {
   $('ppt-source').textContent = sourceLabel(data.source);
   $('ppt-preview').replaceChildren(...data.deck.slides.map((slide, index) => {
     const item = el('section', undefined, 'ppt-page');
-    const canvas = el('div', undefined, 'ppt-canvas' + (index === 0 ? ' ppt-cover' : ''));
+    const canvas = el('div', undefined, 'ppt-canvas' + (slide.visual ? ' ppt-semantic' : index === 0 ? ' ppt-cover' : ''));
     canvas.append(el('h3', slide.title));
     const body = el('div', undefined, 'ppt-body');
-    slide.bullets.forEach(text => body.append(el('p', text)));
+    if(slide.visual) body.append(drawVisual(slide.visual));
+    else slide.bullets.forEach(text => body.append(el('p', text)));
     canvas.append(body);
-    if(slide.question) canvas.append(el('p', '课堂提问：' + slide.question, 'ppt-question'));
+    if(slide.question && slide.question !== slide.visual?.problem) canvas.append(el('p', '课堂提问：' + slide.question, 'ppt-question'));
     canvas.append(el('p', `${index+1} / ${data.deck.slides.length} · ${kinds[slide.kind]} · AI 改编稿，待教师核查`, 'ppt-footer'));
     const notes = el('details', undefined, 'ppt-notes');
     notes.append(el('summary', '教师讲稿与来源'), el('p', slide.notes), el('p', '材料编号：' + (slide.sources.join('、') || '本页未标注，请核查'), 'helper'));

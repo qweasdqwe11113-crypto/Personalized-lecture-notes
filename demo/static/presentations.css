@@ -16,6 +16,20 @@
 .ppt-question { color:#146b79; font-weight:600; margin:3% 0 0; font-size:clamp(14px,1.7vw,20px); }
 .ppt-footer { font-size:11px; margin:12px 0 0; color:#62788a; }
 .ppt-cover .ppt-footer { color:#c0d1da; }
+.ppt-semantic { border-top:5px solid #143f88; background:#fff; color:#172235; }
+.ppt-semantic h3,.ppt-visual h4 { color:#143f88; }
+.ppt-visual h4 { font-size:1.1em; margin:0 0 12px; }
+.ppt-visual p { font-size:clamp(15px,1.8vw,22px); }
+.ppt-visual-comparison,.ppt-visual-process,.ppt-visual-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:20px; }
+.ppt-visual-section { background:#f4f7fc; padding:18px; margin-bottom:12px; border-left:3px solid #3269d4; }
+.ppt-step { display:grid; grid-template-columns:30px 1.6fr 1fr; gap:18px; padding:16px 0; border-bottom:1px solid #d6e0ef; align-items:start; }
+.ppt-step p { margin:0; }
+.ppt-step span { color:#4b5b73; }
+.ppt-visual table { width:100%; border-collapse:collapse; }
+.ppt-visual th { background:#143f88; color:white; }
+.ppt-visual td,.ppt-visual th { padding:14px; border-bottom:1px solid #d6e0ef; text-align:left; }
+.ppt-formula,.ppt-problem,.ppt-lead { font-weight:600; color:#143f88; background:#f4f7fc; padding:16px; }
+.ppt-answer-space { border-bottom:1px solid #d6e0ef; color:#8494ac; min-height:100px; margin:24px 0; }
 .ppt-notes { margin-top:8px; padding:12px 16px; background:#f4f7f9; }
 .ppt-notes p { white-space:pre-wrap; overflow-wrap:anywhere; }
 @media(max-width:650px) { .ppt-settings { grid-template-columns:1fr; } .ppt-canvas { aspect-ratio:auto; min-height:260px; } }

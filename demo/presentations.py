@@ -15,11 +15,11 @@ from reviews import ReviewError, STATUS_LABELS, lecture_row, version_row
 from runs import mark_attempt, run_detail
 from pptx_export import build_pptx as build_legacy_pptx
 from pptkit_export import build_pptx as build_kit_pptx, EXPORT_VERSION
-from ppt_templates import (DEFAULT_TEMPLATE, MAPPING_VERSION, ROOT as TEMPLATE_ROOT,
-                           available_templates, template_record)
+from ppt_story import DESIGN_VERSION, validate_visual, visual_texts
+from ppt_templates import DEFAULT_TEMPLATE, available_templates, template_record
 
 MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-PROMPT_VERSION = 'lecture-ppt-v2'
+PROMPT_VERSION = 'lecture-ppt-v3'
 PROMPT = (Path(__file__).with_name('prompts') / f'{PROMPT_VERSION}.md').read_text(encoding='utf-8').strip()
 
 
@@ -33,6 +33,8 @@ def build_pptx(deck, source, context):
         return build_legacy_pptx(deck, source, context)
     if version == EXPORT_VERSION:
         return build_kit_pptx(deck, source, context)
+    if version == DESIGN_VERSION:
+        return build_kit_pptx(deck, source, context, classroom=True)
     raise ReviewError('课件渲染版本不受支持，请核对生成记录。', 409)
 
 
@@ -48,10 +50,12 @@ def prepare_slides(context, model):
     user_text = json.dumps(user, ensure_ascii=False)
     if len(user_text) > 56000:
         raise ReviewError('课件输入超过 56000 字符，请先精简讲义或关联材料。')
-    body = json.dumps(dict(model=model, messages=[dict(role='system', content=PROMPT),
+    prompt_version = PROMPT_VERSION if edit.get('export_version') == DESIGN_VERSION else 'lecture-ppt-v2'
+    prompt = PROMPT if prompt_version == PROMPT_VERSION else (Path(__file__).with_name('prompts') / 'lecture-ppt-v2.md').read_text(encoding='utf-8').strip()
+    body = json.dumps(dict(model=model, messages=[dict(role='system', content=prompt),
                       dict(role='user', content=user_text)], temperature=0.3, max_tokens=16000,
                       chat_template_kwargs={'enable_thinking': False}), ensure_ascii=False, separators=(',', ':'))
-    return PreparedRequest(body, fingerprint(body), PROMPT_VERSION, 'lecture-ppt-context-v1')
+    return PreparedRequest(body, fingerprint(body), prompt_version, 'lecture-ppt-context-v1')
 
 
 def parse_deck(content, context):
@@ -80,10 +84,12 @@ def parse_deck(content, context):
     allowed = {f'M{m["id"]}' for m in context.get('materials', [])}
     allowed |= {v['citation_id'] for v in context.get('visual_evidence', [])}
     result = []
+    semantic = context['ppt_export'].get('export_version') == DESIGN_VERSION
     for index, slide in enumerate(slides):
         if not isinstance(slide, dict):
             invalid(f'第{index+1}页结构错误')
-        if not field(slide.get('title'), 34) or slide.get('kind') not in {'cover', 'concept', 'example', 'question', 'summary'}:
+        if (not field(slide.get('title'), 34) or not isinstance(slide.get('kind'), str)
+                or slide['kind'] not in {'cover', 'concept', 'example', 'question', 'summary'}):
             invalid(f'第{index+1}页标题或类型错误')
         bullets = slide.get('bullets')
         if (not isinstance(bullets, list) or not 1 <= len(bullets) <= 4
@@ -95,16 +101,26 @@ def parse_deck(content, context):
             invalid(f'第{index+1}页投屏文字包含换行或制表符')
         if index == 0 and (len(bullets) > 2 or sum(map(len, bullets)) > 80 or slide['question']):
             invalid('封面内容过多')
+        visual = None
+        if semantic:
+            try:
+                visual = validate_visual(slide.get('visual'), slide)
+            except ValueError as exc:
+                invalid(f'第{index+1}页视觉结构错误：{exc}')
+            if index and slide['kind'] == 'cover':
+                invalid('内页不能重复使用封面')
         sources = slide.get('sources')
         if (not isinstance(sources, list) or len(sources) > 30
                 or any(not isinstance(s, str) or s not in allowed for s in sources)):
             invalid(f'第{index+1}页引用了不存在的来源')
-        cited = set(re.findall(r'\[([MV]\d+)\]', '\n'.join([slide['title'], *bullets, slide['question'], slide['notes']])))
+        cited = set(re.findall(r'\[([MV]\d+)\]', '\n'.join([slide['title'], *bullets, slide['question'], slide['notes'], *visual_texts(visual)])))
         if cited - allowed:
             invalid(f'第{index+1}页正文包含无效来源编号')
         result.append(dict(kind=slide['kind'], title=slide['title'].strip(),
                            bullets=[b.strip() for b in bullets], question=slide['question'].strip(),
                            notes=slide['notes'].strip(), sources=sorted(set(sources) | cited)))
+        if semantic:
+            result[-1]['visual'] = visual
     if result[0]['kind'] != 'cover' or result[-1]['kind'] != 'summary':
         invalid('缺少封面或末页总结')
     return dict(title=deck['title'].strip(), slides=result)
@@ -144,10 +160,10 @@ def register_presentations(app, db, queue):
     @app.get('/api/presentation-templates/<identity>/preview')
     def template_preview(identity):
         try:
-            template_record(identity)
+            record = template_record(identity)
         except ValueError as exc:
             raise ReviewError(str(exc), 404) from exc
-        return send_file(TEMPLATE_ROOT / 'converted-pptx' / (identity + '.preview.png'), mimetype='image/png')
+        return send_file(record['preview_path'], mimetype='image/png')
 
     @app.post('/api/lectures/<int:lecture_id>/presentations')
     def create_presentation(lecture_id):
@@ -176,8 +192,9 @@ def register_presentations(app, db, queue):
                     content_sha256=fingerprint(version['content']), slide_count=count,
                     instruction=instruction.strip(), goal=lecture['goal'],
                     source_status=STATUS_LABELS.get(version['status'], '原稿未审核'),
-                    export_version=EXPORT_VERSION, template_id=template['id'], template_name=template['name'],
-                    template_sha256=template['sha256'], template_mapping_version=MAPPING_VERSION)
+                    export_version=DESIGN_VERSION if template['asset_kind'] == 'design' else EXPORT_VERSION,
+                    template_id=template['id'], template_name=template['name'],
+                    template_sha256=template['sha256'], template_mapping_version=template['mapping_version'])
         context = {**lecture['context'], 'ppt_export': edit}
         prepared = prepare_slides(context, os.environ.get('QWEN_MODEL', 'qwen3.8-27b'))
         return jsonify(queue().submit(lecture['student_id'], 'ppt_export', lecture['goal'], context, prepared)), 202

@@ -1,8 +1,8 @@
 # 个性化讲义 Demo
 
-PPT 模板：[8 套社区 CC0 模板与使用说明](assets/ppt-templates/README.md)。原始 OTP 和转换后的 PPTX 均保留，生成窗口可选择模板；[本地预览](assets/ppt-templates/converted-pptx/index.html)。
+PPT 风格：默认使用[蓝白教学 · 内容自适应](assets/ppt-templates/teaching-blue/README.md)，另保留 [8 套社区 CC0 母版](assets/ppt-templates/README.md)。原始 OTP 和转换后的 PPTX 均保留；[传统母版预览](assets/ppt-templates/converted-pptx/index.html)。
 
-PPT 渲染：[项目内 ppt-kit 工具](tools/ppt-kit/README.md) 已通过课堂适配器加载真实 PPTX 母版，使用 v2 内容提示词。母版映射、版本兼容与验证见 [模板教学适配说明](docs/ppt-template-integration.md)。
+PPT 渲染：[项目内 ppt-kit 工具](tools/ppt-kit/README.md) 已接入课堂适配器。新默认风格使用 v3 语义内容提示词和 10 类可编辑版式，传统母版保留 v2 提示词及原渲染版本。版本兼容与验证见 [模板教学适配说明](docs/ppt-template-integration.md)。
 
 当前主线是个性化讲义：课程材料与学生证据 → 教师确认本次讲解安排 → 生成并核查 → 修订与导出。远端已有的出题、阅卷、图片识读和向量检索作为扩展保留；本轮优化围绕讲义，不将扩展功能或工程测试视为教学效果与最终验收结论。
 
@@ -31,11 +31,11 @@ PPT 渲染：[项目内 ppt-kit 工具](tools/ppt-kit/README.md) 已通过课堂
 
 打开一份已保存的讲义，在预览工具栏点击「生成授课 PPT」。默认依据当前阅读的原稿或 R1 等修订版本，设置总页数（6—20 页，含封面和总结，默认12页）及课件要求后提交。模型将讲义改编为投屏要点、概念或例题页、课堂提问和总结，详细讲解及练习参考答案按提示放入逐页教师讲稿。答案是否泄露、内容是否准确仍须教师复核。
 
-课件支持网页内容预览及下载可编辑 `.pptx`；教师讲稿保存在 PowerPoint 的演讲者备注中，备注还包含本页来源、原讲义版本及正文 SHA-256。新课件可选 8 套模板，默认简洁浅色，保留所选模板的原始页面比例、母版背景和装饰；ppt-kit 负责分栏封面与课堂正文的排版。文字及 Unicode 公式可编辑，不自动配图、添加动画或生成视频。网页为内容预览，实际字体、换行及模板效果以下载文件为准。
+课件支持网页内容预览及下载可编辑 `.pptx`；教师讲稿保存在 PowerPoint 的演讲者备注中，备注还包含本页来源、原讲义版本及正文 SHA-256。默认「蓝白教学 · 内容自适应」采用 16:9 画布，按内容使用学习目标、重点讲解、概念与条件、分步推导、对比、表格、流程、数据、练习和回顾版式。数据和比较关系须来自资料，不为排版编造。另有 8 套传统母版可选，保留其原始比例、背景和装饰，沿用分栏排版。文字、Unicode 公式、表格和流程节点可编辑，不自动配图、添加动画或生成视频。网页展示内容结构，实际字体、换行及效果以下载文件为准。
 
 PPT 使用现有有限后台队列，与讲义、出题和阅卷共用语言模型锁。关闭窗口或刷新后，可从「生成记录 → 后台任务」恢复，也可在 PPT 窗口展开「这份讲义的课件记录」查看。完整请求在提交时固定，失败可查看输入并按原字节重试；源讲义和原审核记录保留，源版本已审核不代表改编课件已审核。页数、文字长度和来源编号由程序校验，教学质量、公式正确性和来源支持需人工复核。
 
-已有环境先运行 `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` 安装新增的 python-pptx，再重启服务。PPT 导出不要求服务器安装 PowerPoint。主要实现为 `demo/presentations.py`、`demo/pptkit_export.py`、`demo/ppt_templates.py` 和 `demo/static/presentations.js`，提示词为 `demo/prompts/lecture-ppt-v2.md`。部署时一并保留 `tools/ppt-kit/pptkit/` 与 `assets/ppt-templates/`。历史课件缺少渲染版本字段时仍由 `demo/pptx_export.py` 导出；新记录固定模板 ID、SHA-256 与母版映射版本，资产变化会明确拒绝重渲染。隔离验证可运行 `demo/tests/serve_ppt_fixture.py`（5056，固定测试响应）；创建 `.runtime/stop-ppt-fixture` 文件停止并清理临时数据库 schema。
+已有环境先运行 `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` 安装 python-pptx，再重启服务。PPT 导出不要求服务器安装 PowerPoint。语义契约在 `demo/ppt_story.py`，新布局在 `tools/ppt-kit/pptkit/classroom.py`；入口为 `demo/presentations.py`、`demo/pptkit_export.py`，提示词为 `demo/prompts/lecture-ppt-v3.md`。导出检查文字容量及越界，必要时最多修正一次布局，仍放不下则明确失败，不截断内容。当前未接入运行时截图或视觉模型审稿。部署时一并保留 `tools/ppt-kit/pptkit/` 与 `assets/ppt-templates/`。历史课件依照原渲染版本导出；新记录固定风格 ID、SHA-256 与映射版本，资产变化会明确拒绝重渲染。隔离验证可运行 `demo/tests/serve_ppt_fixture.py`（5056，固定测试响应）；创建 `.runtime/stop-ppt-fixture` 文件停止并清理临时数据库 schema。
 
 ## 出题
 

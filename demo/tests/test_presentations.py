@@ -18,6 +18,7 @@ from pptkit_export import build_pptx as build_kit_pptx, EXPORT_VERSION, check as
 from presentations import build_pptx as build_versioned_pptx
 from pptx import Presentation
 from ppt_templates import PROFILES, template_record, MAPPING_VERSION
+from ppt_story import DESIGN_VERSION, fallback_visual
 
 
 def fixture_deck(count=6):
@@ -30,6 +31,8 @@ def fixture_deck(count=6):
             question='' if i == 0 else '为什么要在等式两边进行相同运算？',
             notes='这是明确的隔离测试讲稿，不是真实模型输出。请讲解等式的性质，说明两边同时进行相同运算的理由。提问后先让学生思考，再解释预期回答：保持相等关系。',
             sources=['M3']))
+    for slide in slides:
+        slide['visual'] = fallback_visual(slide)
     return dict(title='隔离测试：等式与方程', slides=slides)
 
 
@@ -209,7 +212,7 @@ class PresentationIntegrationTests(ProfileDatabaseFixture):
         self.assertEqual(detail.status_code, 200, detail.json)
         self.assertEqual(len(detail.json['deck']['slides']), 6)
         self.assertNotIn('base_content', detail.json['source'])
-        self.assertEqual(detail.json['source']['export_version'], EXPORT_VERSION)
+        self.assertEqual(detail.json['source']['export_version'], DESIGN_VERSION)
         original = self.client.get(f'/api/lectures/{self.lecture_id}').json
         self.assertEqual(original['content'], '# 隔离测试讲义\n历史原稿 [M3]')
         self.assertIsNone(original['generation_run_id'])
@@ -221,7 +224,7 @@ class PresentationIntegrationTests(ProfileDatabaseFixture):
         self.assertIn('.pptx', download.headers['Content-Disposition'])
         with ZipFile(BytesIO(download.data)) as archive:
             self.assertIn('ppt/notesSlides/notesSlide1.xml', archive.namelist())
-        self.assertEqual(Presentation(BytesIO(download.data)).slide_width, template_record('simple-clear')['width'])
+        self.assertEqual(Presentation(BytesIO(download.data)).slide_width, template_record('teaching-blue')['width'])
         # Pre-integration records lack the frozen renderer field.
         with self.fixture_db() as conn:
             conn.execute("UPDATE generation_runs SET context=context #- '{ppt_export,export_version}' WHERE id=%s",
@@ -280,8 +283,8 @@ class PresentationIntegrationTests(ProfileDatabaseFixture):
 
     def test_template_catalog_preview_and_selection_are_persisted(self):
         catalog = self.client.get('/api/presentation-templates')
-        self.assertEqual(len(catalog.json['templates']), 8)
-        self.assertEqual(catalog.json['default'], 'simple-clear')
+        self.assertEqual(len(catalog.json['templates']), 9)
+        self.assertEqual(catalog.json['default'], 'teaching-blue')
         preview = self.client.get(catalog.json['templates'][0]['preview_url'])
         self.assertEqual(preview.status_code, 200)
         self.assertEqual(preview.mimetype, 'image/png')
