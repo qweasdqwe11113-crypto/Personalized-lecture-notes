@@ -241,6 +241,30 @@ class PresentationIntegrationTests(ProfileDatabaseFixture):
         rows = self.client.get(f'/api/lectures/{self.lecture_id}/presentations').json['presentations']
         self.assertEqual(len(rows), 2); self.assertNotIn('base_content', rows[0]['source'])
 
+    def test_notebook_selection_queues_semantic_output_and_freezes_new_mapping(self):
+        job = self.submit(template_id='notebook')
+        self.assertEqual(job['status'], 'succeeded', job)
+        detail = self.client.get(f'/api/presentations/{job["run_id"]}').json
+        self.assertEqual(detail['source']['export_version'], DESIGN_VERSION)
+        self.assertEqual(detail['source']['template_mapping_version'], 'semantic-notebook-v1')
+        self.assertIn('visual', detail['deck']['slides'][1])
+
+    def test_remaining_styles_queue_v3_and_serve_new_previews(self):
+        for identity in PROFILES:
+            if identity == 'notebook':
+                continue
+            with self.subTest(identity=identity):
+                job = self.submit(template_id=identity)
+                self.assertEqual(job['status'], 'succeeded', job)
+                detail = self.client.get(f'/api/presentations/{job["run_id"]}').json
+                self.assertEqual(detail['source']['export_version'], DESIGN_VERSION)
+                self.assertEqual(detail['source']['template_mapping_version'], f'semantic-{identity}-v1')
+                self.assertIn('visual', detail['deck']['slides'][1])
+                preview = self.client.get(f'/api/presentation-templates/{identity}/preview')
+                self.assertEqual(preview.status_code, 200)
+                self.assertEqual(preview.mimetype, 'image/png')
+                preview.close()
+
     def test_selected_revision_is_frozen_and_does_not_inherit_ppt_review(self):
         bundle = self.client.get(f'/api/lectures/{self.lecture_id}/review').json
         data = dict(expected_revision=bundle['expected_revision'], base_revision=0,

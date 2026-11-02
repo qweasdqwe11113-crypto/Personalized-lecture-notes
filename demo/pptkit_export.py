@@ -42,19 +42,38 @@ def plain(value):
     return re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]', '', str(value))
 
 
-def fit_template_shapes(slide, width, height, region):
+def fit_template_shapes(slide, width, height, region, *, zones=False):
     """Uniformly fit toolkit geometry into a native template's safe region."""
     x, y, w, h = region
     scale = min(width * w / CANVAS_W, height * h / CANVAS_H)
     ox = width * x + (width * w - CANVAS_W * scale) / 2
     oy = height * y + (height * h - CANVAS_H * scale) / 2
     for shape in slide.shapes:
+        original_top = shape.top / 12700
         shape.left = Pt(ox + shape.left / 12700 * scale)
-        shape.top = Pt(oy + shape.top / 12700 * scale)
+        if zones:
+            # Technical-office's pencil separates the title area from the body;
+            # keep the full page width instead of shrinking below the artwork.
+            top = (92 + (original_top - 674) * scale if original_top >= 674 else
+                   154 + (original_top - 164) * scale if original_top >= 164 else original_top * scale)
+        else:
+            top = oy + original_top * scale
+        shape.top = Pt(top)
         shape.width = Pt(shape.width / 12700 * scale)
         shape.height = Pt(shape.height / 12700 * scale)
-        if shape.has_text_frame:
-            for paragraph in shape.text_frame.paragraphs:
+        frames = [shape.text_frame] if shape.has_text_frame else []
+        if shape.has_table:
+            table = shape.table
+            for column in table.columns:
+                column.width = round(column.width * scale)
+            for row in table.rows:
+                row.height = round(row.height * scale)
+            for cell in table.iter_cells():
+                for margin in ('margin_left', 'margin_right', 'margin_top', 'margin_bottom'):
+                    setattr(cell, margin, round(getattr(cell, margin) * scale))
+                frames.append(cell.text_frame)
+        for frame in frames:
+            for paragraph in frame.paragraphs:
                 for run in paragraph.runs:
                     if run.font.size is not None:
                         run.font.size = Pt(run.font.size.pt * scale)
@@ -64,7 +83,7 @@ def build_pptx(deck, source, context, *, classroom=False):
     template = None
     if source.get('template_id'):
         try:
-            template = template_record(source['template_id'])
+            template = template_record(source['template_id'], mapping_version=source.get('template_mapping_version'))
             if (source.get('template_sha256') != template['sha256']
                     or source.get('template_mapping_version') != template['mapping_version']):
                 raise ValueError('模板版本与任务提交时不一致，请核对模板资产。')
@@ -87,6 +106,9 @@ def build_pptx(deck, source, context, *, classroom=False):
     prs.core_properties.title = plain(deck['title'])
     dark = template and template['profile'].get('dark')
     theme_data = template['theme']['palette'] if template and template['asset_kind'] == 'design' else None
+    skin = template['profile'].get('skin') if classroom and template else None
+    if skin:
+        theme_data = template['profile']['palette']
     theme = Theme.from_dict(dict(primary='#FFFFFF', accent='#B7E8FF', text='#FFFFFF',
                                  muted='#F2F6FA', hint='#D1E0E9') if dark else theme_data)
     revision = f'R{source["base_revision"]}' if source['base_revision'] else '原稿'
@@ -110,7 +132,7 @@ def build_pptx(deck, source, context, *, classroom=False):
             visual = content['visual']
             layout_used = visual['type']
             try:
-                classroom_layouts.render(slide, theme, content, visual, KINDS[content['kind']])
+                classroom_layouts.render(slide, theme, content, visual, KINDS[content['kind']], skin=skin)
             except classroom_layouts.LayoutOverflow:
                 # One deterministic repair, preserving every semantic string.
                 for shape in list(slide.shapes):
@@ -118,7 +140,7 @@ def build_pptx(deck, source, context, *, classroom=False):
                 repaired = True
                 try:
                     classroom_layouts.render(slide, theme, content, visual, KINDS[content['kind']],
-                                             repair=True, lines=[s for s in visual_texts(visual) if s])
+                                             repair=True, lines=[s for s in visual_texts(visual) if s], skin=skin)
                 except classroom_layouts.LayoutOverflow as exc:
                     from qwen import ModelError
                     raise ModelError('invalid_ppt', f'第{index}页两次排版仍放不下，请精简本页或重新安排内容。', 'output') from exc
@@ -140,7 +162,8 @@ def build_pptx(deck, source, context, *, classroom=False):
         if native_template:
             profile = template['profile']
             region = profile.get('cover_region', profile['region']) if index == 1 else profile['region']
-            fit_template_shapes(slide, prs.slide_width / 12700, prs.slide_height / 12700, region)
+            fit_template_shapes(slide, prs.slide_width / 12700, prs.slide_height / 12700, region,
+                                zones=classroom and profile.get('zones', False))
         notes = (content['notes'] + '\n\n本页材料依据（仅编号有效性经过程序检查，支持关系需人工核对）：\n'
                  + source_notes(content, context)
                  + f'\n\n讲义 #{source["lecture_id"]} / {revision}；源版本保存时状态：{source["source_status"]}'

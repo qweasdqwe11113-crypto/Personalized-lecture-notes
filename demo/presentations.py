@@ -192,7 +192,7 @@ def register_presentations(app, db, queue):
                     content_sha256=fingerprint(version['content']), slide_count=count,
                     instruction=instruction.strip(), goal=lecture['goal'],
                     source_status=STATUS_LABELS.get(version['status'], '原稿未审核'),
-                    export_version=DESIGN_VERSION if template['asset_kind'] == 'design' else EXPORT_VERSION,
+                    export_version=DESIGN_VERSION if template['semantic'] else EXPORT_VERSION,
                     template_id=template['id'], template_name=template['name'],
                     template_sha256=template['sha256'], template_mapping_version=template['mapping_version'])
         context = {**lecture['context'], 'ppt_export': edit}

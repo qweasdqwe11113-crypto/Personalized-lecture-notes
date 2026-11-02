@@ -73,6 +73,8 @@ class Theme:
     line: RGBColor
     font_cn: str = "Microsoft YaHei"
     font_en: str = "Microsoft YaHei"
+    surface: RGBColor = field(default_factory=lambda: RGBColor(255, 255, 255))
+    on_primary: RGBColor = field(default_factory=lambda: RGBColor(255, 255, 255))
     # 浅色系：由 primary / accent 与白色混合得到，避免手工维护
     primary_pale: RGBColor = field(init=False)
     accent_pale: RGBColor = field(init=False)
@@ -96,6 +98,8 @@ class Theme:
         kw = {}
         for key in ("primary", "accent", "text", "muted", "hint", "bg_sub", "line"):
             kw[key] = hex2rgb(d[key])
+        for key in ('surface', 'on_primary'):
+            kw[key] = hex2rgb(d.get(key, '#FFFFFF'))
         kw["font_cn"] = d.get("font_cn") or DEFAULT_THEME["font_cn"]
         kw["font_en"] = d.get("font_en") or DEFAULT_THEME["font_en"]
         return cls(**kw)

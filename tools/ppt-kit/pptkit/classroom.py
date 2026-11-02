@@ -24,8 +24,9 @@ def text(slide, th, value, x, y, w, h, size=24, color=None, bold=False, name='�
     return shape
 
 
-def header(slide, th, title, category):
-    add_rect(slide, 0, 0, 1280, 5, fill=th.primary)
+def header(slide, th, title, category, stripe=True):
+    if stripe:
+        add_rect(slide, 0, 0, 1280, 5, fill=th.primary)
     text(slide, th, category, 40, 24, 1000, 20, 13, th.hint, name='页面类别')
     text(slide, th, title, 40, 57, 1200, 82, 36 if len(title) <= 30 else 32,
          th.primary, True, '页标题', 1.12)
@@ -96,7 +97,7 @@ def steps(slide, th, page, visual):
     for i, item in enumerate(items):
         y = 252 + i * row
         add_rect(slide, 40, y + 3, 36, 36, fill=th.primary)
-        text(slide, th, str(i + 1), 50, y + 6, 22, 30, 20, RGBColor(255, 255, 255), True, '步骤序号')
+        text(slide, th, str(i + 1), 50, y + 6, 22, 30, 20, th.on_primary, True, '步骤序号')
         text(slide, th, item['expression'], 100, y, 750, row - 4, 22 if len(items) == 4 else 26,
              th.text, True, '推导表达式')
         text(slide, th, item['reason'], 898, y, 330, row - 4, 18 if len(items) == 4 else 22,
@@ -131,8 +132,8 @@ def table(slide, th, page, visual, compact=False):
     for r, values in enumerate([headers, *rows]):
         for c, value in enumerate(values):
             _set_cell(tbl.cell(r, c), value, th, bold=r == 0, size=size,
-                      fill=th.primary if r == 0 else th.bg_sub if r % 2 else RGBColor(255, 255, 255),
-                      color=RGBColor(255, 255, 255) if r == 0 else th.text)
+                      fill=th.primary if r == 0 else th.bg_sub if r % 2 else th.surface,
+                      color=th.on_primary if r == 0 else th.text)
             cell = tbl.cell(r, c)
             available_w = (tbl.columns[c].width - cell.margin_left - cell.margin_right) / 12700
             available_h = tbl.rows[r].height.pt - cell.margin_top.pt - cell.margin_bottom.pt
@@ -200,14 +201,21 @@ LAYOUTS = dict(cover=cover, explain=explain, definition=definition, steps=steps,
                practice=practice, recap=recap)
 
 
-def render(slide, th, page, visual, category, repair=False, lines=()):
-    if visual['type'] != 'cover' or repair:
-        header(slide, th, page['title'], category)
+def render(slide, th, page, visual, category, repair=False, lines=(), skin=None):
+    if skin in {'notebook', 'peter-river'}:
+        # Leave the native ruled sheet visible around a clean writing area.
+        # Use one paper surface so rules never cross formulas or table cells.
+        add_rect(slide, 24, 16, 1232, 696, fill=th.surface)
+    if visual['type'] != 'cover' or repair or skin == 'technical-office':
+        header(slide, th, page['title'], category, stripe=skin not in {'notebook', 'technical-office'})
     if repair and visual['type'] == 'table':
         # Preserve row/column relationships and native editability on repair.
         table(slide, th, page, visual, compact=True)
     elif repair:
         reading(slide, th, page, visual, lines)
+    elif skin == 'technical-office' and visual['type'] == 'cover':
+        text(slide, th, visual['subtitle'], 64, 178, 1152, 104, 30, th.primary, True, '封面副标题')
+        blocks(slide, th, visual['goals'], 64, 304, 1152, 292, 28, numbered=True)
     else:
         LAYOUTS[visual['type']](slide, th, page, visual)
     if page['question'] and page['question'] != visual.get('problem'):

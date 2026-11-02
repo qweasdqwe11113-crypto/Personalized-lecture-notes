@@ -7,16 +7,16 @@ from unittest.mock import patch
 
 from test_presentations import fixture_context, fixture_deck
 from presentations import parse_deck, build_pptx, prepare_slides
-from ppt_templates import template_record
+from ppt_templates import template_record, MAPPING_VERSION, PROFILES
 from ppt_story import DESIGN_VERSION, visual_texts
 from pptkit_export import classroom_layouts, check
 from pptx import Presentation
 from qwen import ModelError
 
 
-def story_context():
+def story_context(identity='teaching-blue'):
     ctx = fixture_context()
-    record = template_record('teaching-blue')
+    record = template_record(identity)
     ctx['ppt_export'].update(export_version=DESIGN_VERSION, template_id=record['id'],
         template_sha256=record['sha256'], template_mapping_version=record['mapping_version'], slide_count=10)
     return ctx
@@ -64,6 +64,50 @@ def all_visible(prs):
 
 
 class SemanticPresentationTests(unittest.TestCase):
+    def test_all_native_styles_keep_semantic_content_native_tables_and_original_masters(self):
+        for identity in PROFILES:
+            with self.subTest(identity=identity):
+                ctx = story_context(identity)
+                self.assertEqual(prepare_slides(ctx, 'fixture').prompt_version, 'lecture-ppt-v3')
+                deck = story_deck()
+                deck['slides'][4]['visual'].update(headers=['列' * 18] * 4, rows=[['格' * 28] * 4] * 4)
+                parsed = parse_deck(json.dumps(deck, ensure_ascii=False), ctx)
+                payload = build_pptx(parsed, ctx['ppt_export'], ctx)
+                prs = Presentation(BytesIO(payload))
+                record = template_record(identity)
+                original = Presentation(record['path'])
+                self.assertEqual((prs.slide_width, prs.slide_height), (original.slide_width, original.slide_height))
+                for i, (page, slide) in enumerate(zip(parsed['slides'], prs.slides)):
+                    master = record['profile']['masters'][0 if i == 0 else 1]
+                    self.assertEqual(slide.slide_layout.slide_master._element.xml, original.slide_masters[master]._element.xml)
+                    for value in visual_texts(page['visual']):
+                        self.assertIn(value, all_visible(SimpleNamespace(slides=[slide])))
+                    self.assertIn(page['notes'], slide.notes_slide.notes_text_frame.text)
+                shape = next(s for s in prs.slides[4].shapes if s.has_table)
+                self.assertAlmostEqual(shape.width, sum(c.width for c in shape.table.columns), delta=5)
+                self.assertAlmostEqual(shape.height, sum(r.height for r in shape.table.rows), delta=5)
+                self.assertFalse([m for level, m in check(BytesIO(payload)) if level == 'error'])
+
+    def test_dark_styles_have_readable_table_cells_and_step_numbers(self):
+        def contrast(a, b):
+            def luminance(color):
+                channels = [c / 255 for c in color]
+                channels = [v / 12.92 if v <= .04045 else ((v + .055) / 1.055) ** 2.4 for v in channels]
+                return sum(v * weight for v, weight in zip(channels, (.2126, .7152, .0722)))
+            x, y = sorted((luminance(a), luminance(b)))
+            return (y + .05) / (x + .05)
+        for identity in ('simple-dark', 'peter-river'):
+            ctx = story_context(identity)
+            deck = parse_deck(json.dumps(story_deck(), ensure_ascii=False), ctx)
+            prs = Presentation(BytesIO(build_pptx(deck, ctx['ppt_export'], ctx)))
+            table = next(s.table for s in prs.slides[4].shapes if s.has_table)
+            for cell in table.iter_cells():
+                color = cell.text_frame.paragraphs[0].runs[0].font.color.rgb
+                self.assertGreaterEqual(contrast(color, cell.fill.fore_color.rgb), 4.5, identity)
+            step = next(s for s in prs.slides[2].shapes if s.name == '步骤序号')
+            self.assertEqual(str(step.text_frame.paragraphs[0].runs[0].font.color.rgb),
+                             template_record(identity)['profile']['palette']['on_primary'].lstrip('#'))
+
     def test_ten_layouts_render_and_preserve_every_semantic_string(self):
         ctx = story_context()
         deck = parse_deck(json.dumps(story_deck(), ensure_ascii=False), ctx)
@@ -160,3 +204,37 @@ class SemanticPresentationTests(unittest.TestCase):
     def test_prompt_and_renderer_versions_are_frozen_by_selected_design(self):
         self.assertEqual(prepare_slides(story_context(), 'test-model').prompt_version, 'lecture-ppt-v3')
         self.assertEqual(prepare_slides(fixture_context(), 'test-model').prompt_version, 'lecture-ppt-v2')
+
+    def test_notebook_semantics_preserve_ruled_master_text_and_scaled_native_table(self):
+        ctx = story_context('notebook')
+        self.assertEqual(prepare_slides(ctx, 'test-model').prompt_version, 'lecture-ppt-v3')
+        deck = story_deck()
+        deck['slides'][4]['visual'].update(headers=['列' * 18] * 4, rows=[['格' * 28] * 4] * 4)
+        deck = parse_deck(json.dumps(deck, ensure_ascii=False), ctx)
+        prs = Presentation(BytesIO(build_pptx(deck, ctx['ppt_export'], ctx)))
+        original = Presentation(template_record('notebook')['path'])
+        self.assertEqual((prs.slide_width, prs.slide_height), (original.slide_width, original.slide_height))
+        self.assertEqual(prs.slides[0].slide_layout.slide_master.part.partname, original.slide_masters[0].part.partname)
+        for page, slide in zip(deck['slides'][1:], list(prs.slides)[1:]):
+            self.assertEqual(slide.slide_layout.slide_master.part.partname, original.slide_masters[1].part.partname)
+            for value in visual_texts(page['visual']):
+                self.assertIn(value, all_visible(SimpleNamespace(slides=[slide])))
+        shape = next(s for s in prs.slides[4].shapes if s.has_table)
+        self.assertAlmostEqual(shape.width, sum(c.width for c in shape.table.columns), delta=5)
+        self.assertAlmostEqual(shape.height, sum(r.height for r in shape.table.rows), delta=5)
+        self.assertLess(shape.table.cell(0, 0).text_frame.paragraphs[0].runs[0].font.size.pt, 18)
+        self.assertIn('semantic-notebook-v1', prs.slides[4].notes_slide.notes_text_frame.text)
+
+    def test_notebook_historical_mapping_keeps_old_master_and_v2_prompt(self):
+        ctx = fixture_context()
+        old = template_record('notebook', mapping_version=MAPPING_VERSION)
+        ctx['ppt_export'].update(export_version='pptkit-classroom-v1', template_id='notebook',
+                                template_sha256=old['sha256'], template_mapping_version=MAPPING_VERSION)
+        self.assertEqual(prepare_slides(ctx, 'test-model').prompt_version, 'lecture-ppt-v2')
+        deck = parse_deck(json.dumps(fixture_deck(), ensure_ascii=False), ctx)
+        prs = Presentation(BytesIO(build_pptx(deck, ctx['ppt_export'], ctx)))
+        for slide in prs.slides:
+            self.assertEqual(slide.slide_layout.slide_master.part.partname, prs.slide_masters[0].part.partname)
+            self.assertNotIn('页面结构：', slide.notes_slide.notes_text_frame.text)
+        with self.assertRaises(ValueError):
+            template_record('notebook', mapping_version='unknown-notebook-version')

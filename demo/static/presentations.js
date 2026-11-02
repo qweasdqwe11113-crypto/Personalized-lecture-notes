@@ -15,8 +15,8 @@ function showTemplate() {
   if(item) {
     preview.src = item.preview_url;
     preview.alt = item.name + '样例预览';
-    $('ppt-template-hint').textContent = item.asset_kind === 'design'
-      ? '16:9 蓝白教学风格，按内容安排概念、推导、对比、表格和练习。网页展示内容结构，最终排版请查看下载文件。'
+    $('ppt-template-hint').textContent = item.semantic
+      ? `${item.description}。按内容安排概念、推导、对比、表格和练习。最终排版请查看下载文件。`
       : `传统母版，原始比例 ${(item.width/item.height).toFixed(2)}:1。网页为内容预览，下载文件应用此母版。`;
   }
 }
