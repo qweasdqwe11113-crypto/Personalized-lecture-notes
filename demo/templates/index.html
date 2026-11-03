@@ -393,7 +393,23 @@
   </form>
   <p id="ppt-status" class="current-summary" role="status" aria-live="polite"></p>
   <details><summary>这份讲义的课件记录</summary><div id="ppt-history" class="ppt-history"></div></details>
-  <div id="ppt-preview"></div>
+  <div id="ppt-workspace" class="ppt-workspace">
+   <div id="ppt-preview"></div>
+   <aside id="ppt-edit-panel" class="ppt-edit-panel" hidden aria-labelledby="ppt-edit-title">
+    <div class="ppt-edit-heading"><span class="ppt-edit-badge">AI 微调</span><h3 id="ppt-edit-title">只修改这一页</h3></div>
+    <p id="ppt-edit-version" class="helper"></p>
+    <form id="ppt-edit-form">
+     <label for="ppt-edit-page">选择页面</label><select id="ppt-edit-page" required></select>
+     <label for="ppt-edit-instruction">希望怎么改？</label>
+     <textarea id="ppt-edit-instruction" rows="5" maxlength="1500" required placeholder="例如：减少文字，改成三个步骤；保留公式，把解释写得更清楚。"></textarea>
+     <p class="helper">仅调整所选页面。先看修改效果，再决定是否采用。</p>
+     <button id="ppt-edit-generate" class="primary" type="submit">生成本页修改稿</button>
+    </form>
+    <p id="ppt-edit-status" class="helper" role="status" aria-live="polite"></p>
+    <div id="ppt-edit-comparison" hidden><section><h4>修改前</h4><div id="ppt-edit-before" class="ppt-edit-preview"></div></section><section><h4>修改后</h4><div id="ppt-edit-after" class="ppt-edit-preview"></div></section></div>
+    <div id="ppt-edit-decisions" class="ppt-edit-decisions" hidden><button id="ppt-edit-accept" class="primary" type="button">采用并保存新版本</button><button id="ppt-edit-discard" class="secondary" type="button">放弃修改</button></div>
+   </aside>
+  </div>
  </div>
 </dialog>
 <link rel="stylesheet" href="/static/presentations.css"><script defer src="/static/presentations.js"></script>

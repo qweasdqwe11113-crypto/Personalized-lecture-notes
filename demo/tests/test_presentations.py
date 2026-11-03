@@ -5,13 +5,13 @@ import json
 from pathlib import Path
 import posixpath
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
 from test_profiles import ProfileDatabaseFixture, module
 from jobs import JobQueue
-from presentations import MIME, fingerprint, parse_deck, prepare_slides
+from presentations import MIME, fingerprint, parse_deck, prepare_slides, refine_presentation, deck_fingerprint
 from pptx_export import A, P, build_pptx
 from quality import REVIEW_ITEMS
 from pptkit_export import build_pptx as build_kit_pptx, EXPORT_VERSION, check as check_layout
@@ -182,15 +182,106 @@ def re_slide(name):
     return name.startswith('ppt/slides/slide') and name.endswith('.xml')
 
 
+class PresentationRefinementTests(unittest.TestCase):
+    def setUp(self):
+        self.context = fixture_context()
+        self.context['ppt_export']['aesthetic_review'] = True
+        self.deck = parse_deck(json.dumps(fixture_deck()), self.context)
+        self.prepared = prepare_slides(self.context, 'fixture')
+        self.manager = Mock()
+
+    def report(self, severity=None, identity='a'):
+        issue = dict(severity=severity, category='readability', location='body', evidence='crowded', suggestion='shorten')
+        return dict(id=identity*32, status='succeeded', results=[dict(page=2,
+            verdict='needs_revision' if severity else 'acceptable', issues=[issue] if severity else [])])
+
+    def execute(self, reports, candidate=None):
+        self.manager.review_sync.side_effect = reports
+        model = Mock(return_value=module.ModelResult(json.dumps(candidate or self.deck)))
+        with patch('presentations._aesthetic_reviews', self.manager), patch('presentations.build_pptx', return_value=b'improved'):
+            result = refine_presentation(21, self.deck, b'original', self.context, self.prepared, model)
+        return result, model
+
+    def test_good_deck_has_no_unnecessary_rewrite(self):
+        (deck, payload, audit), model = self.execute([self.report()])
+        self.assertEqual(payload, b'original')
+        self.assertEqual(audit['status'], 'completed')
+        self.assertEqual(audit['repairs'], 0)
+        model.assert_not_called()
+
+    def test_repair_accepts_improvement_and_preserves_other_pages_and_notes(self):
+        candidate = copy.deepcopy(self.deck)
+        candidate['slides'][0]['title'] = 'Unexpected cover change'
+        candidate['slides'][1]['bullets'] = ['Shorter visible explanation']
+        candidate['slides'][1]['notes'] = 'changed notes ' * 5
+        candidate['slides'][1]['sources'] = []
+        (deck, payload, audit), model = self.execute([self.report('high'), self.report(identity='b')], candidate)
+        self.assertEqual(payload, b'improved')
+        self.assertEqual(deck['slides'][0], self.deck['slides'][0])
+        self.assertEqual(deck['slides'][1]['notes'], self.deck['slides'][1]['notes'])
+        self.assertEqual(deck['slides'][1]['sources'], self.deck['slides'][1]['sources'])
+        self.assertEqual(deck['slides'][1]['bullets'], ['Shorter visible explanation'])
+        self.assertEqual(audit['accepted'], 1)
+        self.assertEqual(audit['status'], 'completed')
+        request = model.call_args.args[0]
+        self.assertEqual(request.sha256, fingerprint(request.body))
+        self.assertIn('visual_feedback', request.body)
+        self.assertEqual(self.manager.save_repair.call_count, 2)
+
+    def test_worse_repair_is_discarded(self):
+        (_, payload, audit), _ = self.execute([self.report('low'), self.report('high', 'b')])
+        self.assertEqual(payload, b'original')
+        self.assertEqual(audit['accepted'], 0)
+        self.assertEqual(audit['status'], 'limit_reached')
+
+    def test_no_more_than_two_repairs_even_if_issues_remain(self):
+        (_, _, audit), model = self.execute([self.report('high'), self.report('medium', 'b'), self.report('low', 'c')])
+        self.assertEqual(model.call_count, 2)
+        self.assertEqual(audit['repairs'], 2)
+        self.assertEqual(audit['accepted'], 2)
+        self.assertEqual(audit['status'], 'limit_reached')
+
+    def test_failed_reinspection_keeps_original_deck(self):
+        (_, payload, audit), _ = self.execute([self.report('high'), dict(status='failed')])
+        self.assertEqual(payload, b'original')
+        self.assertEqual(audit['status'], 'unavailable')
+
+    def test_invalid_repair_does_not_destroy_valid_deck(self):
+        candidate = copy.deepcopy(self.deck)
+        candidate['slides'][1]['sources'] = ['M999']
+        (_, payload, audit), _ = self.execute([self.report('high')], candidate)
+        self.assertEqual(payload, b'original')
+        self.assertEqual(audit['status'], 'unavailable')
+
+    def test_single_page_refinement_sends_and_renders_only_target(self):
+        self.manager.review_sync.side_effect = [self.report('high'), self.report(identity='b')]
+        updated = copy.deepcopy(self.deck['slides'][1]); updated['bullets'] = ['Shorter text']
+        model = Mock(return_value=module.ModelResult(json.dumps(updated)))
+        with patch('presentations._aesthetic_reviews', self.manager), patch('presentations.build_pptx', return_value=b'changed'):
+            deck, payload, audit = refine_presentation(21, self.deck, b'original', self.context, self.prepared, model, only_pages=[2])
+        self.assertEqual(payload, b'changed')
+        self.assertEqual(audit['accepted'], 1)
+        self.assertEqual(deck['slides'][0], self.deck['slides'][0])
+        for call in self.manager.review_sync.call_args_list:
+            self.assertEqual(call.args[2], [2])
+        latest_message = json.loads(model.call_args.args[0].body)['messages'][-1]['content']
+        self.assertIn('target_slide', latest_message)
+        self.assertNotIn('current_deck', latest_message)
+
+
 class PresentationIntegrationTests(ProfileDatabaseFixture):
     def setUp(self):
         super().setUp()
+        # These tests stub language generation; never send their fake decks to a real VLM.
+        self.aesthetic_patch = patch('presentations._aesthetic_reviews', None)
+        self.aesthetic_patch.start()
         self.queue = JobQueue(lambda: module.db(), module.execute_job)
         self.queue_patch = patch.object(module, 'TASKS', self.queue)
         self.queue_patch.start()
 
     def tearDown(self):
         self.queue.wait_idle(10); self.queue.close(); self.queue_patch.stop()
+        self.aesthetic_patch.stop()
 
     def submit(self, reply=None, **changes):
         def model(prepared, attempted):
@@ -203,6 +294,113 @@ class PresentationIntegrationTests(ProfileDatabaseFixture):
             self.assertEqual(response.status_code, 202, response.json)
             self.assertTrue(self.queue.wait_idle(10))
         return self.client.get('/api/jobs/' + response.json['id']).json
+
+    def edit_slide(self, parent, page=2, reply=None, instruction='简化本页文字，保留公式与来源'):
+        original = self.client.get(f'/api/presentations/{parent}').json
+        slide = copy.deepcopy(original['deck']['slides'][page-1])
+        slide['bullets'] = ['等式两边同减相同数，仍然相等。']
+        if 'visual' in slide:
+            slide['visual'] = fallback_visual(slide)
+        def model(prepared, attempted):
+            self.assertTrue(module.GENERATION_LOCK.locked())
+            body = json.loads(prepared.body)
+            sent = json.loads(body['messages'][1]['content'])
+            self.assertEqual(sent['target_slide'], original['deck']['slides'][page-1])
+            self.assertEqual(sent['teacher_instruction'], instruction)
+            self.assertNotIn('slides', sent)
+            self.assertNotIn('lecture', sent)
+            attempted()
+            return module.ModelResult(json.dumps(reply if reply is not None else slide, ensure_ascii=False))
+        with patch.object(module, 'call_qwen', model):
+            response = self.client.post(f'/api/presentations/{parent}/slide-edits', json=dict(
+                page=page, instruction=instruction, base_sha256=original['deck_sha256']))
+            self.assertEqual(response.status_code, 202, response.json)
+            self.assertTrue(self.queue.wait_idle(15))
+        return original, self.client.get('/api/jobs/' + response.json['id']).json
+
+    def test_slide_edit_preview_accept_and_continue_preserve_all_other_pages(self):
+        original_job = self.submit()
+        parent = original_job['run_id']
+        original, job = self.edit_slide(parent)
+        self.assertEqual(job['status'], 'succeeded', job)
+        candidate_id = job['run_id']
+        self.assertEqual(self.client.get(f'/api/presentations/{candidate_id}/download').status_code, 409)
+        candidate = self.client.get(f'/api/presentation-edits/{candidate_id}').json
+        self.assertEqual(candidate['state'], 'pending')
+        self.assertEqual(candidate['before'], original['deck']['slides'][1])
+        self.assertNotEqual(candidate['after']['bullets'], candidate['before']['bullets'])
+        history = self.client.get(f'/api/lectures/{self.lecture_id}/presentations').json['presentations']
+        self.assertNotIn(candidate_id, [item['run_id'] for item in history])
+        for _ in range(2):
+            self.assertEqual(self.client.post(f'/api/presentation-edits/{candidate_id}/accept').status_code, 200)
+        updated = self.client.get(f'/api/presentations/{candidate_id}').json
+        self.assertEqual(updated['edit'], dict(parent_run_id=parent, page=2))
+        self.assertEqual(updated['deck']['title'], original['deck']['title'])
+        for index, (before, after) in enumerate(zip(original['deck']['slides'], updated['deck']['slides'])):
+            self.assertEqual(after, candidate['after'] if index == 1 else before)
+        self.assertEqual(self.client.get(f'/api/presentations/{parent}').json['deck'], original['deck'])
+        download = self.client.get(f'/api/presentations/{candidate_id}/download')
+        self.assertEqual(download.status_code, 200)
+        self.assertEqual(len(Presentation(BytesIO(download.data)).slides), 6)
+        self.assertEqual(self.client.post(f'/api/presentation-edits/{candidate_id}/discard').status_code, 409)
+        _, second = self.edit_slide(candidate_id, page=3)
+        self.assertEqual(second['status'], 'succeeded')
+        self.assertEqual(self.client.post(f'/api/presentation-edits/{second["run_id"]}/accept').status_code, 200)
+        latest = self.client.get(f'/api/presentations/{second["run_id"]}').json
+        self.assertEqual(latest['deck']['slides'][1], updated['deck']['slides'][1])
+        with self.fixture_db() as conn:
+            self.assertEqual(conn.execute('SELECT count(*) AS n FROM lectures').fetchone()['n'], 1)
+
+    def test_discard_is_durable_and_does_not_create_downloadable_version(self):
+        parent = self.submit()['run_id']
+        _, job = self.edit_slide(parent)
+        identity = job['run_id']
+        for _ in range(2):
+            self.assertEqual(self.client.post(f'/api/presentation-edits/{identity}/discard').status_code, 200)
+        self.assertEqual(self.client.get(f'/api/presentation-edits/{identity}').json['state'], 'discarded')
+        self.assertEqual(self.client.post(f'/api/presentation-edits/{identity}/accept').status_code, 409)
+        self.assertEqual(self.client.get(f'/api/presentations/{identity}').status_code, 409)
+        self.assertEqual(self.client.get(f'/api/presentations/{parent}').status_code, 200)
+
+    def test_edit_input_page_instruction_and_stale_snapshot_are_rejected(self):
+        parent = self.submit()['run_id']
+        detail = self.client.get(f'/api/presentations/{parent}').json
+        valid = dict(page=2, instruction='简化本页', base_sha256=detail['deck_sha256'])
+        for field, value in [('page', True), ('page', 0), ('page', 7), ('page', '2'),
+                             ('instruction', ''), ('instruction', 'x'*1501), ('instruction', [])]:
+            with self.subTest(field=field, value=value):
+                data = {**valid, field:value}
+                self.assertEqual(self.client.post(f'/api/presentations/{parent}/slide-edits', json=data).status_code, 400)
+        self.assertEqual(self.client.post(f'/api/presentations/{parent}/slide-edits', json={**valid, 'base_sha256':'stale'}).status_code, 409)
+        self.assertEqual(self.client.get('/api/presentation-edits/99999').status_code, 404)
+
+    def test_whole_deck_or_unknown_citations_cannot_be_used_as_single_page_output(self):
+        parent = self.submit()['run_id']
+        for bad in (fixture_deck(), dict(fixture_deck()['slides'][1], sources=['M999'])):
+            _, job = self.edit_slide(parent, reply=bad)
+            self.assertEqual(job['status'], 'failed')
+            self.assertEqual(self.client.post(f'/api/presentation-edits/{job["run_id"]}/accept').status_code, 409)
+        self.assertEqual(self.client.get(f'/api/presentations/{parent}/download').status_code, 200)
+
+    def test_accept_rejects_tampered_non_target_page(self):
+        parent = self.submit()['run_id']
+        _, job = self.edit_slide(parent)
+        with self.fixture_db() as conn:
+            row = conn.execute('SELECT content FROM generation_runs WHERE id=%s', (job['run_id'],)).fetchone()
+            deck = json.loads(row['content']); deck['slides'][2]['title'] = '其他页面被篡改'
+            conn.execute('UPDATE generation_runs SET content=%s WHERE id=%s', (json.dumps(deck, ensure_ascii=False), job['run_id']))
+        self.assertEqual(self.client.post(f'/api/presentation-edits/{job["run_id"]}/accept').status_code, 409)
+
+    def test_edit_visual_review_is_scoped_to_target_page(self):
+        parent = self.submit()['run_id']
+        observed = []
+        def refine(run_id, deck, payload, context, prepared, model, only_pages=None):
+            observed.append(only_pages)
+            return deck, payload, dict(status='completed')
+        with patch('presentations.refine_presentation', side_effect=refine):
+            _, job = self.edit_slide(parent, page=4)
+        self.assertEqual(job['status'], 'succeeded')
+        self.assertEqual(observed, [[4]])
 
     def test_generation_preview_download_preserve_original_without_creating_lecture(self):
         job = self.submit()
@@ -232,6 +430,26 @@ class PresentationIntegrationTests(ProfileDatabaseFixture):
         legacy = self.client.get(f'/api/presentations/{job["run_id"]}/download')
         self.assertEqual(legacy.status_code, 200)
         self.assertEqual(Presentation(BytesIO(legacy.data)).slide_width, 12192000)
+
+    def test_automatic_visual_review_finishes_before_commit_and_failure_keeps_ppt(self):
+        manager = Mock()
+        observed = {}
+        def inspect(run_id, payload, pages):
+            with self.fixture_db() as conn:
+                run = conn.execute('SELECT status FROM generation_runs WHERE id=%s', (run_id,)).fetchone()
+            observed.update(status=run['status'], pages=pages, slides=len(Presentation(BytesIO(payload)).slides))
+            raise RuntimeError('fixture failure')
+        manager.review_sync.side_effect = inspect
+        with patch('presentations._aesthetic_reviews', manager):
+            job = self.submit()
+        self.assertEqual(job['status'], 'succeeded')
+        self.assertEqual(observed, dict(status='running', pages=list(range(1, 7)), slides=6))
+        manager.review_sync.assert_called_once()
+        run = self.client.get('/api/generation-runs/' + str(job['run_id'])).json
+        self.assertEqual(run['response_metadata']['aesthetic_refinement']['status'], 'unavailable')
+        detail = self.client.get(f'/api/presentations/{job["run_id"]}')
+        self.assertTrue(detail.json['source']['aesthetic_review'])
+        self.assertEqual(self.client.get(f'/api/presentations/{job["run_id"]}/download').status_code, 200)
 
     def test_multiple_decks_and_schema_migration_are_idempotent(self):
         first, second = self.submit(), self.submit()

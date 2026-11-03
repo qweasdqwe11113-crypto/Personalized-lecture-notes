@@ -8,6 +8,23 @@ const labels = {queued:'排队中', running:'生成中', succeeded:'课件已生
 const kinds = {cover:'封面', concept:'概念讲解', example:'例题', question:'课堂练习', summary:'总结'};
 let source = null, working = false, session = 0;
 let templates = [];
+let currentDeck = null, editWorking = false, editToken = 0, pendingEdit = null;
+const editStatus = text => { $('ppt-edit-status').textContent = text; };
+function editBusy(value) {
+  editWorking = value;
+  for(const id of ['ppt-edit-page','ppt-edit-instruction','ppt-edit-generate']) $(id).disabled = value;
+  $('ppt-submit').disabled = value || working || !source;
+  document.querySelectorAll('.ppt-page-tools button').forEach(button => { button.disabled = value; });
+}
+function clearCandidate() {
+  pendingEdit = null;
+  $('ppt-edit-comparison').hidden = true; $('ppt-edit-decisions').hidden = true;
+  $('ppt-edit-before').replaceChildren(); $('ppt-edit-after').replaceChildren();
+}
+function selectEditPage(page) {
+  $('ppt-edit-page').value = String(page);
+  document.querySelectorAll('#ppt-preview .ppt-page').forEach((node, index) => node.classList.toggle('is-edit-target', index+1 === page));
+}
 function showTemplate() {
   const item = templates.find(t => t.id === $('ppt-template').value);
   const preview = $('ppt-template-preview');
@@ -37,6 +54,8 @@ function message(text) { $('ppt-status').textContent = text; }
 function syncButton() { openButton.disabled = !lastResult || busy; }
 function resetPreview() {
   $('ppt-preview').replaceChildren(); $('ppt-download').hidden = true; $('ppt-trace').hidden = true;
+  editToken++; currentDeck = null; clearCandidate(); editBusy(false); $('ppt-edit-panel').hidden = true;
+  $('ppt-edit-instruction').value = '';
 }
 function sourceLabel(item) {
   return `依据讲义 #${item.lecture_id} / ${version(item.base_revision)}；源版本保存时状态：${item.source_status}；模板：${item.template_name || '旧版简洁版式'}。`;
@@ -78,10 +97,16 @@ function drawVisual(visual) {
   }
   return root;
 }
-function drawDeck(data) {
-  $('ppt-source').textContent = sourceLabel(data.source);
-  $('ppt-preview').replaceChildren(...data.deck.slides.map((slide, index) => {
+function renderSlide(slide, index, total) {
     const item = el('section', undefined, 'ppt-page');
+    const tools = el('div', undefined, 'ppt-page-tools');
+    const choose = el('button', '修改这一页', 'secondary'); choose.type = 'button'; choose.disabled = editWorking;
+    choose.onclick = () => {
+      if(editWorking) return;
+      selectEditPage(index+1);
+      $('ppt-edit-instruction').focus();
+    };
+    tools.append(el('span', `第 ${index+1} 页`), choose);
     const canvas = el('div', undefined, 'ppt-canvas' + (slide.visual ? ' ppt-semantic' : index === 0 ? ' ppt-cover' : ''));
     canvas.append(el('h3', slide.title));
     const body = el('div', undefined, 'ppt-body');
@@ -89,13 +114,25 @@ function drawDeck(data) {
     else slide.bullets.forEach(text => body.append(el('p', text)));
     canvas.append(body);
     if(slide.question && slide.question !== slide.visual?.problem) canvas.append(el('p', '课堂提问：' + slide.question, 'ppt-question'));
-    canvas.append(el('p', `${index+1} / ${data.deck.slides.length} · ${kinds[slide.kind]} · AI 改编稿，待教师核查`, 'ppt-footer'));
+    canvas.append(el('p', `${index+1} / ${total} · ${kinds[slide.kind]} · AI 改编稿，待教师核查`, 'ppt-footer'));
     const notes = el('details', undefined, 'ppt-notes');
     notes.append(el('summary', '教师讲稿与来源'), el('p', slide.notes), el('p', '材料编号：' + (slide.sources.join('、') || '本页未标注，请核查'), 'helper'));
-    item.append(canvas, notes); return item;
-  }));
+    item.append(tools, canvas, notes);
+    return item;
+}
+function drawDeck(data, changedPage = null) {
+  currentDeck = data; editToken++; clearCandidate(); editBusy(false);
+  $('ppt-source').textContent = sourceLabel(data.source);
+  if(changedPage && $('ppt-preview').children.length === data.deck.slides.length) {
+    $('ppt-preview').children[changedPage-1].replaceWith(renderSlide(data.deck.slides[changedPage-1], changedPage-1, data.deck.slides.length));
+  } else $('ppt-preview').replaceChildren(...data.deck.slides.map((slide, index) => renderSlide(slide, index, data.deck.slides.length)));
+  $('ppt-edit-panel').hidden = false;
+  $('ppt-edit-version').textContent = `当前课件 #${data.id}` + (data.edit ? ` · 由 #${data.edit.parent_run_id} 微调第 ${data.edit.page} 页` : '');
+  $('ppt-edit-page').replaceChildren(...data.deck.slides.map((slide, index) => { const option = el('option', `第 ${index+1} 页 · ${slide.title}`); option.value = String(index+1); return option; }));
+  selectEditPage(changedPage || 1); editStatus('选择一页，填写要求后生成修改稿。');
   $('ppt-download').hidden = false;
   $('ppt-download').href = `/api/presentations/${data.id}/download`;
+  $('ppt-trace').hidden = false; $('ppt-trace').onclick = () => openTrace(data.id);
   message(`${data.deck.title} · ${data.deck.slides.length} 页。${data.warning}`);
 }
 async function watchPresentationJob(id) {
@@ -115,6 +152,15 @@ async function watchPresentationJob(id) {
     $('ppt-source').textContent = sourceLabel(saved);
     $('ppt-count').value = saved.slide_count; $('ppt-instruction').value = saved.instruction;
     $('ppt-trace').hidden = false; $('ppt-trace').onclick = () => openTrace(job.run_id);
+    if(run.context.ppt_slide_edit && run.response_metadata?.edit_state !== 'accepted') {
+      const parent = await api('/api/presentations/' + run.context.ppt_slide_edit.parent_run_id);
+      if(token !== session) return;
+      drawDeck(parent);
+      selectEditPage(run.context.ppt_slide_edit.page);
+      $('ppt-edit-instruction').value = run.context.ppt_slide_edit.instruction;
+      await watchEditJob(id);
+      return;
+    }
     while(token === session) {
       message(`${labels[job.status]} · 输入记录 #${job.run_id}` + (job.status === 'queued' ? ` · 等待位置 ${job.queue_position}` : '') + '。关闭窗口后可从后台任务恢复。');
       if(job.confirmation_pending) throw new Error('任务结束状态尚未确认，请核查生成记录并重启本地服务。');
@@ -131,7 +177,7 @@ async function watchPresentationJob(id) {
   } catch(e) { if(token === session) message(e.message + ' 已提交任务保存在“生成记录 → 后台任务”。'); }
   finally {
     if(token === session) {
-      working = false; $('ppt-submit').disabled = !source;
+      working = false; $('ppt-submit').disabled = !source || editWorking;
       if(source) refreshList(source.id, token).catch(e => message(e.message));
       refreshWorkspaceJobs().catch(() => {}); refreshRuns().catch(() => {});
     }
@@ -160,7 +206,73 @@ $('ppt-form').onsubmit = async e => {
   } catch(e) { if(token === session) { message(e.message); working = false; $('ppt-submit').disabled = false; } }
 };
 $('close-ppt').onclick = () => dialog.close();
-dialog.addEventListener('close', () => { session++; working = false; });
+dialog.addEventListener('close', () => { session++; editToken++; working = false; editWorking = false; });
+
+function comparisonSlide(slide) {
+  const node = el('div'); node.append(el('h5', slide.title));
+  if(slide.visual) node.append(drawVisual(slide.visual));
+  else slide.bullets.forEach(text => node.append(el('p', text)));
+  if(slide.question && slide.question !== slide.visual?.problem) node.append(el('p', '课堂提问：' + slide.question));
+  const notes = el('details'); notes.append(el('summary', '教师讲稿与来源'), el('p', slide.notes), el('p', slide.sources.join('、'))); node.append(notes);
+  return node;
+}
+async function watchEditJob(id) {
+  const token = ++editToken, baseId = currentDeck?.id;
+  editBusy(true); clearCandidate();
+  try {
+    while(token === editToken && dialog.open) {
+      const job = await api('/api/jobs/' + id);
+      if(token !== editToken || currentDeck?.id !== baseId) return;
+      $('ppt-trace').hidden = false; $('ppt-trace').onclick = () => openTrace(job.run_id);
+      if(job.confirmation_pending) throw new Error('任务状态待确认，请从生成记录恢复。');
+      if(job.status === 'succeeded') {
+        const candidate = await api('/api/presentation-edits/' + job.run_id);
+        if(token !== editToken || currentDeck?.id !== baseId) return;
+        if(candidate.state !== 'pending') { editStatus(candidate.state === 'discarded' ? '这次修改已放弃，原课件保持不变。' : '这次修改已采用，可从课件记录打开新版本。'); return; }
+        if(candidate.parent_run_id !== baseId) throw new Error('修改稿与当前课件不一致，请重新打开。');
+        pendingEdit = candidate;
+        $('ppt-edit-before').replaceChildren(comparisonSlide(candidate.before));
+        $('ppt-edit-after').replaceChildren(comparisonSlide(candidate.after));
+        $('ppt-edit-comparison').hidden = false; $('ppt-edit-decisions').hidden = false;
+        editStatus(`第 ${candidate.page} 页修改稿已就绪。采用后保存为新课件，原版保留。`);
+        return;
+      }
+      if(['failed','interrupted','cancelled'].includes(job.status)) throw new Error(job.error_message || '本页修改未完成，原课件保持不变。');
+      editStatus(`${labels[job.status]} · 仅处理选中页面。关闭后可从“生成记录 → 后台任务”恢复。`);
+      await new Promise(resolve => setTimeout(resolve, 1200));
+    }
+  } catch(e) { if(token === editToken) editStatus(e.message); }
+  finally { if(token === editToken) { editBusy(false); refreshWorkspaceJobs().catch(() => {}); refreshRuns().catch(() => {}); } }
+}
+$('ppt-edit-page').onchange = () => selectEditPage(Number($('ppt-edit-page').value));
+$('ppt-edit-form').onsubmit = async event => {
+  event.preventDefault(); if(!currentDeck || editWorking) return;
+  const base = currentDeck, token = ++editToken;
+  editBusy(true); clearCandidate(); editStatus('正在提交本页修改…');
+  try {
+    const job = await api(`/api/presentations/${base.id}/slide-edits`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({page:Number($('ppt-edit-page').value), instruction:$('ppt-edit-instruction').value, base_sha256:base.deck_sha256})});
+    if(token === editToken && currentDeck?.id === base.id) await watchEditJob(job.id);
+  } catch(e) { if(token === editToken) { editStatus(e.message); editBusy(false); } }
+};
+async function decideEdit(action) {
+  if(!pendingEdit || editWorking) return;
+  const candidate = pendingEdit, token = ++editToken;
+  editBusy(true); $('ppt-edit-accept').disabled = true; $('ppt-edit-discard').disabled = true;
+  try {
+    await api(`/api/presentation-edits/${candidate.id}/${action}`, {method:'POST'});
+    if(token !== editToken) return;
+    if(action === 'accept') {
+      const data = await api('/api/presentations/' + candidate.id);
+      if(token !== editToken) return;
+      drawDeck(data, candidate.page); $('ppt-edit-instruction').value = '';
+      editStatus(`已保存为课件 #${data.id}，仅第 ${candidate.page} 页更新，原版 #${candidate.parent_run_id} 保留。`);
+      refreshList(source.id, session).catch(() => {});
+    } else { clearCandidate(); $('ppt-trace').onclick = () => openTrace(currentDeck.id); editStatus('已放弃这次修改，原课件保持不变。'); }
+  } catch(e) { if(token === editToken) editStatus(e.message); }
+  finally { $('ppt-edit-accept').disabled = false; $('ppt-edit-discard').disabled = false; if(token === editToken || currentDeck?.id === candidate.id) editBusy(false); }
+}
+$('ppt-edit-accept').onclick = () => decideEdit('accept');
+$('ppt-edit-discard').onclick = () => decideEdit('discard');
 window.addEventListener('lecture-version-changed', syncButton);
 window.watchPresentationJob = watchPresentationJob;
 syncButton();
