@@ -3,6 +3,10 @@
 .env.*
 !.env.example
 
+# Personal interview preparation notes
+/docs/实习面试准备手册.md
+/docs/项目实现详解.md
+
 # Python 环境、缓存与构建产物
 .venv/
 venv/
