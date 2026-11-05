@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
-if [[ ! -x .venv/bin/python ]] || ! .venv/bin/python -c 'import flask, psycopg, dotenv, docx, pypdf, PIL, pypdfium2' >/dev/null 2>&1; then
+if [[ ! -x .venv/bin/python ]] || ! .venv/bin/python -c 'import flask, psycopg, dotenv, docx, pypdf, PIL, pypdfium2, pptx' >/dev/null 2>&1; then
   echo '请先按 README.md 安装完整 requirements.txt 依赖。'
   exit 1
 fi
