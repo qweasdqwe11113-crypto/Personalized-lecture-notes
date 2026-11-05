@@ -1,6 +1,6 @@
 # 项目模块关联图
 
-更新日期：2026-11-03。本文依据当前源码整理，用于定位模块职责、调用关系和数据流；模块存在不代表模型服务当前在线或已完成教学效果验收。
+更新日期：2026-11-05。本文依据当前源码整理，用于定位模块职责、调用关系和数据流；模块存在不代表模型服务当前在线或已完成教学效果验收。
 
 ## 1. 项目入口与整体结构
 
@@ -14,7 +14,9 @@ flowchart TD
     APP --> RT[检索：retrieval / embed]
     APP --> GEN[生成：lecture_policy / teaching / prompts / jobs]
     GEN --> LLM[qwen / model_runtime：语言模型调用]
-    APP --> OUT[审核与派生：reviews / sections / presentations]
+    APP --> OUT[审核与派生：reviews / sections / presentations / packages]
+    APP --> IMP[学生资料导入：roster_import]
+    IMP --> PG
     APP --> EXT[出题 / 阅卷 / 固定对照]
     CT --> PG[(PostgreSQL)]
     RT --> PG
@@ -47,11 +49,11 @@ flowchart TD
 | 页面 / 路由 | 主要前端模块 | 后端关联 |
 | --- | --- | --- |
 | 讲义工作台 `#workbench` | `app.js`、`jobs.js`、`teaching.js`、`lecture-workflow.js`、`lesson-settings.js`、`vision.js` | `/api/bootstrap`、`/api/context`、`/api/jobs`；课程、画像、教学安排、检索与图片证据共同进入生成流程。 |
-| 学生画像 `#profiles`、`#profiles/new`、`#profiles/<id>` | `student-roster.js`、`profiles.js` | `/api/students`、学生 profile/evidence 接口；对应 `profiles.py` 及 `app.py` 中的学生入口。 |
+| 学生画像 `#profiles`、`#profiles/new`、`#profiles/import`、`#profiles/<id>` | `student-roster.js`、`profiles.js`、`roster-import.js` | `/api/students`、学生 profile/evidence/knowledge-states 接口、`/api/students/import*`；对应 `profiles.py`、`roster_import.py` 及 `app.py` 中的学生入口。 |
 | 课程材料 `#materials`、`#materials/new`、`#materials/<key>` | `course-manager.js` | `/api/course-tasks` 及 materials/copy 接口；对应 `catalog.py`。 |
 | 上传资料 `#uploads` | `uploads.js`、`vision.js` | `/api/uploads`、`/api/vision/*`；对应资料保存、图片提取与识读。 |
-| 出题 `#quizzes` | `quizzes.js` | `/api/quizzes`；对应 `quizzes.py`。 |
-| 阅卷 `#grading` | `grading.js` | `/api/grading`；对应 `grading.py`。 |
+| 出题 `#quizzes` | `quizzes.js` | `/api/quizzes`（可带 `lecture_id` 配套讲义，列表可按 `?lecture_id=` 过滤）；对应 `quizzes.py`。 |
+| 阅卷 `#grading` | `grading.js`、`grading-evidence.js` | `/api/grading`（可带 `quiz_id`）、`/api/grading/<id>/evidence-drafts`，确认时写 `/api/students/<id>/evidence`；对应 `grading.py`。 |
 | 生成记录 `#records` 及子路由 | `jobs.js`、`traces.js`、`quizzes.js`、`grading.js`、`evaluation.js` | 讲义任务、生成输入、出题、阅卷和固定对照的历史接口。 |
 | 系统设置 `#settings` | `model-settings.js` | `/api/health`、`/api/model-settings` 及 test 接口；对应配置检查、保存和连接测试。 |
 
@@ -65,6 +67,8 @@ flowchart TD
 | `lecture-comparison.js` | `comparisons.py`：同目标讲义、版本及章节差异。 |
 | `section-editor.js` | `sections.py`：按章节生成修改建议并接受为新修订。 |
 | `presentations.js` | `presentations.py`：把指定讲义版本转换成授课 PPT；右侧单页微调、修改前后对照、采用为新课件及候选恢复。 |
+| `quizzes.js`（「配套出题」按钮） | `quizzes.py`：以当前阅读的讲义版本及其生成时快照出题。 |
+| `packages.js` | `packages.py`：`/api/lectures/<id>/package-options` 与 `/package`，汇总授课包下载。 |
 | `layout.js` 与各 CSS 文件 | 分栏宽度、响应式布局、弹窗滚动及打印展示。 |
 
 ### 前端共享状态与事件
@@ -117,8 +121,10 @@ flowchart TD
 | `rendering.py` | 安全 HTML/Markdown 展示和图片证据文字附录。 | 为讲义导出提供渲染能力；导出入口及 DOCX 等格式装配仍在 `app.py`。 |
 | `presentations.py` | 固定讲义版本，构造 PPT 请求，校验模型输出并提供预览和下载；单页候选生成与采用/放弃。 | 与讲义、章节改写共用 `TASKS`；使用 `generation_runs` 快照和 PPT 渲染模块。 |
 | `ppt_aesthetics.py`、`render_ppt_slides.ps1` | 保存送审 PPTX，调用本机 PowerPoint 渲染，向本机 Ollama 发送实际像素并校验逐页视觉建议。 | `presentations.refine_presentation()` 在生成中等待内部审查；独立审查队列及 SQLite，模型调用共用 `vision.VLM_LOCK`。 |
-| `quizzes.py` | 题目生成、输出校验、独立队列与导出。 | 使用课程上下文、提示和模型；任务保存到 PostgreSQL，与其他语言任务共用生成锁。 |
-| `grading.py` | 上传试卷和参考答案，提取作答，生成逐题批改建议。 | 复用上传/图片识读与模型能力；结果保存在独立 SQLite 库，共用语言模型生成锁。 |
+| `quizzes.py` | 题目生成、输出校验、独立队列与导出；配套讲义出题冻结讲义版本与生成时快照；为阅卷提供题组教师版答案及题号→知识点映射。 | 使用课程上下文、提示和模型；任务保存到 PostgreSQL，与其他语言任务共用生成锁。 |
+| `packages.py` | 授课包：读取讲义版本、审核记录、生成时快照、题组与课件，组装教师授课手册（Markdown→Word）、学生练习与带指纹的清单。 | 调用 `reviews.py`、`quality.py`、`quizzes.quiz_markdown`、`presentations.presentation_pptx`；只读，不调用模型。 |
+| `roster_import.py` | 学生名单与学习证据 CSV 的解析、逐行校验、预览指纹和整批事务导入。 | 证据逐行调用 `profiles.record_evidence`；确认时在同一事务内重新规划并比对预览指纹。 |
+| `grading.py` | 上传试卷和参考答案（或选择系统题组），提取作答，生成逐题批改建议；按题组知识点整理证据草稿。 | 复用上传/图片识读与模型能力；结果保存在独立 SQLite 库，共用语言模型生成锁；草稿不写画像，由前端逐条经证据接口确认。 |
 | `evaluation.py` | 冻结当前版本的有/无画像对照输入，排队执行并汇总实际记录。 | 使用生成上下文、教学安排、提示及共享任务队列；结果存 PostgreSQL。 |
 | `experiment.py` | 基于文件 manifest 的历史固定实验准备与执行工具。 | 复用提示及应用能力，面向 `experiments/` 中的历史文件工作流。 |
 | `model_settings.py` | 分通道查看、测试并原子保存本地模型配置。 | 注册 `/api/model-settings*`；写入 `.env`，配置应用时机以该接口和页面提示为准。 |
@@ -210,6 +216,26 @@ sequenceDiagram
 - 生成讲义不会自动改变学生长期掌握状态，状态更新需要明确证据及教师确认。
 - 按原输入重试复用冻结输入；重新生成读取当前上下文，两者含义不同。
 
+## 4.1 教学闭环：讲义 → 出题 → 阅卷 → 画像
+
+```mermaid
+flowchart LR
+    CSV[学生名单 / 学习证据 CSV] --> RI[roster_import.py：预览 + 指纹确认]
+    RI --> PF[(学生画像与证据)]
+    PF --> LEC[生成讲义：冻结画像快照]
+    LEC --> QZ[配套出题：quiz-v1+lecture-v1]
+    LEC --> PPT[授课 PPT]
+    LEC --> PKG[packages.py：教师授课手册 + 学生练习 + 课件 + 清单]
+    QZ --> PKG
+    PPT --> PKG
+    QZ --> GR[阅卷：使用题组教师版答案]
+    GR --> DR[evidence-drafts：按知识点整理草稿]
+    DR --> TC[教师逐条核对并确认]
+    TC --> PF
+```
+
+边界：授课包、证据草稿都不调用模型；只有教师点击确认才写画像，「保留原判断」只记录证据。配套题组冻结讲义版本，历史讲义快照不随后续画像变化。
+
 ## 5. 上传资料如何进入讲义
 
 ```mermaid
@@ -271,7 +297,7 @@ PPT 审查在管理器首次使用时将旧 `queued/running` 记录标记为 `in
 | 位置 | 内容 | 主要模块 |
 | --- | --- | --- |
 | `.runtime/uploads.sqlite3` | `uploads` 原资料及正文、`upload_notices` 解析提示、`upload_images` 图片、`image_analyses` 识读记录。 | `uploads.py`、`vision.py`；`catalog.py` 显式读取正文收录。 |
-| `.runtime/grading.sqlite3` | `grading_jobs`：阅卷状态、提取文字、参考答案、模型输入及批改结果。 | `grading.py`。 |
+| `.runtime/grading.sqlite3` | `grading_jobs`：阅卷状态、提取文字、参考答案、模型输入及批改结果；`quiz_reference` 保存所用题组及题号→知识点映射（启动时按需增列）。 | `grading.py`。 |
 | `.runtime/ppt-aesthetics/reviews.sqlite3` | `reviews`：课件运行 ID、任务状态、模型、PPTX 指纹、页码、逐页结果、错误及时间。 | `ppt_aesthetics.py`。 |
 | `.runtime/ppt-aesthetics/<review_id>/` | `source.pptx` 送审副本、`render.json`、`slide-<page>.png`，以及发生修改时的 `repair-request.json`、`repair-response.json`（含请求指纹和用量）；不进入 PostgreSQL。 | `ppt_aesthetics.py`、`render_ppt_slides.ps1`。 |
 | `.env` | 数据库与模型通道的实际配置。 | 启动加载、模型运行与设置模块；文档不记录真实密钥。 |
@@ -293,7 +319,9 @@ PPT 审查在管理器首次使用时将旧 `queued/running` 记录标记为 `in
 | 审核与局部改写 | `reviews.py`、`sections.py` 及对应 JS | 版本锁、问题记录、引用检查和另存修订。 |
 | PPT 输出 | `presentations.py`、`ppt_story.py`、`pptkit_export.py` | 模板版本、`pptx_export.py`、项目内 ppt-kit 与 PPT 测试。 |
 | PPT 内部审查与单页微调 | `presentations.py`、`ppt_aesthetics.py`、`render_ppt_slides.ps1`、`presentations.js` | 成功提交前完成审查、目标页范围、两轮上限、非目标页不变校验、候选采用/放弃、历史恢复、VLM 锁、SQLite、`test_ppt_aesthetics.py` 和 `test_presentations.py`。 |
-| 出题 / 阅卷 | `quizzes.py` / `grading.py` 及对应 JS | 各自存储、模型调用锁、重试与导出。 |
+| 出题 / 阅卷 | `quizzes.py` / `grading.py` 及对应 JS | 各自存储、模型调用锁、重试与导出；配套讲义版本、题号→知识点映射、`test_teaching_loop.py`。 |
+| 授课包 | `packages.py`、`packages.js` | 讲义版本与题组/课件归属校验、学生练习不含答案与个人信息、清单指纹、`test_packages.py`。 |
+| 学生资料导入 | `roster_import.py`、`roster-import.js` | 同名处理、别名知识点、预览指纹、整批回滚、`test_roster_import.py`。 |
 | 模型配置 | `model_settings.py`、`model_runtime.py`、`qwen.py`、`embed.py`、`vision.py` | 语言、视觉、嵌入通道区别；密钥遮蔽及配置生效时机。 |
 
 对应测试可从 `demo/tests/test_<功能>.py` 查起，例如 `test_preparation_workflow.py`、`test_profiles.py`、`test_uploads.py`、`test_vision.py`、`test_retrieval.py`、`test_courses_jobs.py`、`test_generation_runs.py`、`test_teaching_sections.py`、`test_presentations.py`、`test_quizzes.py`、`test_grading.py`、`test_current_evaluation.py`。`serve_*_fixture.py` 是隔离 UI 验证入口，与正式服务区分。

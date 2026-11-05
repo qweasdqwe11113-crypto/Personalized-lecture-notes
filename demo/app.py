@@ -31,7 +31,9 @@ from model_runtime import request_timeout
 from lecture_policy import LectureInputError, finalize_context
 from sections import execute_section, register_sections
 from presentations import execute_presentation, register_presentations
-from quizzes import QuizQueue, register_quizzes
+from packages import register_packages
+from roster_import import register_roster_import
+from quizzes import QuizQueue, grading_reference, register_quizzes
 from grading import register_grading
 from evaluation import register_evaluation
 from rendering import markdown_html, visual_appendix
@@ -50,7 +52,9 @@ register_uploads(app, ROOT)
 DSN = os.environ.get('DATABASE_URL', 'postgresql:///lecture_demo_prototype')
 MODEL = os.environ.get('QWEN_MODEL', 'qwen3.8-27b')
 GENERATION_LOCK = Lock()
-recover_grading = register_grading(app, ROOT, lambda prepared, attempt: call_qwen(prepared, attempt), GENERATION_LOCK)
+# QUIZZES is created below; the lambda resolves it when a grading upload names a quiz.
+recover_grading = register_grading(app, ROOT, lambda prepared, attempt: call_qwen(prepared, attempt), GENERATION_LOCK,
+                                   quiz_reference=lambda job_id: grading_reference(QUIZZES.detail(job_id)))
 EMBEDDER = QwenEmbedder()
 RETRIEVAL_LIMIT = 6
 
@@ -217,6 +221,25 @@ def save_student_profile(student_id):
         update_profile(conn, student_id, request.get_json(silent=True))
         result = get_profile(conn, student_id)
     return jsonify(result)
+
+
+@app.get('/api/students/<int:student_id>/knowledge-states')
+def student_knowledge_states(student_id):
+    """Current state and version per requested point, resolved through copy aliases to the diagnosed identity."""
+    raw = request.args.get('ids', '')
+    if not re.fullmatch(r'[0-9]{1,9}(,[0-9]{1,9}){0,49}', raw):
+        return jsonify(error='请选择有效的知识点。'), 400
+    with db() as conn:
+        conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
+        if not conn.execute('SELECT 1 FROM students WHERE id=%s', (student_id,)).fetchone():
+            return jsonify(error='学生不存在。'), 404
+        rows = conn.execute('''SELECT k.id,k.name,COALESCE(a.canonical_id,k.id) AS canonical_id,
+            COALESCE(s.state,'unknown') AS state,COALESCE(s.revision,0) AS revision,s.evidence
+            FROM knowledge_points k LEFT JOIN knowledge_aliases a ON a.knowledge_id=k.id
+            LEFT JOIN student_knowledge s ON s.knowledge_id=COALESCE(a.canonical_id,k.id) AND s.student_id=%s
+            WHERE k.id=ANY(%s) ORDER BY k.id''', (student_id, [int(i) for i in raw.split(',')])).fetchall()
+    from profiles import STATE_LABELS
+    return jsonify(states=[{**row, 'label': STATE_LABELS[row['state']]} for row in rows])
 
 
 @app.post('/api/students/<int:student_id>/evidence')
@@ -389,6 +412,8 @@ def execute_job(job_id, run_id, sid, topic, goal, context, prepared):
 TASKS = JobQueue(lambda: db(), execute_job)
 register_sections(app, lambda: db(), lambda: TASKS, lambda: MODEL)
 register_presentations(app, lambda: db(), lambda: TASKS)
+register_packages(app, lambda: db())
+register_roster_import(app, lambda: db())
 QUIZZES = QuizQueue(lambda: db(), lambda prepared, attempted: call_qwen(prepared, attempted), GENERATION_LOCK)
 register_quizzes(app, lambda: db(), lambda: QUIZZES, topic_catalog, get_context, lambda: MODEL)
 recover_evaluation = register_evaluation(

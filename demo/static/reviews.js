@@ -6,9 +6,13 @@ let reviewLecture = null, lectureReviewData = null, selectedRevision = 0, review
 let editorSession = 0, editorBase = 0, editorData = null, editorSaving = false;
 
 function drawQuality(report, origin, teacherRecord=null) {
-  $('quality-panel').hidden=!report;
+  $('quality-panel').hidden=!report;$('quality-jump').hidden=!report;
   if (!report) return;
   const warnings=report.automatic.filter(c=>c.status==='warning').length;
+  // The full panel sits below a long lecture; this line keeps warnings visible above it.
+  const labels=report.automatic.filter(c=>c.status==='warning').map(c=>c.label);
+  $('quality-jump').className='quality-jump'+(warnings?' has-warning':'');
+  $('quality-jump').textContent=warnings?`程序检查：${warnings} 项需查看（${labels.join('、')}） · 查看详情 ↓`:'程序检查未发现需提醒的问题；数学、来源与教学调整仍需教师复核 · 查看 ↓';
   $('quality-details').open=false;
   $('quality-version').textContent=report.version;
   $('quality-summary').textContent=`${origin || '当前文本检查'} · 程序提示 ${warnings} 项；`+(teacherRecord?.status==='reviewed'?'该版本保存了教师审核判断，程序结果不替代该判断。':'数学、来源支持与教学调整仍待教师复核。');
@@ -55,7 +59,7 @@ function issueCards(issues, resolutions, container) {
 }
 function clearLectureReview(){
   reviewSession++;reviewLecture=null;lectureReviewData=null;selectedRevision=0;
-  $('edit-lecture').disabled=true;$('version-controls').hidden=true;$('quality-panel').hidden=true;
+  $('edit-lecture').disabled=true;$('version-controls').hidden=true;$('quality-panel').hidden=true;$('quality-jump').hidden=true;
   updateDownloadLabel();
 }
 function setReviewBusy(value){$('edit-lecture').disabled=value||!lectureReviewData;$('lecture-version').disabled=value;}
@@ -184,3 +188,4 @@ async function prefillCitationReview(sourceId,lineNumber,support){
 window.prefillCitationReview=prefillCitationReview;
 Object.assign(window, {loadLectureReview, clearLectureReview, setReviewBusy, displaySectionRevision});
 })();
+$('quality-jump').onclick=()=>$('quality-panel').scrollIntoView({behavior:'smooth',block:'start'});

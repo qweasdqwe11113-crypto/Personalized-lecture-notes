@@ -5,11 +5,13 @@
   const message = text => { $('grading-error').textContent = text || ''; $('grading-error').hidden = !text; };
   const historyError = text => { $('grading-history-error').textContent = text || ''; $('grading-history-error').hidden = !text; };
   function render(row) {
+    window.dispatchEvent(new CustomEvent('grading-record-shown', {detail: row}));
     $('grading-status').textContent = labels[row.status] || row.status;
     $('grading-status').dataset.status = row.status;
     $('grading-extraction').hidden = !row.extracted;
     $('grading-extracted').textContent = row.extracted || '';
     $('grading-reference-text').textContent = row.reference_text || '未另传参考答案';
+    if (row.quiz_reference) $('grading-reference-text').textContent = `使用题组「${row.quiz_reference.title}」的教师版答案。\n\n` + (row.reference_text || '');
     $('grading-download').hidden = row.status !== 'completed';
     $('grading-results').replaceChildren();
     if (row.status === 'failed') message(row.error);
@@ -67,12 +69,16 @@
   }
   $('grading-form').onsubmit = async event => {
     event.preventDefault(); message('');
-    const paper = $('grading-paper').files[0], reference = $('grading-reference').files[0];
+    const mode = answerMode(), paper = $('grading-paper').files[0];
+    const reference = mode === 'file' ? $('grading-reference').files[0] : null, quiz = mode === 'quiz' ? $('grading-quiz').value : '';
     if (!paper) return message('请选择学生作答材料。');
+    if (mode === 'quiz' && !quiz) return message('请选择学生作答对应的题组，或改选其他答案来源。');
+    if (mode === 'file' && !reference) return message('请选择参考答案文件；没有答案时可改选「由模型推导」。');
     if (paper.size + (reference?.size || 0) > 10 * 1024 * 1024) return message('上传文件总大小不能超过10 MB。');
     const body = new FormData(); body.append('paper',paper);
     if (reference) body.append('reference',reference);
     body.append('requirements',$('grading-requirements').value);
+    if (quiz) body.append('quiz_id', quiz);
     $('grading-submit').disabled = true;
     try {
       const response = await fetch('/api/grading',{method:'POST',body});
@@ -82,6 +88,28 @@
     } catch(e) { message(e.message); }
     finally { $('grading-submit').disabled = false; }
   };
+  function answerMode() { return document.querySelector('input[name=grading-answer]:checked')?.value || 'file'; }
+  function syncAnswerMode() {
+    $('grading-answer-quiz').hidden = answerMode() !== 'quiz';
+    $('grading-answer-file').hidden = answerMode() !== 'file';
+  }
+  for (const input of document.querySelectorAll('input[name=grading-answer]')) input.onchange = syncAnswerMode;
+  async function quizzes() {
+    const select = $('grading-quiz'), selected = select.value;
+    const data = await api('/api/quizzes');
+    select.replaceChildren(el('option', '请选择题组'));select.firstChild.value = '';
+    for (const q of data.quizzes.filter(q => q.status === 'succeeded')) {
+      const option = el('option', `${q.title} · ${q.options.count} 题${q.lecture_id ? ' · 配套讲义 #' + q.lecture_id : ''} · ${new Date(q.created_at).toLocaleString('zh-CN')}`);
+      option.value = q.id; select.append(option);
+    }
+    if (Array.from(select.options).some(o => o.value === selected)) select.value = selected;
+    // With finished quizzes available, grading against them is the default: it keeps the point mapping.
+    if (!quizzesLoaded && select.options.length > 1) document.querySelector('input[name=grading-answer][value=quiz]').checked = true;
+    quizzesLoaded = true; syncAnswerMode();
+  }
+  let quizzesLoaded = false;
+  window.addEventListener('hashchange', () => { if (location.hash === '#grading') quizzes().catch(() => {}); });
+  quizzes().catch(() => {});
   $('grading-refresh').onclick = history;
   window.addEventListener('grading-history-open', history);
   history();

@@ -27,6 +27,7 @@
     const hash=location.hash.slice(1);const match=/^profiles\/([1-9]\d*)$/.exec(hash);
     $('student-list-page').hidden=hash!=='profiles';
     $('student-create-page').hidden=hash!=='profiles/new';
+    $('student-import-page').hidden=hash!=='profiles/import';
     $('student-detail-page').hidden=!match;
     note('');version++;selected=null;window.selectedProfileStudentId=null;
     if(match)loadStudent(match[1]);
@@ -43,6 +44,7 @@
     if(match)await loadStudent(match[1]);
   };
   $('view-current-profile').onclick=()=>{if(selected)loadStudent(selected);};
+  $('profile-start-lecture').onclick=()=>{if(!selected)return;if(!window.prepareLectureFor(selected))note(busy?'讲义正在生成，请完成后再切换学生。':'还没有包含这名学生的备课副本，请先在「课程材料」新建或复制备课副本。');};
   $('refresh-student-roster').onclick=()=>refreshStudentRoster().catch(e=>note(e.message));
   $('new-student-form').onsubmit=async event=>{
     event.preventDefault();const button=$('create-student');if(button.disabled)return;button.disabled=true;note('正在保存…');

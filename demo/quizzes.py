@@ -72,20 +72,81 @@ def question_plan(options, states):
                  difficulty=difficulties[i], knowledge_id=focus[i % len(focus)]) for i in range(count)]
 
 
+PROMPTS = Path(__file__).with_name('prompts')
+LECTURE_LIMIT = 20000
+
+
+def quiz_versions(context):
+    """Versions are derived from the frozen context, so retries rebuild the same labels."""
+    suffix = '+json-v1' if context.get('json_mode') else ''
+    if context.get('lecture'):
+        return 'quiz-v1+lecture-v1' + suffix, 'quiz-context-lecture-v1'
+    return 'quiz-v1' + suffix, 'quiz-context-v1'
+
+
 def prepare_quiz(context, options, model):
+    system = (PROMPTS / 'quiz-v1.md').read_text(encoding='utf-8')
+    if context.get('lecture'):
+        system = system.rstrip() + '\n' + (PROMPTS / 'quiz-lecture-v1.md').read_text(encoding='utf-8').strip()
     payload = dict(model=model, temperature=0.4, max_tokens=16000,
                    chat_template_kwargs={'enable_thinking': False}, messages=[
-        {'role': 'system', 'content': (Path(__file__).with_name('prompts') / 'quiz-v1.md').read_text(encoding='utf-8')},
+        {'role': 'system', 'content': system},
         {'role': 'user', 'content': json.dumps(dict(context=context, options=options), ensure_ascii=False, default=str)}])
+    if context.get('json_mode'):
+        # Service-side JSON mode escapes quotes inside Chinese text, which free-form output often breaks.
+        payload['response_format'] = {'type': 'json_object'}
     body = json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
-    return PreparedRequest(body, sha256(body.encode()).hexdigest(), 'quiz-v1', 'quiz-context-v1')
+    return PreparedRequest(body, sha256(body.encode()).hexdigest(), *quiz_versions(context))
+
+
+def lecture_topic_key(conn, lecture):
+    """Same resolution as the lecture API: frozen key first, then the original run."""
+    key = lecture['context'].get('topic', {}).get('key')
+    if key:
+        return key
+    run = conn.execute('''SELECT topic_key FROM generation_runs WHERE lecture_id=%s
+        AND NOT (context ? 'section_edit') AND NOT (context ? 'ppt_export') ORDER BY id LIMIT 1''',
+                       (lecture['id'],)).fetchone()
+    return run['topic_key'] if run else None
+
+
+def lecture_context(conn, data, topics):
+    """Freeze one saved lecture version and the materials and states it was written from."""
+    from reviews import STATUS_LABELS, lecture_row, version_row
+    lecture_id, number = data.get('lecture_id'), data.get('lecture_revision', 0)
+    if type(lecture_id) is not int or lecture_id <= 0 or type(number) is not int or number < 0:
+        raise QuizError('请选择有效的讲义与版本。')
+    lecture = lecture_row(conn, lecture_id)
+    version = version_row(conn, lecture, number)
+    content = version['content']
+    if not content.strip() or len(content) > LECTURE_LIMIT:
+        raise QuizError(f'讲义正文为空或超过 {LECTURE_LIMIT} 字符，请先保存精简的修订稿。')
+    key = lecture_topic_key(conn, lecture)
+    if key not in topics:
+        raise QuizError('无法确定该讲义所属的备课副本，请从讲义所在课程重新出题。')
+    frozen = lecture['context']
+    profiled = frozen.get('personalization_mode', 'profile') != 'none'
+    ctx = dict(student=frozen['student'] if profiled else {'name': '通用练习', 'profile': '未提供学生画像。'},
+               topic={**topics[key], **frozen['topic']}, states=frozen.get('states', []) if profiled else [],
+               materials=frozen.get('materials', []), personalization_mode='profile' if profiled else 'none')
+    ctx['lecture'] = dict(id=lecture_id, revision=number, content=content,
+                          content_sha256=sha256(content.encode('utf-8')).hexdigest(),
+                          status=STATUS_LABELS.get(version['status'], '原稿未审核'),
+                          title=frozen.get('topic', {}).get('title', lecture['topic']),
+                          personalization_plan=frozen.get('personalization_plan', []) if profiled else [],
+                          teaching_options=frozen.get('teaching_options', {}))
+    return key, (lecture['student_id'] if profiled else None), ctx
 
 
 def parse_questions(content, context):
     def invalid(message):
         raise ModelError('invalid_questions', message, 'output')
+    text = content.strip() if isinstance(content, str) else content
+    # Same tolerance as the slide parser: one surrounding ```json fence, nothing else.
+    if isinstance(text, str) and text.startswith('```json') and text.endswith('```'):
+        text = text[7:-3].strip()
     try:
-        result = json.loads(content)
+        result = json.loads(text)
     except (json.JSONDecodeError, TypeError):
         invalid('模型未返回有效题目 JSON，请重试。')
     plan = context['question_plan']
@@ -169,7 +230,7 @@ class QuizQueue:
             raise QuizError('仅失败或中断的题组可以按原输入重试。', 409)
         if not row['integrity_valid']:
             raise QuizError('原输入校验不一致，不能重试。', 409)
-        prepared = PreparedRequest(row['request_body'], row['request_sha256'], 'quiz-v1', 'quiz-context-v1')
+        prepared = PreparedRequest(row['request_body'], row['request_sha256'], *quiz_versions(row['context']))
         return self.submit(row['topic_key'], row['student_id'], row['context'], row['options'], prepared, job_id)
 
     def _work(self):
@@ -218,6 +279,10 @@ def quiz_markdown(row, teacher=False):
     lines = ['# '+context['topic']['title']+' · 练习题', '',
              f"共 {row['options']['count']} 题 · {DIFFICULTIES[row['options']['difficulty']]}", '',
              '教师版 · 答案与解析需教师复核。' if teacher else '姓名：____________    日期：____________', '']
+    if teacher and context.get('lecture'):
+        lecture = context['lecture']
+        lines[-1:-1] = [f"配套讲义 #{lecture['id']} / {'原稿' if not lecture['revision'] else 'R' + str(lecture['revision'])}"
+                        f"（出题时状态：{lecture['status']}）", '']
     for q in row['result']['questions']:
         lines.extend([f"## 第 {q['number']} 题 · {TYPES[q['type']]} · {DIFFICULTIES[q['difficulty']]}", '', q['stem'], ''])
         lines.extend(f'{letter}. {value}' for letter, value in zip('ABCD', q['options']))
@@ -233,6 +298,17 @@ def quiz_markdown(row, teacher=False):
     return '\n'.join(lines)
 
 
+def grading_reference(row):
+    """Teacher answers of a finished quiz, plus the question → knowledge point map used for evidence drafts."""
+    if row['status'] != 'succeeded' or not row['integrity_valid']:
+        raise QuizError('参考题组尚未生成成功或输入校验不一致，不能作为阅卷答案。', 409)
+    names = {**{str(s['id']): s['name'] for s in row['context'].get('states', [])}, **row['context'].get('knowledge_names', {})}
+    return dict(quiz_id=row['id'], topic_key=row['topic_key'], title=row['context']['topic']['title'],
+                lecture_id=(row['context'].get('lecture') or {}).get('id'), text=quiz_markdown(row, True),
+                questions=[dict(number=str(q['number']), knowledge_id=q['knowledge_id'],
+                                knowledge_name=names.get(str(q['knowledge_id']), '')) for q in row['result']['questions']])
+
+
 def register_quizzes(app, db, queue, catalog, context_builder, model):
     @app.errorhandler(QuizError)
     def quiz_error(exc):
@@ -243,6 +319,8 @@ def register_quizzes(app, db, queue, catalog, context_builder, model):
         data = request.get_json(silent=True)
         if not isinstance(data, dict):
             raise QuizError('请提交有效的出题设置。')
+        if data.get('lecture_id') is not None:
+            return lecture_quiz(data)
         key, sid = data.get('topic'), data.get('student_id')
         topics = catalog()
         if not isinstance(key, str) or key not in topics:
@@ -267,13 +345,43 @@ def register_quizzes(app, db, queue, catalog, context_builder, model):
         ctx['materials'] = [{**m, 'citation_id': f'M{m["id"]}'} for m in ctx['materials']]
         ctx['knowledge_names'] = {str(p['id']): p['name'] for p in points}
         ctx['question_plan'] = question_plan(options, ctx['states'])
+        ctx['json_mode'] = True
         return jsonify(queue().submit(key, sid, ctx, options, prepare_quiz(ctx, options, model()))), 202
+
+    def lecture_quiz(data):
+        topics = catalog()
+        with db() as conn:
+            conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
+            key, sid, ctx = lecture_context(conn, data, topics)
+            points = conn.execute('SELECT id,name FROM knowledge_points WHERE id=ANY(%s)',
+                                  (ctx['topic']['knowledge_ids'],)).fetchall()
+        if data.get('topic') not in (None, key):
+            raise QuizError('讲义所属备课副本与所选副本不一致，请刷新后重试。')
+        options = validate_options(data, ctx['topic']['knowledge_ids'])
+        if options['student_level'] == 'profile' and sid is None:
+            raise QuizError('这份讲义是无画像对照讲义，请选择通用学生水平出题。')
+        if options['student_level'] != 'profile':
+            # The lecture snapshot stays as teaching background; individual diagnostics do not.
+            ctx = {**ctx, 'student': {'name': '通用练习', 'profile': '未提供学生画像。'}, 'states': [],
+                   'personalization_mode': 'none', 'lecture': {**ctx['lecture'], 'personalization_plan': []}}
+        ctx['materials'] = [{**m, 'citation_id': f'M{m["id"]}'} for m in ctx['materials']]
+        ctx['knowledge_names'] = {str(p['id']): p['name'] for p in points}
+        ctx['question_plan'] = question_plan(options, ctx['states'])
+        ctx['json_mode'] = True
+        student = sid if options['student_level'] == 'profile' else None
+        return jsonify(queue().submit(key, student, ctx, options, prepare_quiz(ctx, options, model()))), 202
 
     @app.get('/api/quizzes')
     def list_quizzes():
+        lecture = request.args.get('lecture_id', '')
+        if lecture and not lecture.isdigit():
+            raise QuizError('请选择有效的讲义。')
         with db() as conn:
             rows = conn.execute('''SELECT id,status,created_at,options,error_message,context->'topic'->>'title' AS title,
-                context->'student'->>'name' AS student_name FROM quiz_jobs ORDER BY created_at DESC LIMIT 50''').fetchall()
+                context->'student'->>'name' AS student_name,(context->'lecture'->>'id')::bigint AS lecture_id,
+                (context->'lecture'->>'revision')::int AS lecture_revision FROM quiz_jobs
+                WHERE %s='' OR context->'lecture'->>'id'=%s ORDER BY created_at DESC LIMIT 50''',
+                (lecture, lecture)).fetchall()
         return jsonify(quizzes=rows)
 
     @app.get('/api/quizzes/<job_id>')

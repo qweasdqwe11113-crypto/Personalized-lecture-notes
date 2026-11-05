@@ -4,7 +4,8 @@ let watchSession=0;
 async function refreshJobs(){
  const data=await api('/api/jobs');
  $('jobs-list').replaceChildren(...data.jobs.map(job=>{
-   const b=el('button',`${job.ppt_generation?'授课 PPT · ':job.section_rewrite?'章节调整 · ':''}${(job.section_rewrite||job.ppt_generation)&&job.status==='succeeded'?'候选已生成':labels[job.status]} · ${job.name} · ${job.topic}`);
+   const b=el('button',`${job.ppt_generation?'授课 PPT · ':job.section_rewrite?'章节调整 · ':''}${job.status==='succeeded'&&job.ppt_generation?'课件已生成':job.status==='succeeded'&&job.section_rewrite?'章节候选已生成':labels[job.status]} · ${job.name} · ${job.topic}`);
+   b.append(el('span',`${new Date(job.created_at).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}${job.lecture_id?' · 讲义 #'+job.lecture_id:''}`,'history-date'));
    b.type='button';b.onclick=()=>{if(busy)return;watchJob(job.id);};const row=el('div',undefined,'job-row');row.append(b);if(job.status==='queued'){const cancel=el('button','取消排队','secondary');cancel.type='button';cancel.onclick=async()=>{cancel.disabled=true;try{await api('/api/jobs/'+job.id+'/cancel',{method:'POST'});await refreshJobs();}catch(e){error(e.message);cancel.disabled=false;}};row.append(cancel);}return row;
  }));
  if(!data.jobs.length)$('jobs-list').append(el('p','尚无后台任务。','helper'));

@@ -15,7 +15,7 @@
   let active;
   function navigate(focus = false) {
     const hash = location.hash.slice(1);
-    const profileRoute = /^profiles\/(new|[1-9]\d*)$/.test(hash);
+    const profileRoute = /^profiles\/(new|import|[1-9]\d*)$/.test(hash);
     const materialRoute = /^materials\/[\w-]+$/.test(hash);
     const recordsRoute = /^records\/(lectures|quizzes|grading|experiments)$/.test(hash);
     const page = recordsRoute ? 'records' : materialRoute ? 'materials' : profileRoute ? 'profiles' : pages[hash] ? hash : aliases[hash] || 'workbench';
@@ -24,10 +24,10 @@
     active = hash;
     for (const key of Object.keys(pages)) $('page-' + key).hidden = key !== page;
     for (const link of document.querySelectorAll('a[data-page]')) {
-      if (link.dataset.page === page) link.setAttribute('aria-current', 'page');
+      if (link.dataset.page === page) { link.setAttribute('aria-current', 'page'); if (link.scrollIntoView && link.parentElement.scrollWidth > link.parentElement.clientWidth) link.scrollIntoView({block: 'nearest', inline: 'nearest'}); }
       else link.removeAttribute('aria-current');
     }
-    const title = materialRoute ? (hash === 'materials/new' ? '新建备课副本' : '备课副本详情') : profileRoute ? (hash === 'profiles/new' ? '新建学生画像' : '学生档案') : pages[page][0];
+    const title = materialRoute ? (hash === 'materials/new' ? '新建备课副本' : '备课副本详情') : profileRoute ? (hash === 'profiles/new' ? '新建学生画像' : hash === 'profiles/import' ? '批量导入学生资料' : '学生档案') : pages[page][0];
     $('page-title').textContent = title;
     document.title = title + ' · 知页';
     document.body.dataset.page = page;

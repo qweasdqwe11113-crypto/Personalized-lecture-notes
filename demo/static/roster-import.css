@@ -1,0 +1,15 @@
+.roster-import-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+.roster-import-table{width:100%;border-collapse:collapse;font-size:12.5px;line-height:1.6}
+.roster-import-table th,.roster-import-table td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.roster-import-table th{background:#f6f8fc;font-weight:600;white-space:nowrap}
+.roster-import-table tr:last-child td{border-bottom:0}
+.roster-import-table td.wide{min-width:220px}
+.roster-import-table tr.error td{background:#fff6f5}
+.roster-import-table .row-error{color:var(--danger)}
+.roster-import-table .row-ok{color:var(--success)}
+.roster-import-table .row-skip{color:var(--muted)}
+.roster-import-confirm{display:grid;gap:12px;margin-top:16px}
+.roster-import-confirm input[type=text],#roster-import-recorder{max-width:320px;width:100%}
+.roster-import-check{display:flex;gap:9px;align-items:flex-start;font-size:13px}
+.roster-import-check input{margin-top:4px}
+.roster-import-confirm .primary{justify-self:start}

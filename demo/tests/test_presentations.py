@@ -498,6 +498,10 @@ class PresentationIntegrationTests(ProfileDatabaseFixture):
         self.assertEqual(run['context']['ppt_export']['source_status'], '草稿')
         self.assertEqual(run['status'], 'succeeded')
         self.assertEqual(run['context']['ppt_export']['content_sha256'], fingerprint(data['content']))
+        # New exports freeze service-side JSON mode into both the context and the exact request bytes.
+        self.assertTrue(run['context']['ppt_export']['json_mode'])
+        self.assertEqual(json.loads(run['request_body'])['response_format'], {'type': 'json_object'})
+        self.assertTrue(run['prompt_version'].endswith('+json-v1'))
 
     def test_invalid_model_result_keeps_failed_input_and_can_retry_exact_bytes(self):
         bad = fixture_deck(); bad['slides'][1]['sources'] = ['M999']

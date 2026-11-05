@@ -28,7 +28,7 @@ if __name__ == '__main__':
 
     def model(prepared, attempted):
         attempted(); time.sleep(1)
-        if prepared.prompt_version in {'lecture-ppt-v1', 'lecture-ppt-v2', 'lecture-ppt-v3'}:
+        if prepared.prompt_version.startswith('lecture-ppt-'):
             user = json.loads(json.loads(prepared.body)['messages'][1]['content'])
             return module.ModelResult(json.dumps(fixture_deck(user['slide_count']), ensure_ascii=False))
         return module.ModelResult('# 隔离测试讲义\n等式两边进行相同运算。 [M3]')

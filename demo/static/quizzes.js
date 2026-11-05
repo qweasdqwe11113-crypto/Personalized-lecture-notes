@@ -3,10 +3,22 @@
   const difficultyLabels={basic:'基础',medium:'中等',advanced:'拔高',mixed:'混合'};
   const levelLabels={foundation:'基础待巩固',standard:'常规水平',advanced:'学有余力'};
   const statusLabels={queued:'排队中',running:'生成中',succeeded:'已生成',failed:'失败',interrupted:'已中断'};
-  let catalog={}, roster=[], pointNames=new Map(), displayed=null, teacher=false, watching=0, submitting=false;
+  let catalog={}, roster=[], pointNames=new Map(), displayed=null, teacher=false, watching=0, submitting=false, linked=null;
   const option=(value,label)=>{const node=el('option',label);node.value=value;return node;};
   function showError(message){$('quiz-error').textContent=message||'';$('quiz-error').hidden=!message;}
   function setStatus(message){$('quiz-status').textContent=message;}
+  const versionLabel=n=>n?'R'+n:'原稿';
+  function drawLink(){
+    $('quiz-lecture-link').hidden=!linked;
+    $('quiz-topic').disabled=Boolean(linked)||!Object.keys(catalog).length;$('quiz-student').disabled=Boolean(linked);
+    if(linked)$('quiz-lecture-label').textContent=`配套讲义 #${linked.id} · ${versionLabel(linked.revision)} · ${linked.student||'无画像对照'}`;
+  }
+  function linkLecture(link){
+    linked=link;
+    if(link&&catalog[link.topic]){$('quiz-topic').value=link.topic;selectTopic();}
+    if(link){$('quiz-student').value=link.student_id?String(link.student_id):'';$('quiz-level').value=link.student_id?'profile':'standard';describeStudent();}
+    drawLink();
+  }
   function allocation(){
     const n=Number($('quiz-count').value),difficulty=$('quiz-difficulty').value;
     if(!Number.isInteger(n)||n<1||n>30){$('quiz-allocation').textContent='每次支持 1～30 题。';return;}
@@ -39,9 +51,11 @@
     catalog=data.topics;roster=data.students;pointNames=new Map(data.knowledge_points.map(k=>[k.id,k.name]));
     $('quiz-topic').replaceChildren(...Object.entries(catalog).sort(([,a],[,b])=>Number(Boolean(b.custom))-Number(Boolean(a.custom))).map(([key,t])=>option(key,(t.custom?'':'示例 · ')+[t.stage,t.course,t.title].filter(Boolean).join(' / '))));
     if(catalog[selected])$('quiz-topic').value=selected;
-    $('quiz-topic').disabled=!Object.keys(catalog).length;selectTopic();
+    $('quiz-topic').disabled=!Object.keys(catalog).length;selectTopic();drawLink();
   }
   function restoreSettings(row){
+    const lecture=row.context.lecture;
+    linked=lecture?{id:lecture.id,revision:lecture.revision,topic:row.topic_key,student_id:row.student_id,student:row.student_id?row.context.student.name:''}:null;
     if(catalog[row.topic_key]){$('quiz-topic').value=row.topic_key;selectTopic();}
     const sid=row.student_id===null?'':String(row.student_id);
     if(Array.from($('quiz-student').options).some(o=>o.value===sid))$('quiz-student').value=sid;
@@ -49,7 +63,7 @@
     $('quiz-count').value=row.options.count;$('quiz-difficulty').value=row.options.difficulty;$('quiz-requirements').value=row.options.requirements;
     for(const input of document.querySelectorAll('input[name=quiz-type]'))input.checked=row.options.types.includes(input.value);
     for(const input of document.querySelectorAll('input[name=quiz-point]'))input.checked=row.options.knowledge_ids.includes(Number(input.value));
-    allocation();
+    allocation();drawLink();
   }
   function drawDownload(){
     $('quiz-export').hidden=displayed?.status!=='succeeded';
@@ -85,7 +99,7 @@
     $('quiz-history-error').hidden=true;
     $('quiz-history').replaceChildren(...data.quizzes.map(q=>{
       const b=el('button');b.type='button';b.setAttribute('aria-current',String(q.id===displayed?.id));
-      b.append(el('strong',q.title),el('span',`${statusLabels[q.status]} · ${q.options.count} 题 · ${difficultyLabels[q.options.difficulty]} · ${new Date(q.created_at).toLocaleString('zh-CN')}`,'helper'));
+      b.append(el('strong',q.title),el('span',`${q.lecture_id?'配套讲义 #'+q.lecture_id+' · ':''}${statusLabels[q.status]} · ${q.options.count} 题 · ${difficultyLabels[q.options.difficulty]} · ${new Date(q.created_at).toLocaleString('zh-CN')}`,'helper'));
       b.onclick=()=>{openWorkspacePage('quizzes');watch(q.id).catch(e=>showError(e.message));};return b;
     }));
     if(!data.quizzes.length)$('quiz-history').append(el('p','还没有出题记录。','helper'));
@@ -111,7 +125,7 @@
     if(!types.length){showError('请至少选择一种题型。');return;}
     submitting=true;$('quiz-generate').disabled=true;showError('');setStatus('正在固定出题设置并提交…');
     try{
-      const data={topic:$('quiz-topic').value,student_id:$('quiz-student').value?Number($('quiz-student').value):null,student_level:$('quiz-level').value,count:Number($('quiz-count').value),difficulty:$('quiz-difficulty').value,types,knowledge_ids:Array.from(document.querySelectorAll('input[name=quiz-point]:checked'),n=>Number(n.value)),requirements:$('quiz-requirements').value};
+      const data={topic:$('quiz-topic').value,student_id:$('quiz-student').value?Number($('quiz-student').value):null,student_level:$('quiz-level').value,count:Number($('quiz-count').value),difficulty:$('quiz-difficulty').value,types,knowledge_ids:Array.from(document.querySelectorAll('input[name=quiz-point]:checked'),n=>Number(n.value)),requirements:$('quiz-requirements').value,...(linked?{lecture_id:linked.id,lecture_revision:linked.revision}:{})};
       const row=await api('/api/quizzes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
       await refreshHistory().catch(()=>{});watch(row.id).catch(e=>showError(e.message+' 任务已提交，可在出题记录中重新查看。'));
     }catch(e){showError(e.message);setStatus('提交未完成，请核对设置后重试。');}
@@ -122,6 +136,18 @@
     try{const row=await api('/api/quizzes/'+id+'/retry',{method:'POST'});await watch(row.id);}catch(e){showError(e.message);}finally{$('quiz-retry').disabled=false;}
   };
   $('quiz-topic').onchange=selectTopic;
+  $('quiz-lecture-clear').onclick=()=>{linked=null;drawLink();describeStudent();setStatus('已取消讲义关联，将按备课副本出题。');};
+  const lectureButton=el('button','配套出题','secondary');lectureButton.id='open-lecture-quiz';lectureButton.type='button';lectureButton.disabled=true;
+  $('lecture-prep-status').before(lectureButton);
+  window.addEventListener('lecture-version-changed',()=>{lectureButton.disabled=!lastResult||busy;});
+  lectureButton.onclick=async()=>{
+    if(!lastResult||busy)return;
+    const r=lastResult,profiled=r.context.personalization_mode!=='none';
+    watching++;displayed=null;teacher=false;drawResult();showError('');$('quiz-preview-title').textContent='题组预览';
+    await catalogReady.catch(()=>{});
+    linkLecture({id:r.id,revision:r.revision_number||0,topic:r.topic_key,student_id:profiled?r.student_id:null,student:profiled?r.context.student.name:''});
+    setStatus('已关联当前阅读的讲义版本，确认题量与题型后生成。');openWorkspacePage('quizzes');
+  };
   $('quiz-student').onchange=()=>{if($('quiz-student').value)$('quiz-level').value='profile';describeStudent();};
   $('quiz-level').onchange=describeStudent;$('quiz-count').oninput=allocation;$('quiz-difficulty').onchange=allocation;
   $('quiz-student-view').onclick=()=>{teacher=false;drawResult();};$('quiz-teacher-view').onclick=()=>{teacher=true;drawResult();};$('quiz-format').onchange=drawDownload;

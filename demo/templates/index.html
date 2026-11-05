@@ -22,7 +22,7 @@
  <h1 id="page-title" class="visually-hidden" tabindex="-1">讲义工作台</h1>
  <div id="error" class="error" role="alert" hidden></div>
  <section class="workspace-page" id="page-workbench" aria-labelledby="page-title">
- <div class="workflow-strip"><span class="workflow-number">01</span><strong>选择备课副本</strong><span class="workflow-line"></span><span class="workflow-number">02</span><strong>选择学生并填写备注</strong><span class="workflow-line"></span><a href="#materials">管理备课材料 ↗</a></div>
+ <div class="workflow-strip" id="workflow-strip"><span class="workflow-step" data-step="1"><span class="workflow-number">01</span><strong>选择备课副本与学生</strong></span><span class="workflow-line"></span><span class="workflow-step" data-step="2"><span class="workflow-number">02</span><strong>设置并生成讲义</strong></span><span class="workflow-line"></span><span class="workflow-step" data-step="3"><span class="workflow-number">03</span><strong>审核修订</strong></span><span class="workflow-line"></span><span class="workflow-step" data-step="4"><span class="workflow-number">04</span><strong>配套出题、课件与授课包</strong></span><a href="#materials">管理备课材料 ↗</a></div>
  <div class="workspace" id="workspace">
   <aside id="settings-column" aria-label="讲义设置与状态">
    <section class="panel setup"><div class="section-heading"><h2>讲义设置</h2><span class="small-label">01</span></div>
@@ -44,13 +44,12 @@
   </aside>
   <div id="layout-resizer" class="layout-resizer" role="separator" tabindex="0" aria-label="调整设置栏宽度" aria-orientation="vertical" aria-controls="settings-column lecture-results" aria-valuemin="280" aria-valuemax="440" aria-valuenow="330" aria-valuetext="设置栏宽度 330 像素" title="拖动调整宽度；左右方向键微调，Home/End 调到最小/最大，双击恢复默认"></div>
   <div class="result-column" id="lecture-results">
-   <section class="paper"><div class="paper-toolbar"><div><span class="paper-dot"></span><strong id="result-label">讲义预览</strong></div><div class="paper-actions"><button id="edit-lecture" type="button" class="secondary" disabled>编辑与审核</button><button id="view-input" type="button" class="secondary" disabled>查看生成输入</button><button id="compare-profile" type="button" class="secondary" disabled>画像对照</button><button id="compare-lectures" type="button" class="secondary" disabled>讲义比较</button><div class="download-group"><label class="download-format-label" for="download-format">下载格式</label><select id="download-format" disabled><option value="md">Markdown (.md)</option><option value="txt">纯文本 (.txt)</option><option value="html">网页 (.html)</option><option value="docx">Word 文档 (.docx)</option></select><button id="download" class="secondary" disabled>下载原稿 Markdown</button><button id="print-lecture" class="secondary" type="button" disabled>打印 / PDF</button></div></div></div>
-    <div class="section-entry"><button id="adjust-section" type="button" class="secondary" disabled>按章节调整</button><span class="helper">展开、简化或更换例题，预览后另存版本。</span></div>
+   <section class="paper" id="result-paper"><div class="paper-toolbar"><div><span class="paper-dot"></span><strong id="result-label">讲义预览</strong></div><div class="paper-actions"><div class="action-group action-group-prep" id="lecture-prep-actions" role="group" aria-labelledby="prep-actions-label"><span class="action-group-label" id="prep-actions-label">授课准备</span><span id="lecture-prep-status" class="prep-status" role="status" aria-live="polite"></span></div><div class="action-group" role="group" aria-labelledby="review-actions-label"><span class="action-group-label" id="review-actions-label">审核与追溯</span><button id="edit-lecture" type="button" class="secondary" disabled>编辑与审核</button><button id="adjust-section" type="button" class="secondary" title="展开、简化或更换例题，预览后另存版本。" disabled>按章节调整</button><button id="view-input" type="button" class="secondary" disabled>查看生成输入</button><button id="compare-profile" type="button" class="secondary" disabled>画像对照</button><button id="compare-lectures" type="button" class="secondary" disabled>讲义比较</button></div><div class="download-group" role="group" aria-label="下载与打印"><label class="download-format-label" for="download-format">下载格式</label><select id="download-format" disabled><option value="md">Markdown (.md)</option><option value="txt">纯文本 (.txt)</option><option value="html">网页 (.html)</option><option value="docx">Word 文档 (.docx)</option></select><button id="download" class="secondary" disabled>下载原稿 Markdown</button><button id="print-lecture" class="secondary" type="button" disabled>打印 / PDF</button></div></div></div>
     <div id="version-controls" class="version-controls" hidden><label for="lecture-version">阅读版本</label><select id="lecture-version"></select><p id="version-status" class="helper" role="status"></p></div>
     <p id="input-trace-note" class="input-trace-note" hidden></p>
-    <div id="empty" class="empty"><div class="page-symbol">Aa<span>＋</span></div><h2>从学生的起点出发</h2><p>选择一名学生，查看知识状态，<br>生成针对当前学习需要的讲义。</p><div class="steps"><span>学生状态</span><i>→</i><span>课程证据</span><i>→</i><span>专属讲义</span></div></div>
+    <div id="empty" class="empty"><div class="page-symbol">Aa<span>＋</span></div><h2>从学生的起点出发</h2><p>选择一名学生，查看知识状态，<br>生成针对当前学习需要的讲义。</p><div class="steps"><span>学生状态</span><i>→</i><span>课程证据</span><i>→</i><span>专属讲义</span></div><div id="empty-recent" class="empty-recent" hidden><p class="helper">或继续最近的讲义</p><div id="empty-recent-list"></div></div></div>
     <div id="loading" class="empty" hidden><div class="spinner"></div><h2>正在组织这份讲义</h2><p>Qwen 正在结合学生状态与课程材料生成。<br>完成后会自动保存到本地数据库。</p></div>
-    <div id="lecture-meta" class="lecture-meta" hidden></div><details id="result-plan" class="result-plan" hidden><summary>查看本份讲义的安排与定位</summary><div id="result-plan-content"></div></details><article id="lecture" class="lecture" hidden></article>
+    <div id="lecture-meta" class="lecture-meta" hidden></div><button id="quality-jump" type="button" class="quality-jump" hidden></button><details id="result-plan" class="result-plan" hidden><summary>查看本份讲义的安排与定位</summary><div id="result-plan-content"></div></details><article id="lecture" class="lecture" hidden></article>
     <div id="review-note" class="review-note" hidden></div>
    </section>
    <section id="quality-panel" class="panel" hidden>
@@ -75,6 +74,7 @@
    <section class="panel quiz-settings"><div class="section-heading"><h2>出题设置</h2><div class="quiz-actions"><a href="#records/quizzes" class="secondary">出题记录</a><button id="quiz-refresh-catalog" type="button" class="secondary">刷新副本</button></div></div>
     <form id="quiz-form">
      <label for="quiz-topic">备课材料副本</label><select id="quiz-topic" required disabled></select>
+     <div id="quiz-lecture-link" class="quiz-lecture-link" hidden><div><strong id="quiz-lecture-label"></strong><p class="helper">题目依据该讲义版本及其生成时的材料与画像快照出题，与课堂讲法保持一致；选择通用水平时不发送个体诊断。</p></div><button id="quiz-lecture-clear" type="button" class="secondary">取消关联</button></div>
      <p id="quiz-goal" class="helper"></p>
      <label for="quiz-student">参考学生 <span>选填</span></label><select id="quiz-student"><option value="">通用学生水平</option></select>
      <label for="quiz-level">学生水平</label><select id="quiz-level"><option value="profile">按所选学生画像</option><option value="foundation">基础待巩固</option><option value="standard" selected>常规水平</option><option value="advanced">学有余力</option></select>
@@ -89,7 +89,7 @@
     </form><p id="quiz-status" class="helper" role="status" aria-live="polite"></p><div id="quiz-error" class="error" role="alert" hidden></div>
    </section>
    <div class="quiz-main"><section class="panel"><div class="section-heading"><h2 id="quiz-preview-title">题组预览</h2><div class="quiz-actions"><button id="quiz-student-view" class="secondary" type="button" aria-pressed="true">学生版</button><button id="quiz-teacher-view" class="secondary" type="button" aria-pressed="false">教师版 · 含解析</button></div></div>
-    <p id="quiz-preview-note" class="helper">选择备课副本和出题设置，即可生成练习题。学生版隐藏答案，教师版显示解析与易错点。</p>
+    <p id="quiz-preview-note" class="helper">选择备课副本和出题设置，即可生成练习题。学生版隐藏答案，教师版显示解析与易错点。想让题目与某份讲义的讲法一致，可在讲义工作台打开讲义后点击「配套出题」。</p>
     <div id="quiz-export" class="quiz-actions" hidden><label for="quiz-format">下载格式</label><select id="quiz-format"><option value="docx">Word (.docx)</option><option value="md">Markdown (.md)</option><option value="txt">纯文本 (.txt)</option><option value="html">网页 (.html)</option></select><a id="quiz-download" class="secondary">下载学生版</a></div>
     <div id="quiz-questions" class="quiz-questions"></div><button id="quiz-retry" class="secondary" type="button" hidden>按原输入重试</button>
    </section>
@@ -98,10 +98,25 @@
  </section>
  <section class="workspace-page" id="page-profiles" hidden>
   <div id="student-list-page"><div class="page-intro"><span class="intro-icon">◎</span><div><h2>学生名单</h2><p>选择同学查看独立档案，或新建学生画像。</p></div></div>
-  <section class="panel"><div class="section-heading"><h2 id="student-roster-title">全部学生</h2><div class="trace-actions"><button id="refresh-student-roster" class="secondary" type="button">刷新名单</button><a href="#profiles/new" class="primary student-page-link">新建学生画像</a></div></div><div id="student-roster" class="student-roster"></div></section></div>
+  <section class="panel"><div class="section-heading"><h2 id="student-roster-title">全部学生</h2><div class="trace-actions"><button id="refresh-student-roster" class="secondary" type="button">刷新名单</button><a href="#profiles/import" class="secondary student-page-link">批量导入</a><a href="#profiles/new" class="primary student-page-link">新建学生画像</a></div></div><div id="student-roster" class="student-roster"></div></section></div>
   <div id="student-create-page" hidden><div class="section-heading"><h2>新建学生画像</h2><a href="#profiles" class="student-page-link">返回学生名单</a></div>
   <section class="panel"><form id="new-student-form" class="editor-form"><div class="course-fields"><div><label for="new-student-name">姓名</label><input id="new-student-name" maxlength="80" required></div><div><label for="new-student-subtitle">年级 / 学生说明</label><input id="new-student-subtitle" maxlength="80" required placeholder="例如：高一 · 物理基础巩固"></div></div><label for="new-student-profile">学生信息与学习特点</label><textarea id="new-student-profile" rows="4" maxlength="600" required placeholder="记录学习特点、已掌握的内容、长期薄弱点等。"></textarea><div class="trace-actions"><button id="create-student" class="primary" type="submit">保存学生档案</button><a href="#profiles" class="student-page-link">取消并返回</a></div></form></section></div>
-  <div id="student-detail-page" hidden><div class="section-heading"><a href="#profiles" class="student-page-link">← 返回学生名单</a><button class="secondary" id="view-current-profile" type="button">读取最新档案</button></div>
+  <div id="student-import-page" hidden><div class="section-heading"><h2>批量导入学生资料</h2><a href="#profiles" class="student-page-link">返回学生名单</a></div>
+  <section class="panel"><form id="roster-import-form" class="editor-form">
+   <div class="course-fields"><div><label for="roster-import-kind">导入内容</label><select id="roster-import-kind"><option value="students">学生名单 · 姓名、年级或说明、学习特点</option><option value="evidence">学习证据 · 作业、测验、课堂观察、教师复核</option></select></div>
+   <div id="roster-import-topic-field" hidden><label for="roster-import-topic">对应课程任务</label><select id="roster-import-topic"></select></div></div>
+   <p id="roster-import-help" class="helper"></p>
+   <p><a id="roster-import-template" class="secondary" href="/api/students/import/template?kind=students">下载 CSV 模板</a></p>
+   <label for="roster-import-file">CSV 文件 <span class="helper">UTF-8 或 Excel 默认的 GBK 编码，最多 300 行</span></label><input id="roster-import-file" type="file" accept=".csv,text/csv" required>
+   <p><button id="roster-import-preview" class="primary" type="submit">预览导入</button></p>
+  </form><p id="roster-import-status" class="helper" role="status" aria-live="polite"></p></section>
+  <section class="panel roster-import-result" id="roster-import-result" hidden><div class="section-heading"><h2 id="roster-import-summary">预览结果</h2></div>
+   <div class="roster-import-table-wrap"><table class="roster-import-table"><thead id="roster-import-head"></thead><tbody id="roster-import-rows"></tbody></table></div>
+   <div class="roster-import-confirm"><div id="roster-import-recorder-field" hidden><label for="roster-import-recorder">录入者</label><input id="roster-import-recorder" maxlength="80" placeholder="例如：王老师"></div>
+   <label class="roster-import-check"><input id="roster-import-confirmed" type="checkbox"><span>我已逐行核对。学生名单只新增，不覆盖同名档案；学习证据按每行的判断写入画像，与逐条录入相同。</span></label>
+   <button id="roster-import-submit" class="primary" type="button" disabled>确认导入</button></div>
+  </section></div>
+  <div id="student-detail-page" hidden><div class="section-heading"><a href="#profiles" class="student-page-link">← 返回学生名单</a><div class="trace-actions"><button class="secondary" id="view-current-profile" type="button">读取最新档案</button><button class="primary" id="profile-start-lecture" type="button">为该学生备课</button></div></div>
   <section class="panel"><h2 id="roster-student-name">学生信息</h2><p id="roster-student-subtitle" class="helper"></p><p id="roster-student-profile" class="current-summary"></p></section>
 <section class="panel"><div class="section-heading"><h2>知识点掌握情况</h2><button id="edit-profile" type="button" class="secondary" disabled>维护画像</button></div><p id="profile-view-note" class="helper"></p><div id="states" class="states"><p class="helper">正在读取…</p></div><p class="footnote">预置档案包含虚拟演示数据。新增同学的信息由你维护；生成讲义和本次备注不会自动改变长期状态。</p></section>
   </div><p id="student-roster-status" class="helper" role="status"></p>
@@ -164,7 +179,7 @@
     </form>
     <p id="upload-status" class="upload-status" role="status" aria-live="polite" hidden></p>
    </section>
-   <aside class="panel upload-guide"><span class="intro-icon" aria-hidden="true">▤</span><h2>让教学资料井然有序</h2><p>保存原文件、提取正文与插图。点击资料旁的「图片识读」，使用本地视觉模型解析。</p><ul><li>支持直接上传图片、PDF 内嵌图片及 DOCX 插图</li><li>图片识读结果需核对公式、数值与单位</li><li>扫描 PDF 仅识读提取出的图片，不渲染整页或矢量图</li></ul><p class="footnote">在讲义工作台选择解析后生成。文字课程材料仍按 SQL 或向量检索提供。</p></aside>
+   <aside class="panel upload-guide"><span class="intro-icon" aria-hidden="true">▤</span><h2>让教学资料井然有序</h2><p>保存原文件、提取正文与插图。点击资料旁的「图片识读」，使用本地视觉模型解析。</p><ul><li>支持直接上传图片、PDF 内嵌图片及 DOCX 插图</li><li>图片识读结果需核对公式、数值与单位</li><li>扫描 PDF 仅识读提取出的图片，不渲染整页或矢量图</li></ul><p class="footnote"><strong>上传之后：</strong>文字资料需在<a href="#materials">「课程材料」</a>打开备课副本，用「将上传资料关联到知识点」收录后才会进入讲义；图片在本页「图片识读」解析后，于讲义工作台的「图片解析依据」中选用。</p></aside>
   </div>
   <section class="panel upload-library"><div class="section-heading"><div><h2>已上传资料</h2><p class="helper">最近 100 条资料 · 保存原文件与提取正文</p></div><button id="refresh-uploads" type="button" class="secondary">刷新列表</button></div><div id="upload-list"><p class="helper">正在读取资料…</p></div></section>
  </section>
@@ -176,9 +191,13 @@
      <label for="grading-paper">学生作答材料</label>
      <input id="grading-paper" type="file" accept=".png,.jpg,.jpeg,.webp,.bmp,.gif,.tif,.tiff,.pdf,.docx,.txt,.md" required>
      <p class="helper">上传包含题目与学生作答的试卷或答题照片。</p><details class="upload-guidance"><summary>支持格式与上传限制</summary><p>支持图片、PDF、Word、TXT 和 Markdown；每次总计10 MB，最多30题，每份最多8张图片或8页PDF。较长试卷请拆分上传。</p></details>
-     <label for="grading-reference">参考答案 <span>选填</span></label>
-     <input id="grading-reference" type="file" accept=".png,.jpg,.jpeg,.webp,.bmp,.gif,.tif,.tiff,.pdf,.docx,.txt,.md">
-     <p class="helper">可另传答案与评分标准；没有参考答案时由模型推导，并标记供教师核对。</p>
+     <fieldset class="grading-answer-source"><legend>参考答案来源</legend>
+      <label><input type="radio" name="grading-answer" value="quiz"><span class="choice"><strong>使用系统题组的教师版答案</strong><small>推荐：评分后可按知识点记入学生画像</small></span></label>
+      <label><input type="radio" name="grading-answer" value="file" checked><span class="choice"><strong>上传参考答案文件</strong><small>答案与评分标准可放在同一份文件</small></span></label>
+      <label><input type="radio" name="grading-answer" value="none"><span class="choice"><strong>暂无参考答案，由模型推导</strong><small>评分标记为推导答案，需重点核对</small></span></label>
+     </fieldset>
+     <div id="grading-answer-quiz" hidden><label for="grading-quiz">学生作答对应的题组</label><select id="grading-quiz"><option value="">请选择题组</option></select><p class="helper">使用题组的答案与解析评分，并按题组知识点整理学习证据草稿。</p></div>
+     <div id="grading-answer-file"><label for="grading-reference">参考答案文件</label><input id="grading-reference" type="file" accept=".png,.jpg,.jpeg,.webp,.bmp,.gif,.tif,.tiff,.pdf,.docx,.txt,.md"></div>
      <label for="grading-requirements">评分要求 <span>选填</span></label>
      <textarea id="grading-requirements" rows="3" maxlength="2000" placeholder="例如：按步骤给分，等价解法也算正确；第1题满分5分。"></textarea>
      <button class="primary" id="grading-submit" type="submit">上传并自动阅卷</button>
@@ -193,6 +212,19 @@
      <p id="grading-summary" class="helper">上传材料后，自动识别题目、学生作答和参考答案，逐题展示评分、解析与错因。</p>
      <div id="grading-results"></div>
      <details id="grading-extraction" hidden><summary>查看提取原文（需核对）</summary><h3>学生作答材料</h3><pre id="grading-extracted"></pre><h3>另传参考答案</h3><pre id="grading-reference-text"></pre></details>
+    </section>
+    <section class="panel" id="grading-evidence" hidden>
+     <div class="section-heading"><h2>记入学生画像</h2></div>
+     <p class="helper">按知识点整理为学习证据草稿。草稿依据 AI 建议评分，请逐条核对、修改后由教师确认；只有点击「确认记录」才会写入，选择「保留原判断」不改变掌握状态。</p>
+     <div class="grading-evidence-fields">
+      <div><label for="grading-evidence-student">学生</label><select id="grading-evidence-student"><option value="">请选择学生</option></select></div>
+      <div><label for="grading-evidence-topic">课程任务</label><select id="grading-evidence-topic"></select></div>
+      <div><label for="grading-evidence-date">观察日期</label><input id="grading-evidence-date" type="date"></div>
+      <div><label for="grading-evidence-source">证据来源</label><select id="grading-evidence-source"><option value="quiz">测验</option><option value="homework">作业</option></select></div>
+      <div><label for="grading-evidence-recorder">录入者</label><input id="grading-evidence-recorder" maxlength="80" placeholder="例如：王老师"></div>
+     </div>
+     <p id="grading-evidence-status" class="helper" role="status" aria-live="polite"></p>
+     <div id="grading-evidence-drafts" class="grading-evidence-drafts"></div>
     </section>
    </div>
   </div>
@@ -361,7 +393,7 @@
  </div>
 </dialog>
 <link rel="stylesheet" href="/static/model-settings.css"><script defer src="/static/model-settings.js"></script>
-<link rel="stylesheet" href="/static/course-manager.css"><script defer src="/static/course-manager.js"></script><script defer src="/static/student-roster.js"></script>
+<link rel="stylesheet" href="/static/course-manager.css"><script defer src="/static/course-manager.js"></script><script defer src="/static/student-roster.js"></script><link rel="stylesheet" href="/static/roster-import.css"><script defer src="/static/roster-import.js"></script>
 <dialog id="section-editor" aria-labelledby="section-editor-title">
  <div class="editor-top"><div class="editor-heading"><div><h2 id="section-editor-title">按章节调整</h2><p id="section-base-note" class="helper"></p></div><button id="close-section-editor" type="button" class="secondary">关闭</button></div></div>
  <div class="dialog-body"><div id="section-error" class="error" role="alert" hidden></div>
@@ -379,7 +411,7 @@
 </dialog>
 <link rel="stylesheet" href="/static/teaching.css"><script defer src="/static/teaching.js"></script><script defer src="/static/section-editor.js"></script>
 <link rel="stylesheet" href="/static/quizzes.css"><script defer src="/static/quizzes.js"></script>
-<link rel="stylesheet" href="/static/grading.css"><script defer src="/static/grading.js"></script>
+<link rel="stylesheet" href="/static/grading.css"><script defer src="/static/grading.js"></script><script defer src="/static/grading-evidence.js"></script>
 <link rel="stylesheet" href="/static/theme.css">
 <dialog id="source-dialog" aria-labelledby="source-title"><div class="editor-top editor-heading"><h2 id="source-title">核查来源</h2><button id="close-source" type="button" class="secondary">关闭</button></div><div class="dialog-body"><p id="source-status" class="helper"></p><div id="source-content"></div><div class="trace-actions" id="source-review-actions"><button type="button" class="secondary" data-source-support="supported">记录“支持”</button><button type="button" class="secondary" data-source-support="unsupported">记录“不支持”</button><button type="button" class="secondary" data-source-support="unclear">记录“不确定”</button></div><p class="helper">打开对应保存版本的问题表单，核对原文并填写依据、记录者后确认；不会自动保存审核判断。</p></div></dialog>
 <link rel="stylesheet" href="/static/lecture-workflow.css"><script defer src="/static/lecture-workflow.js"></script><script defer src="/static/evaluation.js"></script>
@@ -413,6 +445,22 @@
  </div>
 </dialog>
 <link rel="stylesheet" href="/static/presentations.css"><script defer src="/static/presentations.js"></script>
+<dialog id="package-dialog" class="package-dialog" aria-labelledby="package-title">
+ <div class="editor-top"><div class="editor-heading"><div><h2 id="package-title">导出授课包</h2><p id="package-source" class="helper"></p></div><button id="close-package" type="button" class="secondary">关闭</button></div></div>
+ <div class="dialog-body">
+  <p class="helper">汇总当前阅读的讲义版本、生成时的学生档案与讲解安排、课程材料来源、配套练习和授课课件。只读取已保存记录，不重新调用模型。</p>
+  <form id="package-form" class="package-form">
+   <label for="package-quiz">配套练习</label><select id="package-quiz"><option value="">不包含练习</option></select>
+   <label for="package-deck">授课课件</label><select id="package-deck"><option value="">不包含课件</option></select>
+   <label for="package-format">导出内容</label><select id="package-format"><option value="zip">完整授课包（.zip）</option><option value="docx">仅教师授课手册（Word）</option><option value="md">仅教师授课手册（Markdown）</option></select>
+  </form>
+  <ul class="package-contents"><li><strong>教师授课手册</strong>：授课概览、学生档案与本次讲解安排、讲义正文、配套练习答案解析、材料来源、审核待办</li><li><strong>学生练习</strong>：不含答案和学生信息，可直接打印</li><li><strong>授课课件</strong>与<strong>清单</strong>：可编辑 PPTX，及每个文件的 SHA-256</li></ul>
+  <p id="package-status" class="helper" role="status" aria-live="polite"></p>
+  <div class="package-actions"><a id="package-download" class="primary" href="#">下载授课包</a><button id="package-new-quiz" type="button" class="secondary">先为这份讲义出题</button></div>
+  <p class="helper">讲义、题目与课件为 AI 生成或修订的待审核内容；学生档案仅供教师参考，请勿与学生练习一起分发。</p>
+ </div>
+</dialog>
+<link rel="stylesheet" href="/static/packages.css"><script defer src="/static/packages.js"></script>
 <dialog id="lesson-teaching-dialog" class="lesson-settings-dialog" aria-labelledby="lesson-teaching-title">
  <div class="lesson-dialog-header"><h2 id="lesson-teaching-title">本次怎么讲</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭本次怎么讲">×</button></div>
  <div class="dialog-body"><fieldset class="teaching-controls"><legend>本次怎么讲</legend><div class="teaching-grid">
@@ -444,4 +492,5 @@
  <div class="lesson-dialog-footer"><span>调整会保留到本次生成</span><button type="button" class="primary" data-close-setting>完成</button></div>
 </dialog>
 <link rel="stylesheet" href="/static/lesson-settings.css"><script defer src="/static/lesson-settings.js"></script>
+<link rel="stylesheet" href="/static/usability.css">
 </body></html>

@@ -26,7 +26,7 @@ def result_fixture():
         basis='inferred', max_score=10, score=None, status='needs_review', feedback='作答无法识读，请核对原卷。')]}
 
 
-class GradingTests(unittest.TestCase):
+class GradingFixture(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.app = Flask(__name__)
@@ -63,6 +63,8 @@ class GradingTests(unittest.TestCase):
             time.sleep(.01)
         self.fail('task did not complete')
 
+
+class GradingTests(GradingFixture):
     def test_upload_grade_history_download_and_frozen_input(self):
         identity = self.submit()
         row = self.wait(identity)
@@ -141,3 +143,56 @@ class GradingTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class QuizReferenceGradingTests(GradingFixture):
+    reference = dict(quiz_id='a' * 32, topic_key='linear', title='一元一次方程 · 练习题', lecture_id=7, text='ANSWER-KEY-FROM-QUIZ',
+                     questions=[dict(number='1', knowledge_id=1, knowledge_name='等式的加减性质'),
+                                dict(number='2', knowledge_id=3, knowledge_name='两步方程与移项')])
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.app = Flask(__name__)
+        self.app.testing = True
+        self.requests = []
+        self.recover = grading.register_grading(self.app, self.directory.name, self.model, Lock(),
+                                                quiz_reference=lambda identity: dict(self.reference))
+        self.client = self.app.test_client()
+
+    def test_quiz_answers_replace_the_reference_file_and_map_questions_to_points(self):
+        identity = self.submit(reference=None, quiz_id='a' * 32)
+        row = self.wait(identity)
+        self.assertEqual(row['status'], 'completed', row)
+        self.assertEqual(json.loads(self.requests[0]['messages'][1]['content'])['reference'], 'ANSWER-KEY-FROM-QUIZ')
+        self.assertEqual(row['quiz_reference']['quiz_id'], 'a' * 32)
+        self.assertNotIn('text', row['quiz_reference'])
+        drafts = self.client.get(f'/api/grading/{identity}/evidence-drafts').json
+        self.assertEqual(drafts['quiz']['lecture_id'], 7)
+        self.assertIsNone(drafts['unmapped'])
+        by_point = {g['knowledge_id']: g for g in drafts['groups']}
+        self.assertEqual(set(by_point), {1, 3})
+        self.assertEqual((by_point[1]['score'], by_point[1]['max_score'], by_point[1]['pending']), (0, 10, 0))
+        self.assertEqual(by_point[3]['pending'], 1)
+        self.assertIn('待核对', by_point[3]['performance'])
+        self.assertIn('paper.txt', by_point[1]['task_content'])
+        self.assertIn('一元一次方程 · 练习题', by_point[1]['task_content'])
+        self.assertIn('需教师复核', by_point[1]['performance'])
+
+    def test_answer_sources_are_exclusive_and_checked(self):
+        for fields in ({'quiz_id': 'a' * 32}, {'reference': None, 'quiz_id': 'x'}):
+            data = {'paper': (BytesIO(b'1. x'), 'paper.txt'), 'reference': (BytesIO(b'1. 5'), 'answers.txt'), **fields}
+            data = {k: v for k, v in data.items() if v is not None}
+            self.assertEqual(self.client.post('/api/grading', data=data).status_code, 400)
+        plain = Flask(__name__)
+        grading.register_grading(plain, self.directory.name, self.model, Lock())
+        response = plain.test_client().post('/api/grading', data={'paper': (BytesIO(b'1. x'), 'paper.txt'), 'quiz_id': 'a' * 32})
+        self.assertEqual(response.status_code, 400)
+
+    def test_drafts_without_a_quiz_keep_questions_unmapped(self):
+        identity = self.submit()
+        self.wait(identity)
+        drafts = self.client.get(f'/api/grading/{identity}/evidence-drafts').json
+        self.assertEqual((drafts['groups'], drafts['quiz']), ([], None))
+        self.assertEqual(drafts['unmapped']['question_numbers'], ['1', '2'])
+        self.assertEqual(self.client.get('/api/grading/missing/evidence-drafts').status_code, 404)
+        self.assertEqual([grading.number_key(v) for v in ('第1题', '01', '12.', 'A')], ['1', '1', '12', 'A'])

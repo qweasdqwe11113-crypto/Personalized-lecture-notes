@@ -20,6 +20,7 @@ from werkzeug.serving import make_server
 from test_courses_jobs import CourseJobTests, module
 from test_grading import result_fixture
 from test_quizzes import fixture_result
+from test_presentations import fixture_deck
 from embed import HashingEmbedder
 from grading import register_grading
 from quizzes import QuizQueue
@@ -56,7 +57,13 @@ def main():
                 attempted()
                 time.sleep(.3)
                 body = json.loads(json.loads(prepared.body)['messages'][1]['content'])
-                if prepared.prompt_version == 'quiz-v1':
+                if prepared.prompt_version.startswith('lecture-ppt'):
+                    deck = fixture_deck(body['slide_count'])
+                    source = body['sources'][0]['id'] if body['sources'] else None
+                    for slide in deck['slides']:
+                        slide['sources'] = [source] if source else []
+                    return module.ModelResult(json.dumps(deck, ensure_ascii=False))
+                if prepared.prompt_version.startswith('quiz-v1'):
                     return module.ModelResult(json.dumps(fixture_result(body['context']), ensure_ascii=False))
                 if prepared.prompt_version == 'grading-v1':
                     return module.ModelResult(json.dumps(result_fixture(), ensure_ascii=False))
@@ -72,6 +79,9 @@ def main():
                     '## 例题与检验\n代回原式检验。\n\n## 易错点与小结\n仍需教师核对。', {'total_tokens': 100})
 
             stack.enter_context(patch.object(module, 'call_qwen', model))
+            # No PowerPoint here: skip the rendered-page review instead of writing to the real .runtime store.
+            stack.enter_context(patch('presentations.refine_presentation', lambda run_id, deck, payload, *args, **kwargs: (
+                deck, payload, {'status': 'skipped', 'note': '隔离环境未运行 PowerPoint 视觉审查。'})))
             quizzes = QuizQueue(lambda: module.db(), model, module.GENERATION_LOCK)
             stack.enter_context(patch.object(module, 'QUIZZES', quizzes))
             stack.callback(quizzes.close)
@@ -88,7 +98,8 @@ def main():
                 'message': '隔离连接测试通过（固定响应，未连接真实服务）。', 'vision_verified': True}))
             services = Flask('isolated-workspace-services')
             register_uploads(services, root)
-            register_grading(services, root, model, module.GENERATION_LOCK)
+            register_grading(services, root, model, module.GENERATION_LOCK,
+                             quiz_reference=lambda job_id: module.grading_reference(quizzes.detail(job_id)))
             stack.enter_context(patch.dict(module.app.extensions, services.extensions))
             replacements = {name: view for name, view in services.view_functions.items() if name != 'static'}
             stack.enter_context(patch.dict(module.app.view_functions, replacements))

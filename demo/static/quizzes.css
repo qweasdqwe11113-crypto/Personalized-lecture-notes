@@ -35,3 +35,7 @@
 #quiz-error {margin:16px 0 0}
 @media(max-width:1100px){.quiz-layout{grid-template-columns:minmax(0,1fr)}#quiz-form{max-width:800px}.quiz-settings{max-width:100%}}
 @media print{.quiz-settings,.quiz-actions,.quiz-history{display:none}}
+.quiz-lecture-link {display:flex;gap:12px;align-items:center;justify-content:space-between;margin-top:12px;padding:10px 12px;border:1px solid #c9d6fb;border-radius:9px;background:var(--accent-soft)}
+.quiz-lecture-link strong {font-size:13px}
+.quiz-lecture-link .helper {margin:4px 0 0}
+.quiz-lecture-link button {flex:none}

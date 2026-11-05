@@ -6,6 +6,7 @@ from io import BytesIO
 import json
 import math
 import os
+import re
 from pathlib import Path
 import sqlite3
 from threading import Lock, Thread
@@ -129,7 +130,52 @@ def read_document(raw, filename):
     return content
 
 
-def register_grading(app, root, call_model, generation_lock):
+REFERENCE_LIMIT = 45000
+
+
+def number_key(value):
+    """Match '1', '1.', '第1题' across quiz and grading numbering; non-numeric labels stay as written."""
+    digits = re.sub(r'\D', '', value)
+    return digits.lstrip('0') or digits or value.strip()
+
+
+def draft(record, questions, title=None):
+    """Deterministic evidence wording from AI grading; the teacher edits and confirms it per point."""
+    scored = [q for q in questions if q['score'] is not None]
+    numbers = '、'.join(q['number'] for q in questions)
+    task = f"阅卷记录「{record['filename']}」第 {numbers} 题" + (f"；参考题组：{title}" if title else '') + '。'
+    lines = [f"AI 建议得分 {round(sum(q['score'] for q in scored), 2)} / {round(sum(q['max_score'] for q in questions), 2)}"
+             + (f"，{len(questions) - len(scored)} 题待核对未计分" if len(scored) < len(questions) else '') + '（需教师复核）。']
+    for q in questions:
+        mark = '待核对' if q['score'] is None else f"{q['score']}/{q['max_score']}"
+        lines.append(f"第{q['number']}题 {mark}：" + re.sub(r'\s+', ' ', q['feedback']).strip()[:160])
+    return dict(question_numbers=[q['number'] for q in questions], task_content=task[:1200],
+                performance='\n'.join(lines)[:2000], pending=len(questions) - len(scored),
+                score=round(sum(q['score'] for q in scored), 2), max_score=round(sum(q['max_score'] for q in questions), 2))
+
+
+def evidence_drafts(record):
+    result = json.loads(record['result'])
+    reference = json.loads(record['quiz_reference']) if record['quiz_reference'] else None
+    mapping = {number_key(q['number']): q for q in (reference or {}).get('questions', [])}
+    groups, unmapped = {}, []
+    for q in result['questions']:
+        target = mapping.get(number_key(q['number']))
+        if target:
+            groups.setdefault(target['knowledge_id'], (target['knowledge_name'], []))[1].append(q)
+        else:
+            unmapped.append(q)
+    title = reference['title'] if reference else None
+    return dict(
+        filename=record['filename'], observed_on=record['created_at'][:10],
+        quiz={k: reference[k] for k in ('quiz_id', 'topic_key', 'title', 'lecture_id')} if reference else None,
+        groups=[dict(knowledge_id=kid, knowledge_name=name, **draft(record, items, title))
+                for kid, (name, items) in groups.items()],
+        unmapped=draft(record, unmapped, title) if unmapped else None,
+        note='草稿依据 AI 建议评分生成，不会自动写入画像；请逐条核对后由教师确认记录。')
+
+
+def register_grading(app, root, call_model, generation_lock, quiz_reference=None):
     path = Path(root) / '.runtime' / 'grading.sqlite3'
     admission = Lock()
     app.extensions['grading_busy'] = admission.locked
@@ -143,6 +189,8 @@ def register_grading(app, root, call_model, generation_lock):
             status TEXT NOT NULL, error TEXT NOT NULL DEFAULT '',
             extracted TEXT NOT NULL DEFAULT '', reference_text TEXT NOT NULL DEFAULT '',
             result TEXT, request_body TEXT, model TEXT)''')
+        if 'quiz_reference' not in {row[1] for row in conn.execute('PRAGMA table_info(grading_jobs)')}:
+            conn.execute('ALTER TABLE grading_jobs ADD COLUMN quiz_reference TEXT')
         conn.commit()
         return conn
 
@@ -155,10 +203,10 @@ def register_grading(app, root, call_model, generation_lock):
             conn.execute('UPDATE grading_jobs SET ' + ','.join(k + '=?' for k in values) + ' WHERE id=?',
                          (*values.values(), identity))
 
-    def work(identity, paper, reference, note):
+    def work(identity, paper, reference, note, quiz_text=''):
         try:
             extracted = read_document(*paper)
-            answer = read_document(*reference) if reference else ''
+            answer = read_document(*reference) if reference else quiz_text
             update(identity, status='grading', extracted=extracted, reference_text=answer)
             model = os.environ.get('QWEN_MODEL', 'qwen3.8-27b')
             body = json.dumps(dict(model=model, temperature=0, max_tokens=16000,
@@ -199,16 +247,25 @@ def register_grading(app, root, call_model, generation_lock):
             note = request.form.get('requirements', '').strip()
             if len(note) > 2000 or len(paper[0]) + (len(reference[0]) if reference else 0) > MAX_BYTES:
                 raise ValueError('要求最多2000字，上传文件总大小不超过10 MB。')
+            quiz_id = request.form.get('quiz_id', '').strip()
+            if quiz_id and reference:
+                raise ValueError('参考答案请在上传文件与系统题组中选择其一。')
+            if quiz_id and (quiz_reference is None or not re.fullmatch(r'[0-9a-f]{32}', quiz_id)):
+                raise ValueError('请选择有效的参考题组。')
         except ValueError as exc:
             return jsonify(error=str(exc)), 400
+        linked = quiz_reference(quiz_id) if quiz_id else None
+        if linked and len(linked['text']) > REFERENCE_LIMIT:
+            return jsonify(error='参考题组答案过长，请上传精简的参考答案文件。'), 400
         if not admission.acquire(blocking=False):
             return jsonify(error='已有阅卷任务正在处理，请完成后再上传。'), 409
         identity = uuid4().hex
         try:
             with closing(connect()) as conn, conn:
-                conn.execute('INSERT INTO grading_jobs(id,filename,created_at,status) VALUES (?,?,?,?)',
-                             (identity, paper[1], datetime.now(timezone.utc).isoformat(), 'reading'))
-            Thread(target=work, args=(identity, paper, reference, note), daemon=True).start()
+                conn.execute('INSERT INTO grading_jobs(id,filename,created_at,status,quiz_reference) VALUES (?,?,?,?,?)',
+                             (identity, paper[1], datetime.now(timezone.utc).isoformat(), 'reading',
+                              json.dumps({k: v for k, v in linked.items() if k != 'text'}, ensure_ascii=False) if linked else None))
+            Thread(target=work, args=(identity, paper, reference, note, linked['text'] if linked else ''), daemon=True).start()
         except Exception:
             admission.release()
             raise
@@ -223,12 +280,21 @@ def register_grading(app, root, call_model, generation_lock):
     @app.get('/api/grading/<identity>')
     def grading_detail(identity):
         with closing(connect()) as conn:
-            row = conn.execute('SELECT id,filename,created_at,status,error,extracted,reference_text,result,model FROM grading_jobs WHERE id=?', (identity,)).fetchone()
+            row = conn.execute('SELECT id,filename,created_at,status,error,extracted,reference_text,result,model,quiz_reference FROM grading_jobs WHERE id=?', (identity,)).fetchone()
         if row is None:
             return jsonify(error='阅卷记录不存在。'), 404
         value = dict(row)
         value['result'] = json.loads(value['result']) if value['result'] else None
+        value['quiz_reference'] = json.loads(value['quiz_reference']) if value['quiz_reference'] else None
         return jsonify(value)
+
+    @app.get('/api/grading/<identity>/evidence-drafts')
+    def grading_evidence_drafts(identity):
+        with closing(connect()) as conn:
+            row = conn.execute('SELECT * FROM grading_jobs WHERE id=?', (identity,)).fetchone()
+        if row is None or row['status'] != 'completed':
+            return jsonify(error='阅卷尚未完成，暂不能生成证据草稿。'), 404 if row is None else 409
+        return jsonify(evidence_drafts(row))
 
     @app.get('/api/grading/<identity>/download')
     def grading_download(identity):

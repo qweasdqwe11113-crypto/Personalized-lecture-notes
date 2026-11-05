@@ -6,6 +6,8 @@ from threading import Lock
 from unittest.mock import patch
 from zipfile import ZipFile
 
+from psycopg.types.json import Jsonb
+
 from test_profiles import ProfileDatabaseFixture, module
 from quizzes import QuizQueue, parse_questions, question_plan, validate_options
 
@@ -23,7 +25,8 @@ def fixture_result(context):
     return {'questions': questions}
 
 
-class QuizTests(ProfileDatabaseFixture):
+class QuizFixture(ProfileDatabaseFixture):
+    """Queue and submit helpers without test methods, so subclasses do not rerun quiz tests."""
     def setUp(self):
         super().setUp()
         self.queue = QuizQueue(lambda: module.db(), lambda prepared, attempted: module.call_qwen(prepared, attempted), Lock())
@@ -53,6 +56,8 @@ class QuizTests(ProfileDatabaseFixture):
             self.assertTrue(self.queue.wait_idle(5))
         return self.client.get('/api/quizzes/'+response.json['id']).json
 
+
+class QuizTests(QuizFixture):
     def test_exact_count_difficulty_and_focus_use_frozen_context_without_profile_writes(self):
         before = self.profile()
         result = self.submit({**self.payload(), 'knowledge_ids': [2, 3]})
@@ -102,6 +107,14 @@ class QuizTests(ProfileDatabaseFixture):
             with self.assertRaises(module.ModelError):
                 parse_questions(json.dumps(changed), ctx)
         self.assertEqual(parse_questions(json.dumps(good), ctx), good)
+        # Contexts frozen before JSON mode keep their original request shape and labels.
+        from quizzes import prepare_quiz, quiz_versions
+        self.assertNotIn('response_format', json.loads(prepare_quiz(ctx, settings, 'm').body))
+        self.assertEqual(quiz_versions(ctx), ('quiz-v1', 'quiz-context-v1'))
+        self.assertEqual(parse_questions('```json\n' + json.dumps(good) + '\n```', ctx), good)
+        for wrapped in ('说明：\n' + json.dumps(good), '```\n' + json.dumps(good) + '\n```'):
+            with self.assertRaises(module.ModelError):
+                parse_questions(wrapped, ctx)
 
     def test_invalid_inputs_do_not_create_jobs(self):
         for changes in ({'count': True}, {'count': 31}, {'types': []}, {'types': [['single_choice']]},
@@ -162,3 +175,80 @@ class QuizTests(ProfileDatabaseFixture):
             self.assertEqual(len(plan), n)
             self.assertEqual([p['number'] for p in plan], list(range(1, n+1)))
 
+
+
+class LectureQuizTests(QuizFixture):
+    def lecture_payload(self, **changes):
+        return {**dict(lecture_id=self.lecture_id, lecture_revision=0, student_level='profile', count=3,
+                       difficulty='basic', types=['short_answer'], knowledge_ids=[], requirements=''), **changes}
+
+    def stored(self, job_id):
+        with self.fixture_db() as conn:
+            return conn.execute('SELECT * FROM quiz_jobs WHERE id=%s', (job_id,)).fetchone()
+
+    def test_lecture_quiz_freezes_the_lecture_version_materials_and_states(self):
+        # A later teacher-confirmed change must not leak into a quiz built for the taught lecture.
+        self.assertEqual(self.save_evidence(ProfileDatabaseFixture.payload(self)).status_code, 201)
+        result = self.submit(self.lecture_payload())
+        self.assertEqual(result['status'], 'succeeded', result)
+        ctx = result['context']
+        self.assertEqual(ctx['lecture']['id'], self.lecture_id)
+        self.assertEqual(ctx['lecture']['content'], '# 隔离测试讲义\n历史原稿 [M3]')
+        self.assertEqual(ctx['lecture']['status'], '原稿未审核')
+        self.assertEqual([m['id'] for m in ctx['materials']], [m['id'] for m in self.before_context['materials']])
+        self.assertEqual([s['state'] for s in ctx['states']], [s['state'] for s in self.before_context['states']])
+        self.assertEqual(ctx['student']['name'], self.before_context['student']['name'])
+        row = self.stored(result['id'])
+        self.assertEqual(row['student_id'], 2)
+        self.assertEqual(row['topic_key'], 'linear')
+        system = json.loads(row['request_body'])['messages'][0]['content']
+        self.assertIn('quiz-lecture-v1', system)
+        self.assertEqual(json.loads(row['request_body'])['response_format'], {'type': 'json_object'})
+        listed = self.client.get(f'/api/quizzes?lecture_id={self.lecture_id}').json['quizzes']
+        self.assertEqual([(q['id'], q['lecture_id'], q['lecture_revision']) for q in listed],
+                         [(result['id'], self.lecture_id, 0)])
+        self.assertEqual(self.client.get('/api/quizzes?lecture_id=999999').json['quizzes'], [])
+        self.assertEqual(self.client.get('/api/quizzes?lecture_id=x').status_code, 400)
+        teacher = self.client.get(f"/api/quizzes/{result['id']}/download?format=md&version=teacher").data.decode()
+        student = self.client.get(f"/api/quizzes/{result['id']}/download?format=md&version=student").data.decode()
+        self.assertIn(f'配套讲义 #{self.lecture_id} / 原稿', teacher)
+        self.assertNotIn('配套讲义', student)
+
+    def test_general_level_keeps_lecture_but_drops_individual_diagnostics(self):
+        result = self.submit(self.lecture_payload(student_level='standard'))
+        self.assertEqual(result['status'], 'succeeded', result)
+        ctx = result['context']
+        self.assertEqual((ctx['states'], ctx['student']['name'], ctx['lecture']['personalization_plan']), ([], '通用练习', []))
+        self.assertNotIn('小周', json.dumps(ctx, ensure_ascii=False))
+        self.assertIsNone(self.stored(result['id'])['student_id'])
+
+    def test_invalid_lecture_links_do_not_create_jobs(self):
+        with self.fixture_db() as conn:
+            generic = conn.execute('''INSERT INTO lectures (student_id,topic,goal,context,content,model,elapsed_seconds,citation_check)
+                VALUES (2,'t','g',%s,'# 无画像讲义','fixture-only',0,'{}') RETURNING id''',
+                (Jsonb(module.get_context(2, 'linear', 'none')),)).fetchone()['id']
+        cases = [(self.lecture_payload(lecture_id=999999), 404), (self.lecture_payload(lecture_revision=5), 404),
+                 (self.lecture_payload(lecture_revision=-1), 400), (self.lecture_payload(lecture_id='1'), 400),
+                 (self.lecture_payload(topic='basic'), 400), (self.lecture_payload(knowledge_ids=[11]), 400),
+                 (self.lecture_payload(lecture_id=generic), 400)]
+        for data, status in cases:
+            response = self.client.post('/api/quizzes', json=data)
+            self.assertEqual(response.status_code, status, (data, response.json))
+        self.assertEqual(self.client.get('/api/quizzes').json['quizzes'], [])
+        allowed = self.submit(self.lecture_payload(lecture_id=generic, student_level='foundation'))
+        self.assertEqual(allowed['status'], 'succeeded', allowed)
+
+    def test_retry_of_lecture_quiz_keeps_its_prompt_versions(self):
+        failed = self.submit(self.lecture_payload(), failure=True)
+        self.assertEqual(failed['status'], 'failed')
+        seen = []
+        def model(prepared, attempted):
+            seen.append((prepared.prompt_version, prepared.input_version))
+            ctx = json.loads(json.loads(prepared.body)['messages'][1]['content'])['context']
+            return module.ModelResult(json.dumps(fixture_result(ctx), ensure_ascii=False))
+        with patch.object(module, 'call_qwen', model):
+            response = self.client.post(f"/api/quizzes/{failed['id']}/retry")
+            self.assertEqual(response.status_code, 202, response.json)
+            self.assertTrue(self.queue.wait_idle(5))
+        self.assertEqual(seen, [('quiz-v1+lecture-v1+json-v1', 'quiz-context-lecture-v1')])
+        self.assertEqual(self.stored(response.json['id'])['request_sha256'], self.stored(failed['id'])['request_sha256'])

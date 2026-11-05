@@ -3,7 +3,7 @@
 const dialog = $('ppt-dialog');
 const openButton = el('button', '生成授课 PPT', 'secondary');
 openButton.id = 'open-ppt'; openButton.type = 'button'; openButton.disabled = true;
-$('print-lecture').insertAdjacentElement('afterend', openButton);
+$('lecture-prep-status').before(openButton);
 const labels = {queued:'排队中', running:'生成中', succeeded:'课件已生成', failed:'失败', interrupted:'已中断', cancelled:'已取消'};
 const kinds = {cover:'封面', concept:'概念讲解', example:'例题', question:'课堂练习', summary:'总结'};
 let source = null, working = false, session = 0;

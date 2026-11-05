@@ -56,9 +56,14 @@ def prepare_slides(context, model):
         raise ReviewError('课件输入超过 56000 字符，请先精简讲义或关联材料。')
     prompt_version = PROMPT_VERSION if edit.get('export_version') == DESIGN_VERSION else 'lecture-ppt-v2'
     prompt = PROMPT if prompt_version == PROMPT_VERSION else (Path(__file__).with_name('prompts') / 'lecture-ppt-v2.md').read_text(encoding='utf-8').strip()
-    body = json.dumps(dict(model=model, messages=[dict(role='system', content=prompt),
-                      dict(role='user', content=user_text)], temperature=0.3, max_tokens=16000,
-                      chat_template_kwargs={'enable_thinking': False}), ensure_ascii=False, separators=(',', ':'))
+    payload = dict(model=model, messages=[dict(role='system', content=prompt),
+                   dict(role='user', content=user_text)], temperature=0.3, max_tokens=16000,
+                   chat_template_kwargs={'enable_thinking': False})
+    if edit.get('json_mode'):
+        # Frozen per export, so older records and their retries keep their original bytes.
+        payload['response_format'] = {'type': 'json_object'}
+        prompt_version += '+json-v1'
+    body = json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
     return PreparedRequest(body, fingerprint(body), prompt_version, 'lecture-ppt-context-v1')
 
 
@@ -283,6 +288,26 @@ def execute_presentation(db, call_model, job_id, run_id, context, prepared):
         conn.execute("UPDATE generation_jobs SET status='succeeded',finished_at=now() WHERE id=%s", (job_id,))
 
 
+def completed_presentation(db, run_id):
+    """A downloadable deck: succeeded, intact input, and any slide edit explicitly accepted."""
+    with db() as conn:
+        run = run_detail(conn, run_id)
+    if not run or not run['context'].get('ppt_export'):
+        raise ReviewError('课件记录不存在。', 404)
+    if run['status'] != 'succeeded' or not run['integrity_valid']:
+        raise ReviewError('课件尚未成功生成或输入校验不一致。', 409)
+    if run['context'].get('ppt_slide_edit') and run['response_metadata'].get('edit_state') != 'accepted':
+        raise ReviewError('这份单页修改尚未采用，请先预览并确认。', 409)
+    return run, parse_deck(run['content'], run['context'])
+
+
+def presentation_pptx(db, run_id):
+    """The same bytes the download route returns, for bundling into a lesson package."""
+    run, deck = completed_presentation(db, run_id)
+    source = run['context']['ppt_export']
+    return run, deck, build_pptx(deck, {**source, 'run_id': run_id}, run['context'])
+
+
 def register_presentations(app, db, queue):
     @app.get('/api/presentation-templates')
     def presentation_templates():
@@ -324,7 +349,7 @@ def register_presentations(app, db, queue):
                     instruction=instruction.strip(), goal=lecture['goal'],
                     source_status=STATUS_LABELS.get(version['status'], '原稿未审核'),
                     export_version=DESIGN_VERSION if template['semantic'] else EXPORT_VERSION,
-                    aesthetic_review=True,
+                    aesthetic_review=True, json_mode=True,
                     template_id=template['id'], template_name=template['name'],
                     template_sha256=template['sha256'], template_mapping_version=template['mapping_version'])
         context = {**lecture['context'], 'ppt_export': edit}
@@ -347,15 +372,7 @@ def register_presentations(app, db, queue):
         return jsonify(presentations=rows)
 
     def completed(run_id):
-        with db() as conn:
-            run = run_detail(conn, run_id)
-        if not run or not run['context'].get('ppt_export'):
-            raise ReviewError('课件记录不存在。', 404)
-        if run['status'] != 'succeeded' or not run['integrity_valid']:
-            raise ReviewError('课件尚未成功生成或输入校验不一致。', 409)
-        if run['context'].get('ppt_slide_edit') and run['response_metadata'].get('edit_state') != 'accepted':
-            raise ReviewError('这份单页修改尚未采用，请先预览并确认。', 409)
-        return run, parse_deck(run['content'], run['context'])
+        return completed_presentation(db, run_id)
 
     @app.post('/api/presentations/<int:run_id>/slide-edits')
     def create_slide_edit(run_id):
