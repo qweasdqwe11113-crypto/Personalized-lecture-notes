@@ -48,6 +48,18 @@ class UploadTests(unittest.TestCase):
         self.assertIn('知识点讲解', content)
         self.assertIn('表格中的内容', content)
 
+    def test_docx_preserves_interleaved_questions_and_answer_tables(self):
+        from docx import Document
+        doc = Document()
+        doc.add_paragraph('第1题：计算 2+3。')
+        doc.add_table(rows=1, cols=1).cell(0, 0).text = '第1题学生作答：6'
+        doc.add_paragraph('第2题：计算 4+5。')
+        doc.add_table(rows=1, cols=1).cell(0, 0).text = '第2题学生作答：9'
+        buffer = BytesIO(); doc.save(buffer)
+        self.assertEqual(extract(buffer.getvalue(), 'paper.docx').splitlines(), [
+            '第1题：计算 2+3。', '第1题学生作答：6',
+            '第2题：计算 4+5。', '第2题学生作答：9'])
+
     def test_url_import_extracts_text_without_script(self):
         body = '<title>课程文章</title><p>等式性质</p><script>danger()</script><p>课堂例题</p>'.encode()
         with patch('uploads.fetch_public', return_value=(body, 'text/html', 'utf-8', 'https://example.com/lesson')):

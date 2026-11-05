@@ -32,7 +32,7 @@ async function watchJob(id){
    if(job.confirmation_pending)throw new Error('任务结束状态未能确认，请核查生成记录并重启本地服务。');
    if(job.status==='succeeded'){
      const r=await api('/api/lectures/'+job.lecture_id);
-     restoreLectureSettings(r);showResult(r);
+     restoreLectureSettings(r);showResult(r,true,false);
      $('progress').textContent=`已保存讲义 #${r.id} · 模型用时 ${job.elapsed_seconds} 秒 · 用量 ${JSON.stringify(job.usage)}`;
      await refreshHistory();break;
    }
@@ -50,7 +50,7 @@ $('generate-form').onsubmit=async e=>{
  setBusy(true);error('');$('progress').textContent='正在提交并固定输入…';
  try{
   const job=await api('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:Number($('student').value),topic:$('topic').value,goal:$('goal').value,personalization_mode:$('personalization-mode').value,retrieval_mode:$('retrieval-mode').value,teaching_options:readTeachingOptions(),plan_overrides:typeof readLecturePlan==='function'?readLecturePlan():{},visual_analysis_ids:typeof selectedVisualAnalyses==='function'?selectedVisualAnalyses():[]})});
-  await refreshJobs();await watchJob(job.id);
+  await refreshJobs().catch(()=>{});await watchJob(job.id);
  }catch(e){error(e.message);setBusy(false);}
 };
 $('retry-run').onclick=async()=>{
@@ -58,7 +58,7 @@ $('retry-run').onclick=async()=>{
  const button=$('retry-run');button.disabled=true;
  try{
    const job=await api(`/api/generation-runs/${button.dataset.runId}/retry`,{method:'POST'});
-   $('trace-dialog').close();await refreshJobs();await watchJob(job.id);
+   $('trace-dialog').close();await refreshJobs().catch(()=>{});await watchJob(job.id);
  }catch(e){traceError(e.message);}finally{button.disabled=false;}
 };
 window.refreshWorkspaceJobs=refreshJobs;

@@ -221,7 +221,7 @@
    <div id="model-settings-error" class="error" role="alert" hidden></div>
    {% for key, number, title, description, example in [
      ('llm', '01', '语言模型', '负责生成讲义与文字回答。', 'qwen3.5:9b'),
-     ('vlm', '02', '视觉模型 · VLM', '配置图片理解服务。可与语言模型使用同一个多模态模型；测试会实际发送图片，讲义带图生成入口尚未接入。', 'qwen3.5:9b'),
+     ('vlm', '02', '视觉模型 · VLM', '识读上传资料中的图片，解析文字可在讲义工作台选用，也用于阅卷。可与语言模型使用同一个多模态模型；连接测试会发送测试图片。', 'qwen3.5:9b'),
      ('embedding', '03', '嵌入模型 · Embedding', '把资料转成向量，用于语义检索。更换模型后会在下次向量检索时自动更新索引。', 'bge-m3:latest')
    ] %}
    <section class="panel model-config-card" data-model-channel="{{ key }}">
@@ -230,7 +230,7 @@
     <div class="model-config-fields">
      <div class="model-config-address"><label for="{{ key }}-base-url">服务地址</label><input id="{{ key }}-base-url" name="{{ key }}-base-url" type="url" maxlength="2048" placeholder="http://127.0.0.1:11434/v1" autocomplete="off" {{ 'required' if key != 'vlm' else '' }} disabled><p class="helper">填写基础地址，通常以 /v1 结尾。</p></div>
      <div><label for="{{ key }}-model">模型名称</label><input id="{{ key }}-model" name="{{ key }}-model" maxlength="2048" placeholder="{{ example }}" autocomplete="off" {{ 'required' if key != 'vlm' else '' }} disabled></div>
-     <div class="model-config-secret"><label for="{{ key }}-api-key">API 密钥</label><input id="{{ key }}-api-key" name="{{ key }}-api-key" type="password" maxlength="2048" autocomplete="new-password" placeholder="未配置，可填写新密钥" disabled><label class="model-config-clear"><input id="{{ key }}-clear-key" type="checkbox" disabled>清除已保存密钥</label><p class="helper">留空保留已保存密钥；无鉴权的本机服务可填 local-ollama。</p></div>
+     <div class="model-config-secret"><label for="{{ key }}-api-key">API 密钥</label><input id="{{ key }}-api-key" name="{{ key }}-api-key" type="password" maxlength="2048" autocomplete="new-password" placeholder="未配置，可填写新密钥" disabled><label class="model-config-clear"><input id="{{ key }}-clear-key" type="checkbox" disabled>清除已保存密钥</label><p class="helper">留空保留原密钥；无鉴权服务可不设置密钥，已有密钥可勾选清除。</p></div>
     </div>
     <div class="model-config-test"><button id="test-{{ key }}" class="secondary" type="button" disabled>测试{{ '图片识别' if key == 'vlm' else '向量接口' if key == 'embedding' else '文本生成' }}</button><p id="{{ key }}-test-status" class="helper" role="status" aria-live="polite">尚未测试</p></div>
    </section>
@@ -434,7 +434,7 @@
 </dialog>
 <dialog id="lesson-visual-dialog" class="lesson-settings-dialog" aria-labelledby="lesson-visual-title">
  <div class="lesson-dialog-header"><h2 id="lesson-visual-title">图片解析依据</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭图片解析依据">×</button></div>
- <div class="dialog-body"><p class="lesson-dialog-intro">选择与本次教学目标相关的图片解析，最多 4 条。</p><p class="helper">先在「上传资料」中解析图片，再选择用于本次讲义的解析。原图仅发送给独立视觉模型；语言模型只接收解析文字。</p><button id="refresh-visual-evidence" type="button" class="secondary">刷新图片解析</button><div id="visual-evidence-options" class="visual-options"></div></div>
+ <div class="dialog-body"><p class="lesson-dialog-intro">选择与本次教学目标相关的图片解析，最多 4 条。</p><p class="helper">先在「上传资料」中解析图片，再选择用于本次讲义的解析。原图仅发送给独立视觉模型；语言模型只接收解析文字。</p><button id="refresh-visual-evidence" type="button" class="secondary">刷新图片解析</button><p id="visual-evidence-status" class="helper" role="status" aria-live="polite"></p><div id="visual-evidence-options" class="visual-options"></div></div>
  <div class="lesson-dialog-footer"><span>选择会保留到本次生成</span><button type="button" class="primary" data-close-setting>完成</button></div>
 </dialog>
 

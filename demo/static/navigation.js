@@ -23,7 +23,7 @@
     if (active === hash) return;
     active = hash;
     for (const key of Object.keys(pages)) $('page-' + key).hidden = key !== page;
-    for (const link of document.querySelectorAll('[data-page]')) {
+    for (const link of document.querySelectorAll('a[data-page]')) {
       if (link.dataset.page === page) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     }

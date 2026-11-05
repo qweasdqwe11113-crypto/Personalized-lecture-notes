@@ -44,6 +44,15 @@ class RetrievalTests(ProfileDatabaseFixture):
         with self.fixture_db() as conn:
             return conn.execute('SELECT count(*) AS n FROM material_chunks').fetchone()['n']
 
+    def test_invalid_index_topic_types_return_json_without_embedding(self):
+        with patch.object(self.embedder, 'embed', side_effect=AssertionError('invalid input cannot call embedding')):
+            for topic in ([], {}, None, True, 11):
+                with self.subTest(topic=topic):
+                    response = self.client.post('/api/retrieval/index', json={'topic': topic})
+                    self.assertEqual(response.status_code, 400)
+                    self.assertIsInstance(response.json['error'], str)
+        self.assertEqual(self.chunks(), 0)
+
     def index_all(self):
         with self.fixture_db() as conn:
             retrieval.index_knowledge(conn, self.embedder, [11, 12, 13])

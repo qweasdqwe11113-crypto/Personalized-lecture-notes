@@ -1,7 +1,7 @@
 (() => {
   const tabs = [$('upload-file-tab'), $('upload-url-tab')];
   const panes = [$('upload-file-pane'), $('upload-url-pane')];
-  let uploading = false;
+  let uploading = false, previewVersion = 0;
   function selectMode(index) {
     tabs.forEach((tab, i) => { tab.setAttribute('aria-selected', String(i === index)); tab.tabIndex = i === index ? 0 : -1; panes[i].hidden = i !== index; });
   }
@@ -46,7 +46,18 @@
         const info = el('div', undefined, 'upload-row-info');
         const preview = el('button', item.title, 'upload-preview-button'); preview.type = 'button';
         preview.onclick = async () => {
-          try { const data = await api('/api/uploads/' + item.id); $('upload-preview-title').textContent = data.upload.title; $('upload-preview-meta').textContent = item.kind === 'url' ? item.source_url : item.filename; $('upload-preview-content').textContent = data.upload.content; $('upload-preview-images').replaceChildren(); $('upload-preview-dialog').showModal(); await showUploadImages(item.id); } catch (e) { status(e.message, true); }
+          const version = ++previewVersion;
+          if (typeof invalidateUploadImages === 'function') invalidateUploadImages();
+          try {
+            const data = await api('/api/uploads/' + item.id);
+            if (version !== previewVersion) return;
+            $('upload-preview-title').textContent = data.upload.title;
+            $('upload-preview-meta').textContent = item.kind === 'url' ? item.source_url : item.filename;
+            $('upload-preview-content').textContent = data.upload.content;
+            $('upload-preview-images').replaceChildren();
+            if (!$('upload-preview-dialog').open) $('upload-preview-dialog').showModal();
+            await showUploadImages(item.id);
+          } catch (e) { if (version === previewVersion) status(e.message, true); }
         };
         info.append(preview, el('p', `${item.kind === 'url' ? '网址导入' : '本地上传'} · ${item.characters.toLocaleString()} 字符 · ${new Date(item.created_at).toLocaleString('zh-CN')}`));
         for (const warning of item.warnings || []) info.append(el('p', warning, 'check-warning'));
@@ -77,5 +88,9 @@
   panes[1].onsubmit = event => { event.preventDefault(); submit({method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:$('upload-url').value.trim(), title:$('upload-url-title').value.trim()})}); };
   $('refresh-uploads').onclick = refreshUploads;
   $('close-upload-preview').onclick = () => $('upload-preview-dialog').close();
+  $('upload-preview-dialog').addEventListener('close', () => {
+    previewVersion++;
+    if (typeof invalidateUploadImages === 'function') invalidateUploadImages();
+  });
   refreshUploads();
 })();

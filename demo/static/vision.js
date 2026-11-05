@@ -1,17 +1,20 @@
 "use strict";
-let visualOrder=[], visualSnapshot=[], visualRestoreVersion=0;
+let visualOrder=[], visualSnapshot=[], visualListVersion=0, uploadImagesVersion=0;
 window.selectedVisualAnalyses = () => {const checked=Array.from(document.querySelectorAll('#visual-evidence-options input:checked'), n=>n.value);visualOrder=[...visualOrder.filter(id=>checked.includes(id)),...checked.filter(id=>!visualOrder.includes(id))];return [...visualOrder];};
-function restoreVisualSelection(evidence){visualRestoreVersion++;visualSnapshot=evidence;visualOrder=evidence.map(v=>v.id);const ids=new Set(visualOrder);for(const n of document.querySelectorAll('#visual-evidence-options input'))n.checked=ids.has(n.value);for(const v of evidence){if(!Array.from(document.querySelectorAll('#visual-evidence-options input')).some(n=>n.value===v.id)){const label=el('label',undefined,'visual-option');const n=el('input');n.type='checkbox';n.value=v.id;n.checked=true;n.disabled=busy;n.onchange=updateVisualSelectionCount;label.append(n,document.createTextNode(v.label+' · 历史所选解析'));$('visual-evidence-options').append(label);}}updateVisualSelectionCount();}
+function restoreVisualSelection(evidence){visualSnapshot=evidence;visualOrder=evidence.map(v=>v.id);const ids=new Set(visualOrder);for(const n of document.querySelectorAll('#visual-evidence-options input'))n.checked=ids.has(n.value);for(const v of evidence){if(!Array.from(document.querySelectorAll('#visual-evidence-options input')).some(n=>n.value===v.id)){const label=el('label',undefined,'visual-option');const n=el('input');n.type='checkbox';n.value=v.id;n.checked=true;n.disabled=busy;n.onchange=updateVisualSelectionCount;label.append(n,document.createTextNode(v.label+' · 历史所选解析'));$('visual-evidence-options').append(label);}}updateVisualSelectionCount();}
 function updateVisualSelectionCount() {
   const count = selectedVisualAnalyses().length;
   $('visual-selection-count').textContent = count ? `已选 ${count} / 4 张` : '未选择 · 选填，最多 4 张';
 }
 async function refreshVisualEvidence() {
   const container = $('visual-evidence-options');
-  const version=visualRestoreVersion;let selected = new Set(selectedVisualAnalyses());
+  const version=++visualListVersion;
+  $('visual-evidence-status').textContent='';
   try {
     const data = await api('/api/vision/analyses');
-    if(version!==visualRestoreVersion)selected=new Set(visualOrder);
+    if(version!==visualListVersion)return;
+    if(!Array.isArray(data.analyses))throw new Error('图片解析列表格式无效。');
+    const selected = new Set(selectedVisualAnalyses());
     for(const v of visualSnapshot)if(!data.analyses.some(a=>a.id===v.id))data.analyses.push(v);
     container.replaceChildren();
     if (!data.analyses.length) container.append(el('p', '尚无图片解析，请先到「上传资料」上传并识读。', 'helper'));
@@ -23,13 +26,15 @@ async function refreshVisualEvidence() {
       const details = el('details'); details.append(el('summary', '预览识读结果（需核对）'), el('p', item.content, 'visual-text'));
       container.append(label, details);
     }
-  } catch (e) { container.replaceChildren(el('p', e.message, 'helper')); }
-  updateVisualSelectionCount();
+  } catch (e) { if(version===visualListVersion)$('visual-evidence-status').textContent=e.message+' 已保留当前选择，可重新刷新。'; }
+  if(version===visualListVersion)updateVisualSelectionCount();
 }
 async function showUploadImages(uploadId) {
+  const version = ++uploadImagesVersion;
   const container = $('upload-preview-images');
   container.replaceChildren(el('p', '正在读取插图…', 'helper'));
   const data = await api('/api/uploads/' + uploadId + '/images');
+  if (version !== uploadImagesVersion) return;
   container.replaceChildren();
   if (!data.images.length) container.append(el('p', '未提取到图片。旧资料需重新上传以提取插图。', 'helper'));
   for (const image of data.images) {
@@ -50,6 +55,7 @@ async function showUploadImages(uploadId) {
     container.append(card);
   }
 }
+function invalidateUploadImages() { uploadImagesVersion++; }
 function drawVisualEvidence(evidence) {
   if (!evidence || !evidence.length) return;
   const section = el('section', undefined, 'visual-evidence-result');

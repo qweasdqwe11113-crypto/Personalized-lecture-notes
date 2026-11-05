@@ -6,7 +6,7 @@ if [[ ! -x .venv/bin/python ]] || ! .venv/bin/python -c 'import flask, psycopg, 
   exit 1
 fi
 if [[ ! -f .env ]]; then
-  echo '请复制 .env.example 为 .env 并填写模型密钥。'
+  echo '请复制 .env.example 为 .env 并填写服务地址和模型名称；无鉴权服务可留空密钥。'
   exit 1
 fi
 .venv/bin/python demo/init_db.py

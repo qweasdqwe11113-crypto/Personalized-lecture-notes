@@ -17,6 +17,7 @@
    $('experiment-detail').append(card);
   }
   if(e.status==='running')timer=setTimeout(()=>open(id).catch(showError),2000);
+  else await history();
  }
  $('prepare-experiment').onclick=async()=>{const b=$('prepare-experiment');b.disabled=true;try{const e=await api('/api/lecture-experiments',{method:'POST'});await history();await open(e.id);}catch(e){showError(e);}finally{b.disabled=false;}};
  $('run-experiment').onclick=async()=>{if(!active)return;$('run-experiment').disabled=true;try{await api('/api/lecture-experiments/'+active+'/run',{method:'POST'});await open(active);await history();}catch(e){showError(e);}finally{$('run-experiment').disabled=false;}};

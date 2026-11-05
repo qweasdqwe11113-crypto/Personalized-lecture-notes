@@ -77,13 +77,18 @@ def extract(raw, filename):
     try:
         if ext == '.docx':
             from docx import Document
+            from docx.table import Table
             with ZipFile(BytesIO(raw)) as archive:
                 if sum(info.file_size for info in archive.infolist()) > 40 * 1024 * 1024:
                     raise ImportError('文档解压后过大，请拆分文件。')
             doc = Document(BytesIO(raw))
-            return '\n'.join([p.text for p in doc.paragraphs] + [
-                ' | '.join(cell.text for cell in row.cells)
-                for table in doc.tables for row in table.rows])
+            lines = []
+            for block in doc.iter_inner_content():
+                if isinstance(block, Table):
+                    lines.extend(' | '.join(cell.text for cell in row.cells) for row in block.rows)
+                else:
+                    lines.append(block.text)
+            return '\n'.join(lines)
         from pypdf import PdfReader
         reader = PdfReader(BytesIO(raw))
         if reader.is_encrypted:

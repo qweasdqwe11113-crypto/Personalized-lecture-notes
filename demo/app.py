@@ -504,7 +504,8 @@ def retrieval_state():
 def build_retrieval_index():
     """Chunk and embed every material of one topic. Re-indexing replaces its own rows only."""
     data = request.get_json(silent=True)
-    if not isinstance(data, dict) or data.get('topic') not in topic_catalog():
+    if (not isinstance(data, dict) or not isinstance(data.get('topic'), str)
+            or data['topic'] not in topic_catalog()):
         return jsonify(error='请选择有效主题。'), 400
     ids = topic_catalog()[data['topic']]['knowledge_ids']
     try:
