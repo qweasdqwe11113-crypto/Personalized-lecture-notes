@@ -108,6 +108,7 @@ function renderSlide(slide, index, total) {
     };
     tools.append(el('span', `第 ${index+1} 页`), choose);
     const canvas = el('div', undefined, 'ppt-canvas' + (slide.visual ? ' ppt-semantic' : index === 0 ? ' ppt-cover' : ''));
+    applyPreviewTheme(canvas);
     canvas.append(el('h3', slide.title));
     const body = el('div', undefined, 'ppt-body');
     if(slide.visual) body.append(drawVisual(slide.visual));
@@ -209,12 +210,19 @@ $('close-ppt').onclick = () => dialog.close();
 dialog.addEventListener('close', () => { session++; editToken++; working = false; editWorking = false; });
 
 function comparisonSlide(slide) {
-  const node = el('div'); node.append(el('h5', slide.title));
+  const node = el('div', undefined, 'ppt-comparison-slide');
+  applyPreviewTheme(node);
+  node.append(el('h5', slide.title));
   if(slide.visual) node.append(drawVisual(slide.visual));
   else slide.bullets.forEach(text => node.append(el('p', text)));
   if(slide.question && slide.question !== slide.visual?.problem) node.append(el('p', '课堂提问：' + slide.question));
   const notes = el('details'); notes.append(el('summary', '教师讲稿与来源'), el('p', slide.notes), el('p', slide.sources.join('、'))); node.append(notes);
   return node;
+}
+function applyPreviewTheme(node) {
+  // Use the saved deck, so changing the new-task selector cannot recolor history.
+  const saved = currentDeck?.source;
+  if(saved?.template_id) node.dataset.template = saved.template_id;
 }
 async function watchEditJob(id) {
   const token = ++editToken, baseId = currentDeck?.id;
