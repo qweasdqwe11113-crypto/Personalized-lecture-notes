@@ -20,7 +20,8 @@ class PreparedRequest:
 
 
 def prepare_request(context, goal, model):
-    model_context = {**context, 'materials': [
+    # 'sectioned' holds the later stage prompt and quotas for the server; it is not model input.
+    model_context = {**{k: v for k, v in context.items() if k != 'sectioned'}, 'materials': [
         {**material, 'citation_id': f'M{material["id"]}'} for material in context['materials']
     ]}
     family = course_family(context['topic'])
@@ -50,6 +51,14 @@ def prepare_request(context, goal, model):
         system += '\n' + (Path(__file__).with_name('prompts') / 'lecture-plan-v1.md').read_text(encoding='utf-8').strip()
     if context.get('lecture_workflow') == 'teacher-v2':
         system += '\n本次材料可能是带原文位置的节选，仅使用提供的内容，不声称阅读了完整原文；不足时明确说明。'
+    prompts = Path(__file__).with_name('prompts')
+    rich = context.get('lecture_format') == 'rich-v1'
+    sectioned = context.get('generation_mode') == 'sectioned-v1'
+    if rich:
+        system += '\n' + (prompts / 'lecture-format-rich-v1.md').read_text(encoding='utf-8').strip()
+    if sectioned:
+        # The frozen request is the outline call; sectioned.py derives the section calls from it.
+        system += '\n' + (prompts / 'lecture-sectioned-outline-v1.md').read_text(encoding='utf-8').strip()
     payload = {'model': model, 'messages': [
         {'role': 'system', 'content': system},
         {'role': 'user', 'content': json.dumps({'goal': goal, 'context': model_context}, ensure_ascii=False)}
@@ -61,9 +70,18 @@ def prepare_request(context, goal, model):
     policy_v2 = options and options.get('length_policy') == 'duration-v2'
     if policy_v2:
         payload['max_tokens'] = min(16000, max(3000, round(length_range(options,expanded)[1]*1.7)+1200))
+    if rich:
+        payload['max_tokens'] = min(16000, round(payload['max_tokens'] * 1.3))  # LaTeX and figure JSON cost tokens
+    if sectioned:
+        payload['max_tokens'] = 4000  # a chapter-wide outline was cut off at 2400 with a real model
+        payload['response_format'] = {'type': 'json_object'}
+    elif context.get('lecture_pipeline') == 'v3':
+        payload['stream'] = True
+        payload['stream_options'] = {'include_usage': True}
     body = json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
     return PreparedRequest(body, hashlib.sha256(body.encode('utf-8')).hexdigest(),
-                           version + ('+teaching-v2' if policy_v2 else '+teaching-v1' if options else '') + ('+expanded-v1' if expanded else '') + ('+plan-v1' if context.get('lecture_workflow') == 'teacher-v2' else ''),
+                           version + ('+teaching-v2' if policy_v2 else '+teaching-v1' if options else '') + ('+expanded-v1' if expanded else '') + ('+plan-v1' if context.get('lecture_workflow') == 'teacher-v2' else '')
+                           + ('+rich-v1' if rich else '') + ('+sectioned-v1' if sectioned else ''),
                            'lecture-context-teacher-v2' if context.get('lecture_workflow') == 'teacher-v2' else
                            'lecture-context-teaching-v1' if options else
                            'lecture-context-vision-v1' if context.get('visual_evidence') else

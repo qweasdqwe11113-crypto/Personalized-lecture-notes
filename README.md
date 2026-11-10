@@ -9,6 +9,8 @@ A VLM + RAG prototype for lesson preparation. It generates editable, teacher-fac
 | Page | What it does |
 | --- | --- |
 | Lecture Workbench (讲义工作台) | Pick a lesson-prep copy and a student, set duration, detail level, number of examples and exercises, and adjust the per-topic teaching plan; generate a personalized lecture; read, revise, rewrite single sections, compare and export |
+| Writing mode and format (高级设置) | **Outline first, then one model call per section** with its own length quota and one automatic rewrite on failed checks; **LaTeX formulas, tables and program-drawn figures** (probability tree, number line, equation steps, function plot, bar chart); a live preview while the model writes |
+| Class batch (批量生成) | Queue the same lesson for up to 60 students; each gets a separately frozen input, run and lecture |
 | Lesson prep (授课准备, lecture toolbar) | **Matching quiz** (配套出题, questions follow the lecture's methods and notation), **classroom slides** (生成授课 PPT, editable PPTX with per-slide edits), **lesson package** (导出授课包, teacher handbook + student worksheet + slides) |
 | Quizzes (出题) | Generate exercises by course, student level, difficulty and question type; export student and teacher versions |
 | Grading (阅卷) | Upload student answers (images / PDF / Word); suggested per-question scores against a generated quiz or an uploaded answer key; record results into the student profile by knowledge point |
@@ -40,6 +42,8 @@ Design principles:
 - **Teacher confirmation**: the model never edits a student profile; every evidence entry and mastery change is confirmed by a teacher.
 - **Separate vision step**: images are transcribed by a dedicated vision model; the language model only receives the transcribed text.
 - **Checks are not correctness**: the program checks structure, length and citation IDs; subject correctness, source support and fit for the student are the teacher's call.
+- **Figures are drawn by code**: the model only states a figure's data as JSON; the program validates it (branch probabilities sum to 1, a stated solution satisfies every step) and renders it, so a figure is reproducible from the saved text.
+- **Arithmetic is recomputed**: numeric equalities and stated solutions written in a lecture are re-evaluated with exact fractions and disagreements are flagged; anything the parser cannot read is skipped, not guessed.
 
 ## Quick Start
 
@@ -118,6 +122,8 @@ All settings live in the local `.env` (ignored by git); see [.env.example](.env.
 | `VLM_BASE_URL` / `VLM_MODEL` / `VLM_API_KEY` | Vision model for reading uploaded images and answer sheets. In our tests `qwen3.8-flash` marks unreadable content honestly instead of guessing |
 | `QWEN_EMBEDDING_MODEL` / `_BASE_URL` / `_API_KEY` | Embedding model for vector retrieval (optional); URL and key fall back to the language model's |
 | `PPT_AESTHETIC_BASE_URL` / `PPT_AESTHETIC_MODEL` | Visual review of rendered slides (optional; Windows + PowerPoint + local Ollama only, skipped elsewhere) |
+| `MODEL_CONCURRENCY` | Language-model calls allowed at the same time, 1–8, default 3. Used by sectioned writing and class batches; `1` restores strictly serial calls |
+| `QWEN_EMBEDDING_BATCH_SIZE` | Texts per embedding request, default 10 (the Model Studio limit); long documents are embedded in batches |
 | `PORT` | Service port, default 5055; listens on localhost only |
 
 ## Project Structure
@@ -140,9 +146,14 @@ All settings live in the local `.env` (ignored by git); see [.env.example](.env.
 │   ├── catalog.py           # Lesson-prep copies; uploads.py / vision.py for uploads and image reading
 │   ├── retrieval.py         # SQL and vector material selection; embed.py embedding client
 │   ├── reviews.py           # Revisions and review; quality.py automated checks
+│   ├── sectioned.py         # Outline → per-section calls → checks and one rewrite → assembly
+│   ├── gate.py, progress.py # Shared model-concurrency gate; live text of running jobs (display only)
+│   ├── mathcheck.py         # Recomputes written arithmetic and substitutes stated solutions
+│   ├── figures.py           # Validates figure specs and renders SVG/PNG; richdoc.py exports formulas, figures, tables
+│   ├── scale/               # Optional chapter-sized corpus, synthetic class, retrieval and generation benchmarks
 │   ├── templates/, static/  # Frontend page, scripts and styles (vanilla JS, no build step)
 │   └── tests/               # Unit and integration tests; offline sandboxes serve_*_fixture.py
-├── docs/                    # Feature documentation and topic notes (Chinese)
+├── docs/                    # Feature documentation and topic notes (Chinese); scale-data.md for the benchmarks
 ├── tools/ppt-kit/           # In-repo slide layout engine
 ├── assets/ppt-templates/    # Slide templates and previews
 ├── experiments/             # 2026-10-12 fixed-input comparison experiment
@@ -157,7 +168,7 @@ Runtime data is written to `.runtime/` (ignored): the upload store, grading stor
 .venv/bin/python -m unittest discover -s demo/tests -v
 ```
 
-Tests create a temporary schema in the dedicated database and drop it afterwards; they never touch production data or call a real model. With Node.js installed, frontend behaviour regressions run as well. All 311 tests pass as of 2026-11-05.
+Tests create a temporary schema in the dedicated database and drop it afterwards; they never touch production data or call a real model. With Node.js installed, frontend behaviour regressions run as well. All 340 tests pass as of 2026-11-10.
 
 ## Documentation
 
@@ -168,6 +179,7 @@ The detailed documents are written in Chinese.
 | [docs/features.md](docs/features.md) | Behaviour, limits and design details of each page: lectures, profiles, retrieval, quizzes, slides, lesson packages, grading, job queue, experiments |
 | [project_map.md](project_map.md) | Module responsibilities, call relationships, data flow and storage — read before changing code |
 | [docs/image-lecture-workflow.md](docs/image-lecture-workflow.md) | How image reading feeds into lectures, and its limits |
+| [docs/scale-data.md](docs/scale-data.md) | Optional chapter-sized corpus and synthetic class, the retrieval evaluation and the generation benchmark |
 | [docs/ppt-template-integration.md](docs/ppt-template-integration.md) | Semantic slide layouts, template adaptation and version compatibility |
 | [demo/prompts/README.md](demo/prompts/README.md) | Prompt versions and the actual input structure |
 | [docs/archive/](docs/archive/) | Early VLM + RAG planning drafts from 2026-10-21; historical only, not the current implementation |
@@ -176,5 +188,6 @@ The detailed documents are written in Chinese.
 ## Status
 
 - **Implemented**: lecture generation and review, matching quizzes, classroom slides, lesson packages, grading into profiles, and batch import of student data. All are covered by automated tests and have been run end to end once with a real model (qwen3.8-max).
-- **Known issues**: generated lectures are often shorter than the suggested length, and lectures and quizzes still contain occasional math errors from the model, so teachers need to check every question.
-- **Not yet done**: a with/without-profile comparison on the current version, ablations of the vision and retrieval components, and independent teacher review. Until then, no claims can be made about saving preparation time or improving learning.
+- **Added on 2026-11-10, covered by automated tests and exercised in the offline sandbox, not yet run against a real model**: sectioned writing with automatic rewrite, streaming preview, LaTeX formulas and program-drawn figures, arithmetic recomputation, class batches with bounded model concurrency, automatic single retry for invalid quiz and slide output, an installable (PWA) shell, and the scale corpus with its benchmarks.
+- **Known issues**: single-call lectures came back at about a third of the requested length (1,177 of 3,600–5,400 characters in the one qwen3.8-max run). Sectioned writing is meant to fix this, but whether it does has to be measured with `demo/scale/bench.py --real`. It costs about six model calls per lecture and roughly six times the input tokens. Lectures and quizzes still contain occasional math errors from the model; the arithmetic check only catches numbers that disagree, so teachers still need to check every question.
+- **Not yet done**: a with/without-profile comparison on the current version, ablations of the vision and retrieval components with a real embedding model, and independent teacher review. Until then, no claims can be made about saving preparation time or improving learning. Slides still use plain-text formulas and carry no figures; exported HTML keeps formulas as LaTeX source.

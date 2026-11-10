@@ -18,10 +18,13 @@ async function checkHealth(){
   if(!busy)$('generate').disabled=!modelConfigured||!hasGenerationBasis(current);
  }catch(e){$('health-summary').textContent=e.message;}
 }
+// One place builds the lesson settings, so a single job and a class batch freeze the same choices.
+window.generationPayload=()=>({topic:$('topic').value,goal:$('goal').value,personalization_mode:$('personalization-mode').value,retrieval_mode:$('retrieval-mode').value,teaching_options:readTeachingOptions(),visual_analysis_ids:typeof selectedVisualAnalyses==='function'?selectedVisualAnalyses():[],generation_mode:$('generation-mode').value||'sectioned-v1',lecture_format:$('lecture-format').value||'rich-v1'});
 async function watchJob(id){
  if(typeof openWorkspacePage==="function")openWorkspacePage("workbench");
  const session=++watchSession;
  setBusy(true);error('');clearResult();$('empty').hidden=true;$('loading').hidden=false;
+ window.liveLecture?.start(id);
  try{
   while(session===watchSession){
    const job=await api('/api/jobs/'+id);
@@ -29,7 +32,7 @@ async function watchJob(id){
    if(job.section_rewrite){$('loading').hidden=true;setBusy(false);await window.watchSectionJob(id);break;}
    const wait=Math.max(0,Math.floor((Date.now()-new Date(job.created_at).getTime())/1000));
    $('progress').textContent=`${labels[job.status]} · 记录 #${job.run_id} · 已等待 ${wait} 秒`+(job.status==='queued'?` · 等待位置 ${job.queue_position}`:'');
-   if(job.status==='running')$('progress').textContent+=' · 正在等待模型完整响应，尚无可报告的完成百分比';
+   if(job.status==='running')$('progress').textContent+=window.liveLecture?.active()?' · 右侧为实时预览，保存前还要通过程序检查':' · 正在等待模型响应';
    if(job.confirmation_pending)throw new Error('任务结束状态未能确认，请核查生成记录并重启本地服务。');
    if(job.status==='succeeded'){
      const r=await api('/api/lectures/'+job.lecture_id);
@@ -44,13 +47,13 @@ async function watchJob(id){
    await new Promise(resolve=>setTimeout(resolve,1000));
   }
  }catch(e){error(e.message+' 已提交任务可在“后台任务”重新查看，不必重复提交。');$('empty').hidden=false;}
- finally{if(session===watchSession){$('loading').hidden=true;setBusy(false);refreshJobs().catch(()=>{});}}
+ finally{if(session===watchSession){window.liveLecture?.stop();$('loading').hidden=true;setBusy(false);refreshJobs().catch(()=>{});}}
 }
 $('generate-form').onsubmit=async e=>{
  e.preventDefault();if(busy||!current)return;
  setBusy(true);error('');$('progress').textContent='正在提交并固定输入…';
  try{
-  const job=await api('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:Number($('student').value),topic:$('topic').value,goal:$('goal').value,personalization_mode:$('personalization-mode').value,retrieval_mode:$('retrieval-mode').value,teaching_options:readTeachingOptions(),plan_overrides:typeof readLecturePlan==='function'?readLecturePlan():{},visual_analysis_ids:typeof selectedVisualAnalyses==='function'?selectedVisualAnalyses():[]})});
+  const job=await api('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...window.generationPayload(),student_id:Number($('student').value),plan_overrides:typeof readLecturePlan==='function'?readLecturePlan():{}})});
   await refreshJobs().catch(()=>{});await watchJob(job.id);
  }catch(e){error(e.message);setBusy(false);}
 };

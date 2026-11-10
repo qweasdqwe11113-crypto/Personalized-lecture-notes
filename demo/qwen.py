@@ -1,8 +1,11 @@
 """Qwen transport. Credentials and raw service errors never enter saved traces."""
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 import json
 import os
 import re
+import threading
+import time
 import urllib.error
 import urllib.request
 from urllib.parse import urlsplit
@@ -43,6 +46,87 @@ def clean_content(content):
     return '' if re.search(r'</?think>', content, re.I) else content
 
 
+_STREAM = threading.local()
+
+
+@contextmanager
+def stream_to(callback):
+    """Deliver streamed text pieces of calls made by this thread to callback(piece).
+
+    A thread-local listener keeps call_qwen's two-argument signature, so every caller
+    and test double that knows nothing about streaming keeps working unchanged.
+    """
+    previous = getattr(_STREAM, 'callback', None)
+    _STREAM.callback = callback
+    try:
+        yield
+    finally:
+        _STREAM.callback = previous
+
+
+def stream_listener():
+    """The current thread's listener, for test doubles that imitate a streaming service."""
+    return getattr(_STREAM, 'callback', None)
+
+
+def visible_text(text):
+    """What may be shown while output is still arriving: reasoning blocks never are."""
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.S | re.I)
+    start = re.search(r'<think>', text, re.I)
+    return (text[:start.start()] if start else text).lstrip()
+
+
+def _read_stream(response):
+    """Collect an OpenAI-style SSE stream into the same shape a plain reply has."""
+    parts, usage, model, finish = [], None, None, None
+    callback = getattr(_STREAM, 'callback', None)
+    deadline = time.monotonic() + request_timeout()
+
+    def partial():
+        return ModelResult(clean_content(''.join(parts)), usage if isinstance(usage, dict) else {},
+                           {'finish_reason': finish} if isinstance(finish, str) else {})
+    try:
+        for raw in response:
+            if time.monotonic() > deadline:
+                raise ModelError('timeout', 'Qwen 请求超时，请稍后重试。', partial=partial())
+            line = raw.decode('utf-8').strip()
+            if not line.startswith('data:'):
+                continue
+            data = line[5:].strip()
+            if data == '[DONE]':
+                break
+            try:
+                chunk = json.loads(data)
+            except json.JSONDecodeError:
+                raise ModelError('invalid_json', '模型服务没有返回有效 JSON。', partial=partial()) from None
+            if not isinstance(chunk, dict):
+                continue
+            if chunk.get('error'):
+                raise ModelError('stream_error', '模型服务在输出过程中报告错误，请稍后重试。', partial=partial())
+            if isinstance(chunk.get('usage'), dict):
+                usage = chunk['usage']
+            if isinstance(chunk.get('model'), str):
+                model = chunk['model']
+            for choice in chunk.get('choices') or []:
+                if not isinstance(choice, dict):
+                    continue
+                piece = (choice.get('delta') or {}).get('content')
+                if isinstance(piece, str) and piece:
+                    parts.append(piece)
+                    if callback:
+                        callback(piece)
+                if isinstance(choice.get('finish_reason'), str):
+                    finish = choice['finish_reason']
+    except (UnicodeDecodeError, AttributeError, TypeError):
+        raise ModelError('invalid_protocol', '模型响应格式不符合 chat/completions 协议。', partial=partial()) from None
+    except TimeoutError:
+        raise ModelError('timeout', 'Qwen 请求超时，请稍后重试。', partial=partial()) from None
+    except OSError:
+        raise ModelError('connection_error', '模型连接中断，请稍后重试。', partial=partial()) from None
+    return {'choices': [{'message': {'content': ''.join(parts)}, 'finish_reason': finish}],
+            'usage': usage, 'model': model}
+
+
 def call_qwen(prepared, on_attempt):
     key = os.environ.get('QWEN_API_KEY', '')
     base = os.environ.get('QWEN_BASE_URL', '').rstrip('/')
@@ -61,7 +145,14 @@ def call_qwen(prepared, on_attempt):
     on_attempt()  # Commit the attempt before network I/O; never recompute the body.
     try:
         with urllib.request.urlopen(req, timeout=request_timeout()) as response:
-            result = json.load(response)
+            # The frozen body decides the transport; old saved requests stay non-streaming.
+            headers = getattr(response, 'headers', None)
+            if 'text/event-stream' in ((headers.get('Content-Type') if headers else '') or ''):
+                result = _read_stream(response)
+            else:
+                result = json.load(response)
+    except ModelError:
+        raise
     except urllib.error.HTTPError as exc:
         code = exc.code
         exc.close()

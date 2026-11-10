@@ -2,6 +2,8 @@
 import re
 from teaching import length_range
 from courses import course_family
+import figures
+import mathcheck
 
 CHECK_VERSION = 'math-text-check-v1'
 SECTIONS = ['学习目标', '本次学习安排', '核心讲解', '例题与检验', '易错点与小结']
@@ -126,7 +128,29 @@ def check_output(content, context, goal):
     version = scope['version'] + ('+teaching-v2' if teaching.get('length_policy') == 'duration-v2' else '+teaching-v1' if teaching else '')
     if context.get('lecture_workflow') == 'teacher-v2':
         version += '+lecture-workflow-v2'
-    return {'version': version, 'metrics': {'chinese_characters': chinese, 'line_count': len(content.splitlines())}, 'invalid_source_ids': invalid_sources,
+    extras = {}
+    if context.get('lecture_pipeline') == 'v3':
+        # Figure blocks hold JSON, not prose arithmetic; blank them but keep the line numbers.
+        prose = figures.FENCE.sub(lambda match: '\n' * match[0].count('\n'), content)
+        arithmetic = mathcheck.check_text(prose)
+        add('arithmetic', '算式复算', not arithmetic['findings'],
+            '；'.join(f'第 {f["line"]} 行：{f["detail"]}' for f in arithmetic['findings'][:3])
+            + ('（可能误报，请结合上下文判断）' if arithmetic['findings'] else
+               f'重算了 {arithmetic["checked"]} 处能识别的算式，未发现不一致；未识别的式子和推理过程不在检查范围内。'))
+        extras['arithmetic'] = arithmetic
+        if context.get('lecture_format') == 'rich-v1':
+            drawn = figures.check(content)
+            add('figures', '结构化图', not drawn['problems'],
+                '；'.join(f'第 {p["line"]} 行的图：{p["detail"]}' for p in drawn['problems'][:3]) if drawn['problems']
+                else f'{drawn["count"]} 幅图的数据可以绘制且自身一致；图与正文是否对应需教师核对。')
+            unbalanced = [number for number, line in enumerate(prose.splitlines(), 1)
+                          if len(re.findall(r'(?<!\\)\$', line)) % 2]
+            add('math_markup', '公式标记', not unbalanced,
+                '以下行的 $ 没有成对出现，公式可能无法显示：' + '、'.join(map(str, unbalanced[:8])) if unbalanced
+                else '公式标记成对出现；公式内容是否正确需教师核对。')
+            extras['figures'] = drawn
+        version += '+pipeline-v3'
+    return {**extras, 'version': version, 'metrics': {'chinese_characters': chinese, 'line_count': len(content.splitlines())}, 'invalid_source_ids': invalid_sources,
             'scope': scope, 'automatic': checks, 'citation_locations': citations,
             'teacher_review': [{'code': key, 'label': label, 'status': 'needs_review'} for key, label in ({**REVIEW_ITEMS, 'math': '学科知识、适用条件与术语', 'examples': '示例与检验过程'} if general else REVIEW_ITEMS).items()],
             'note': '程序只检查文本结构、篇幅、标记和关联；不能判定任意数学结论或来源支持。'}

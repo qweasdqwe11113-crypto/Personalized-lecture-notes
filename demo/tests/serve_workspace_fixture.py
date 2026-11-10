@@ -22,6 +22,9 @@ from test_grading import result_fixture
 from test_quizzes import fixture_result
 from test_presentations import fixture_deck
 from embed import HashingEmbedder
+from jobs import JobQueue
+import qwen
+import sectioned
 from grading import register_grading
 from quizzes import QuizQueue
 from uploads import read_upload, register_uploads
@@ -53,10 +56,63 @@ def main():
             stack.enter_context(patch.object(module, 'EMBEDDER', embedder))
             stack.enter_context(patch('catalog.read_upload', lambda _, identity: read_upload(root, identity)))
 
+            def streamed(text, usage):
+                """Imitate a streaming service so the live preview can be exercised offline."""
+                listener = qwen.stream_listener()
+                if listener:
+                    for start in range(0, len(text), 24):
+                        listener(text[start:start + 24])
+                        time.sleep(.03)
+                return module.ModelResult(text, usage)
+
+            def demo_section(title, ctx, low, rich):
+                source = f" [M{ctx['materials'][0]['id']}]" if ctx['materials'] else ''
+                marks = ''.join(f" [K{s['id']}]" for s in ctx.get('states', [])) if title == '核心讲解' else ''
+                probability = '概率' in ctx['topic'].get('course', '')
+                tex = (lambda a, b: f'${a}$') if rich else (lambda a, b: b)
+                lines = [f'## {title}', f'隔离界面测试内容，用于核查操作流程，不代表真实教学内容。{source}{marks}', '']
+                if title == '核心讲解' and probability:
+                    lines += ['全概率把次品事件按产线拆开：', '',
+                              '$$P(D) = 0.6 \\times 0.02 + 0.4 \\times 0.05 = 0.032$$' if rich else 'P(D) = 0.6 × 0.02 + 0.4 × 0.05 = 0.032', '']
+                    if rich:
+                        lines += ['```figure', json.dumps({'type': 'probability_tree', 'title': '双产线次品概率树', 'root': '全部产品', 'branches': [
+                            {'label': 'A1', 'p': 0.6, 'children': [{'label': 'D', 'p': 0.02}, {'label': '非D', 'p': 0.98}]},
+                            {'label': 'A2', 'p': 0.4, 'children': [{'label': 'D', 'p': 0.05}, {'label': '非D', 'p': 0.95}]}]}, ensure_ascii=False), '```', '']
+                elif title == '核心讲解':
+                    lines += ['解两步方程时，每一步都对等式两边做同样的运算：', '', '```' if not rich else '', '3x + 5 = 20', '3x = 15', 'x = 5', '```' if not rich else '', '']
+                    if rich:
+                        lines += ['```figure', json.dumps({'type': 'balance', 'title': '两步方程的变形', 'steps': [
+                            {'left': '3x + 5', 'right': '20', 'note': '原方程'}, {'left': '3x', 'right': '15', 'note': '两边同减 5'},
+                            {'left': 'x', 'right': '5', 'note': '两边同除以 3'}], 'solution': {'x': 5}}, ensure_ascii=False), '```', '']
+                elif title == '例题与检验' and probability:
+                    lines += ['后验为 ' + tex('P(A_1\\mid D) = \\frac{0.012}{0.032} = 0.375', 'P(A1|D) = 0.012 / 0.032 = 0.375') + '，两项后验之和为 1。', '']
+                    if rich:
+                        lines += ['| 产线 | 先验 | 后验 |', '|---|---|---|', '| A1 | 0.6 | 0.375 |', '| A2 | 0.4 | 0.625 |', '',
+                                  '```figure', json.dumps({'type': 'bar_chart', 'title': '先验与后验', 'max': 1, 'bars': [
+                                      {'label': '先验 P(A1)', 'value': 0.6}, {'label': '后验 P(A1|D)', 'value': 0.375},
+                                      {'label': '先验 P(A2)', 'value': 0.4}, {'label': '后验 P(A2|D)', 'value': 0.625}]}, ensure_ascii=False), '```', '']
+                elif title == '例题与检验':
+                    lines += ['检验：把 ' + tex('x = 5', 'x = 5') + ' 代回原方程，' + tex('3 \\times 5 + 5 = 20', '3 × 5 + 5 = 20') + '，左右相等。', '']
+                    if rich:
+                        lines += ['```figure', json.dumps({'type': 'number_line', 'title': '解在数轴上的位置', 'min': 0, 'max': 8,
+                                                         'points': [{'x': 5, 'label': 'x = 5'}]}, ensure_ascii=False), '```', '']
+                filler, index = '这一段是占位的讲解步骤，教师提问并等待学生回答，再根据回答追问理由。', 1
+                while sectioned.chinese('\n'.join(lines)) < low:
+                    lines.append(f'{index}. {filler}')
+                    index += 1
+                return '\n'.join(line for line in lines) + '\n'
+
             def model(prepared, attempted):
                 attempted()
                 time.sleep(.3)
                 body = json.loads(json.loads(prepared.body)['messages'][1]['content'])
+                if prepared.prompt_version.startswith('lecture-sectioned-section'):
+                    ctx = body['context']
+                    return streamed(demo_section(body['target_section'], ctx, body['section_quota']['low'],
+                                                 ctx.get('lecture_format') == 'rich-v1'), {'total_tokens': 60})
+                if '+sectioned-v1' in prepared.prompt_version:
+                    return module.ModelResult(json.dumps({'title': '隔离界面测试讲义（分章节）', 'notation': '', 'sections': {
+                        name: ['占位要点一', '占位要点二'] for name, _, _ in sectioned.SECTIONS}}, ensure_ascii=False), {'total_tokens': 40})
                 if prepared.prompt_version.startswith('lecture-ppt'):
                     deck = fixture_deck(body['slide_count'])
                     source = body['sources'][0]['id'] if body['sources'] else None
@@ -73,12 +129,19 @@ def main():
                 source = f"[M{ctx['materials'][0]['id']}]" if ctx['materials'] else ''
                 visual = '[V1]' if ctx.get('visual_evidence') else ''
                 marker = f"[K{ctx['states'][0]['id']}]" if ctx['states'] else ''
-                return module.ModelResult('# 隔离界面测试讲义\n\n## 学习目标\n核查操作流程，不代表真实教学内容。\n\n'
+                return streamed('# 隔离界面测试讲义\n\n## 学习目标\n核查操作流程，不代表真实教学内容。\n\n'
                     '## 本次学习安排\n测试响应。\n\n## 核心讲解\n'+marker+' 两边保持相等。'+source+visual+
                     '\n- 公式前的说明\n```\nx + 3 = 5\nx = 2\n```\n- 公式后的检验\n\n'
                     '## 例题与检验\n代回原式检验。\n\n## 易错点与小结\n仍需教师核对。', {'total_tokens': 100})
 
             stack.enter_context(patch.object(module, 'call_qwen', model))
+            # The suite pins one model call at a time; the sandbox shows the parallel default instead.
+            module.GENERATION_LOCK.set_limit(3)
+            stack.callback(module.GENERATION_LOCK.set_limit, 1)
+            parallel = JobQueue(lambda: module.db(), module.execute_job, capacity=6, workers=3)
+            stack.enter_context(patch.object(module, 'TASKS', parallel))
+            stack.callback(parallel.close)
+            stack.callback(parallel.wait_idle, 10)
             # No PowerPoint here: skip the rendered-page review instead of writing to the real .runtime store.
             stack.enter_context(patch('presentations.refine_presentation', lambda run_id, deck, payload, *args, **kwargs: (
                 deck, payload, {'status': 'skipped', 'note': '隔离环境未运行 PowerPoint 视觉审查。'})))

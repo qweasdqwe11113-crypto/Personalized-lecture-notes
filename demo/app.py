@@ -1,12 +1,12 @@
 """Local teaching workspace with separate language, vision and embedding services."""
 import html
+import json
 import os
 from io import BytesIO
 import re
 import time
 from urllib.parse import quote
 from pathlib import Path
-from threading import Lock
 
 import psycopg
 from psycopg.rows import dict_row
@@ -17,7 +17,10 @@ from profiles import (ProfileError, compare_lecture_profile, decorate_states, ev
                       record_evidence, update_profile)
 from prompts import prepare_request
 from vision import selected_evidence
-from qwen import ModelError, ModelResult, call_qwen, config_flags
+from qwen import ModelError, ModelResult, call_qwen, config_flags, stream_to, visible_text
+from progress import HUB
+import figures
+import sectioned
 from runs import create_run, fail_run, mark_attempt, recent_runs, run_detail, save_success
 from quality import assess_scope, check_output
 from reviews import (ReviewError, STATUS_LABELS, add_issue, lecture_row,
@@ -26,6 +29,7 @@ from courses import TOPICS, REFERENCE_EXAMPLES, course_family
 from catalog import load_catalog, register_catalog
 from comparisons import comparison_options, compare_lectures
 from jobs import JobError, JobQueue
+from gate import ModelGate, configured_limit
 from teaching import teaching_options
 from model_runtime import request_timeout
 from lecture_policy import LectureInputError, finalize_context
@@ -37,6 +41,7 @@ from quizzes import QuizQueue, grading_reference, register_quizzes
 from grading import register_grading
 from evaluation import register_evaluation
 from rendering import markdown_html, visual_appendix
+import richdoc
 from uploads import read_upload, register_uploads
 from embed import EmbeddingError, OllamaEmbedder, QwenEmbedder
 from retrieval import (MODES as RETRIEVAL_MODES, RetrievalError, adopt_content, build_query,
@@ -51,7 +56,8 @@ app.config['MAX_CONTENT_LENGTH'] = 11 * 1024 * 1024
 register_uploads(app, ROOT)
 DSN = os.environ.get('DATABASE_URL', 'postgresql:///lecture_demo_prototype')
 MODEL = os.environ.get('QWEN_MODEL', 'qwen3.8-27b')
-GENERATION_LOCK = Lock()
+# One gate for every language-model call; MODEL_CONCURRENCY=1 restores strictly serial calls.
+GENERATION_LOCK = ModelGate(configured_limit())
 # QUIZZES is created below; the lambda resolves it when a grading upload names a quiz.
 recover_grading = register_grading(app, ROOT, lambda prepared, attempt: call_qwen(prepared, attempt), GENERATION_LOCK,
                                    quiz_reference=lambda job_id: grading_reference(QUIZZES.detail(job_id)))
@@ -154,6 +160,22 @@ def headers(response):
 @app.get('/')
 def index():
     return render_template('index.html')
+
+
+@app.get('/sw.js')
+def service_worker():
+    """Served from the root so its scope covers the whole page, not just /static/."""
+    response = app.send_static_file('sw.js')
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['Service-Worker-Allowed'] = '/'
+    return response
+
+
+@app.get('/manifest.webmanifest')
+def web_manifest():
+    response = app.send_static_file('manifest.webmanifest')
+    response.headers['Content-Type'] = 'application/manifest+json; charset=utf-8'
+    return response
 
 
 @app.get('/api/bootstrap')
@@ -338,7 +360,22 @@ def generate_locked(sid, topic_key, goal, mode='profile', frozen=None, prepared=
             with db() as conn:
                 mark_attempt(conn, run_id)
         stage = 'model'
-        output = call_qwen(prepared, on_attempt)
+        if ctx.get('generation_mode') == sectioned.MODE:
+            HUB.start(run_id, [(q['title'], q['title']) for q in ctx['sectioned']['quotas']])
+            output = sectioned.generate(lambda request, attempted: call_qwen(request, attempted), GENERATION_LOCK,
+                                        prepared, ctx, goal, on_attempt,
+                                        publish=lambda key, text, state: HUB.write(run_id, key, text, state),
+                                        announce=lambda label: HUB.stage(run_id, label))
+        else:
+            HUB.start(run_id, [('body', '')])
+            HUB.stage(run_id, '模型写作中')
+            pieces = []
+
+            def on_piece(text):
+                pieces.append(text)
+                HUB.write(run_id, 'body', visible_text(''.join(pieces)))
+            with stream_to(on_piece):
+                output = call_qwen(prepared, on_attempt)
         stage = 'output'
         cited = set(re.findall(r'\[M(\d+)\]', output.content))
         available = {str(m['id']) for m in ctx['materials']}
@@ -355,7 +392,6 @@ def generate_locked(sid, topic_key, goal, mode='profile', frozen=None, prepared=
             row = save_success(conn, run_id, sid, goal, ctx, prepared, output, elapsed, check)
             if job_id:
                 conn.execute("UPDATE generation_jobs SET status='succeeded',finished_at=now() WHERE id=%s", (job_id,))
-        import json
         return dict(**row, content=output.content, context=ctx, model=json.loads(prepared.body)['model'], elapsed_seconds=elapsed,
                     citation_check=check, usage=output.usage, goal=goal, generation_run_id=run_id), 200
     except LectureInputError as exc:
@@ -374,6 +410,8 @@ def generate_locked(sid, topic_key, goal, mode='profile', frozen=None, prepared=
         status = 502
     finally:
         GENERATION_LOCK.release()
+        if run_id is not None:
+            HUB.finish(run_id)
     saved = persist_failure(run_id, error, round(time.monotonic() - start, 2), check, job_id)
     message = str(error)
     if run_id is not None and not saved:
@@ -409,7 +447,7 @@ def execute_job(job_id, run_id, sid, topic, goal, context, prepared):
                            context, prepared, run_id, job_id)
 
 
-TASKS = JobQueue(lambda: db(), execute_job)
+TASKS = JobQueue(lambda: db(), execute_job, capacity=GENERATION_LOCK.limit + 3, workers=GENERATION_LOCK.limit)
 register_sections(app, lambda: db(), lambda: TASKS, lambda: MODEL)
 register_presentations(app, lambda: db(), lambda: TASKS)
 register_packages(app, lambda: db())
@@ -475,26 +513,120 @@ def job_input(data):
     return sid, topic, goal.strip() or topic_catalog()[topic]['goal'], mode, retrieval_mode
 
 
-@app.post('/api/jobs')
-def submit_job():
-    sid, topic, goal, mode, retrieval_mode = job_input(request.get_json(silent=True))
-    ctx = get_context(sid, topic, mode, retrieval_mode, goal, learner_note(request.get_json()))
+def pipeline_options(data):
+    """New clients choose how the lecture is produced; requests without these keys stay on the old path."""
+    mode, layout = data.get('generation_mode'), data.get('lecture_format')
+    if mode is None and layout is None:
+        return {}
+    if mode not in (None, 'single', sectioned.MODE) or layout not in (None, 'plain', 'rich-v1'):
+        raise JobError('生成方式或公式格式无效，请刷新页面后重试。')
+    return dict(lecture_pipeline='v3', generation_mode=mode or 'single', lecture_format=layout or 'plain')
+
+
+def build_job(data):
+    """Validate one submission and freeze its context and request."""
+    sid, topic, goal, mode, retrieval_mode = job_input(data)
+    pipeline = pipeline_options(data)
+    ctx = get_context(sid, topic, mode, retrieval_mode, goal, learner_note(data))
     if not ctx:
-        raise JobError('学生不存在。', 404)
-    evidence = selected_evidence(ROOT, request.get_json().get('visual_analysis_ids', []))
+        raise JobError('学生不存在，或不在这份备课副本的学生范围内。', 404)
+    evidence = selected_evidence(ROOT, data.get('visual_analysis_ids', []))
     if evidence:
         ctx['visual_evidence'] = evidence
-    options = validated_teaching_options(request.get_json())
+    options = validated_teaching_options(data)
     if options:
         ctx['teaching_options'] = options
-    ctx = finalize_context(ctx, goal, request.get_json().get('plan_overrides'))
+    ctx.update(pipeline)
+    if ctx.get('generation_mode') == sectioned.MODE:
+        ctx['sectioned'] = sectioned.freeze(ctx)
+    ctx = finalize_context(ctx, goal, data.get('plan_overrides'))
     ctx['scope_check'] = assess_scope(ctx, goal)
-    return jsonify(TASKS.submit(sid, topic, goal, ctx, prepare_request(ctx, goal, MODEL))), 202
+    return sid, topic, goal, ctx, prepare_request(ctx, goal, MODEL)
+
+
+@app.post('/api/jobs')
+def submit_job():
+    sid, topic, goal, ctx, prepared = build_job(request.get_json(silent=True))
+    return jsonify(TASKS.submit(sid, topic, goal, ctx, prepared)), 202
+
+
+@app.post('/api/jobs/batch')
+def submit_batch():
+    """Queue the same lesson for several students; each gets its own frozen input and run."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        raise JobError('请求格式必须是 JSON 对象。')
+    ids = data.get('student_ids')
+    if (not isinstance(ids, list) or not 1 <= len(ids) <= 60 or any(type(i) is not int for i in ids)
+            or len(set(ids)) != len(ids)):
+        raise JobError('请选择 1—60 名学生。')
+    results = []
+    for sid in ids:
+        try:
+            # The per-topic plan is individual, so a batch always uses each student's default plan.
+            _, topic, goal, ctx, prepared = build_job({**data, 'student_id': sid, 'plan_overrides': None})
+            job = TASKS.submit(sid, topic, goal, ctx, prepared, bulk=True)
+            results.append(dict(student_id=sid, job_id=job['id'], run_id=job['run_id'], status=job['status']))
+        except (JobError, LectureInputError, RetrievalError, EmbeddingError) as exc:
+            results.append(dict(student_id=sid, error=str(exc)))
+    return jsonify(jobs=results, queued=sum('job_id' in item for item in results)), 202
+
+
+@app.get('/api/job-status')
+def job_status():
+    raw = request.args.get('ids', '')
+    if not re.fullmatch(r'[0-9a-f]{32}(,[0-9a-f]{32}){0,59}', raw):
+        raise JobError('任务编号无效。')
+    with db() as conn:
+        rows = conn.execute("""SELECT j.id,j.status,j.run_id,r.lecture_id,r.error_message,r.student_id,s.name,
+            r.elapsed_seconds FROM generation_jobs j JOIN generation_runs r ON r.id=j.run_id
+            JOIN students s ON s.id=r.student_id WHERE j.id=ANY(%s)""", (raw.split(','),)).fetchall()
+    return jsonify(jobs=rows)
+
+
+@app.get('/api/jobs/<job_id>/stream')
+def job_stream(job_id):
+    """Server-sent live text of one running job. Display only; the saved lecture is checked separately."""
+    with db() as conn:
+        row = conn.execute('SELECT run_id FROM generation_jobs WHERE id=%s', (job_id,)).fetchone()
+    if not row:
+        raise JobError('任务不存在。', 404)
+    run_id = row['run_id']
+
+    def events():
+        version, quiet = 0, 0
+        while quiet < 1800:
+            change = HUB.changes(run_id, version, timeout=1.0)
+            if change is None:
+                quiet += 1
+                if quiet % 3 == 0:
+                    with db() as conn:
+                        state = conn.execute('SELECT status FROM generation_jobs WHERE id=%s', (job_id,)).fetchone()
+                    if not state or state['status'] not in ('queued', 'running'):
+                        break
+                    yield ': waiting\n\n'
+                continue
+            quiet, version = 0, change['version']
+            yield 'data: ' + json.dumps(change, ensure_ascii=False) + '\n\n'
+            if change['done']:
+                break
+            time.sleep(0.2)  # coalesce bursts of tokens into a few updates per second
+        yield 'event: done\ndata: {}\n\n'
+    return Response(events(), mimetype='text/event-stream', headers={'X-Accel-Buffering': 'no'})
+
+
+@app.post('/api/figures/render')
+def render_figures():
+    data = request.get_json(silent=True)
+    sources = data.get('figures') if isinstance(data, dict) else None
+    if not isinstance(sources, list) or len(sources) > 12 or any(not isinstance(s, str) for s in sources):
+        return jsonify(error='请提交不超过 12 幅图的描述。'), 400
+    return jsonify(figures=[figures.render(source) for source in sources])
 
 
 @app.get('/api/jobs')
 def recent_jobs():
-    return jsonify(jobs=TASKS.recent(), capacity=4, workers=1)
+    return jsonify(jobs=TASKS.recent(), capacity=TASKS.capacity, workers=TASKS.workers)
 
 
 @app.get('/api/jobs/<job_id>')
@@ -582,7 +714,8 @@ def health():
         pass
     return jsonify(database_ok=database_ok, **config_flags(),
                    request_timeout_seconds=request_timeout(),
-                   queue_capacity=4, workers=1, embed_model=EMBEDDER.model,
+                   queue_capacity=TASKS.capacity, workers=TASKS.workers,
+                   model_concurrency=GENERATION_LOCK.limit, embed_model=EMBEDDER.model,
                    embedding_configured=EMBEDDER.configured(),
                    note='本机配置与数据库检查；未调用模型，不能证明密钥有效、服务可达或支持嵌入接口。')
 
@@ -706,7 +839,8 @@ def build_reference_text(row):
 
 def build_export_text(row):
     """用于 txt 下载：把 Markdown 标记去掉一部分，保持可读。"""
-    content = build_reference_text(row)
+    content = build_reference_text({**row, 'content': richdoc.plain_text(row['content'])}
+                                   if '```figure' in row['content'] else row)
     lines = []
     for line in content.splitlines():
         stripped = line.strip()
@@ -751,6 +885,10 @@ h1 {{ font-size: 28px; }}
 h2 {{ font-size: 20px; margin-top: 32px; border-bottom: 1px solid #e4e8ef; padding-bottom: 8px; }}
 .citation {{ color: #2858dc; font-size: 13px; font-weight: 600; }}
 .formula-block {{ white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.7; padding:12px; background:#f6f7fb; }}
+.math-source, .math-display {{ font-family: ui-monospace, monospace; font-size: .95em; }}
+.math-display {{ white-space:pre-wrap; padding:12px 16px; background:#f6f8ff; border-left:3px solid #365bd6; }}
+table {{ border-collapse:collapse; margin:14px 0; }} th,td {{ border:1px solid #d7dfe9; padding:8px 12px; text-align:left; }} th {{ background:#edf2ff; }}
+figure {{ margin:18px 0; text-align:center; }} figure img {{ max-width:100%; height:auto; }} figcaption {{ font-size:12px; color:#68758a; }}
 @media print {{ h1,h2,h3 {{ break-after:avoid-page; }} pre,li {{ break-inside:avoid-page; }} }}
 .meta {{ color: #68758a; font-size: 13px; margin-bottom: 28px; }}
 .warning {{ background: #f3f6fb; padding: 12px 15px; border-radius: 6px; color: #66738a; font-size: 13px; }}
@@ -782,8 +920,21 @@ def build_export_docx(row):
     if row.get('export_note'):
         doc.add_paragraph(row['export_note'])
 
-    for raw in row['content'].splitlines():
-        line = raw.strip()
+    for kind, value in richdoc.blocks(row['content']):
+        if kind == 'figure':
+            richdoc.add_figure(doc, value)
+            continue
+        if kind == 'math':
+            richdoc.add_display_math(doc, value)
+            continue
+        if kind == 'table':
+            richdoc.add_table(doc, value)
+            continue
+        if kind == 'code':
+            for text in value.splitlines():
+                doc.add_paragraph(text)
+            continue
+        line = value.strip()
         if not line:
             continue
         if line.startswith('### '):
@@ -793,9 +944,9 @@ def build_export_docx(row):
         elif line.startswith('# '):
             doc.add_heading(line[2:].strip(), level=1)
         elif line.startswith('- ') or line.startswith('* '):
-            doc.add_paragraph(line[2:].strip(), style='List Bullet')
+            richdoc.add_inline(doc.add_paragraph(style='List Bullet'), line[2:].strip())
         else:
-            doc.add_paragraph(line)
+            richdoc.add_inline(doc.add_paragraph(), line)
 
     doc.add_heading(row.get('source_heading', '参考材料'), level=2)
     for m in row['context']['materials']:

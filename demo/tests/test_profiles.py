@@ -38,6 +38,9 @@ class ProfileDatabaseFixture(unittest.TestCase):
         cls.db_patch.start()
         cls.old_testing = module.app.testing
         module.app.testing = True
+        # The suite's queue contracts are written for strictly serial model calls.
+        cls.old_limit = module.GENERATION_LOCK.limit
+        module.GENERATION_LOCK.set_limit(1)
 
     @classmethod
     def fixture_db(cls):
@@ -48,6 +51,7 @@ class ProfileDatabaseFixture(unittest.TestCase):
     def tearDownClass(cls):
         cls.db_patch.stop()
         module.app.testing = cls.old_testing
+        module.GENERATION_LOCK.set_limit(cls.old_limit)
         with cls.original_db() as conn:
             conn.execute(sql.SQL('DROP SCHEMA {} CASCADE').format(sql.Identifier(cls.schema)))
 

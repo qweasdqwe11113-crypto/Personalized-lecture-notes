@@ -13,6 +13,14 @@ class EmbeddingError(ValueError):
         self.code = code
 
 
+def batch_size():
+    """Texts per embedding request. Hosted services cap this (Model Studio documents 10)."""
+    try:
+        return min(256, max(1, int(os.environ.get('QWEN_EMBEDDING_BATCH_SIZE', '10'))))
+    except ValueError:
+        return 10
+
+
 def normalize(vector):
     total = sum(value * value for value in vector) ** 0.5
     return [value / total for value in vector] if total else list(vector)
@@ -45,6 +53,7 @@ class QwenEmbedder:
         return valid and bool(self.model)
 
     def embed(self, texts):
+        """Embed in service-sized batches; one oversized request used to fail whole documents."""
         texts = list(texts)
         if not texts:
             return []
@@ -56,6 +65,13 @@ class QwenEmbedder:
             url = self.base + '/embeddings'
         except ValueError:
             raise EmbeddingError('invalid_endpoint', '请检查本地 QWEN_BASE_URL 的服务地址格式。') from None
+        size = batch_size()
+        vectors = []
+        for start in range(0, len(texts), size):
+            vectors.extend(self._request(url, texts[start:start + size]))
+        return vectors
+
+    def _request(self, url, texts):
         payload = json.dumps({'model': self.model, 'input': texts}, ensure_ascii=False).encode('utf-8')
         headers = {'Content-Type': 'application/json'}
         if self._key:

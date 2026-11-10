@@ -12,6 +12,7 @@ from psycopg.types.json import Jsonb
 
 from prompts import PreparedRequest
 from qwen import ModelError
+from repair import POLICY as REPAIR_POLICY, merged_usage, retry_request
 from reviews import ReviewError, STATUS_LABELS, lecture_row, version_row
 from runs import mark_attempt, run_detail
 from pptx_export import build_pptx as build_legacy_pptx
@@ -258,19 +259,31 @@ def execute_presentation(db, call_model, job_id, run_id, context, prepared):
         with db() as conn:
             mark_attempt(conn, run_id)
     output = call_model(prepared, attempted)
-    try:
-        edit = context.get('ppt_slide_edit')
-        if edit:
-            if deck_fingerprint(edit['base_deck']) != edit['base_sha256']:
-                raise ModelError('invalid_ppt', '原课件快照校验不一致，请重新打开课件。', 'output')
-            deck = replace_slide(output.content, edit['base_deck'], edit['page'], context)
-        else:
-            deck = parse_deck(output.content, context)
+    edit = context.get('ppt_slide_edit')
+    if edit and deck_fingerprint(edit['base_deck']) != edit['base_sha256']:
+        raise ModelError('invalid_ppt', '原课件快照校验不一致，请重新打开课件。', 'output', output)
+
+    def build(content):
+        deck = (replace_slide(content, edit['base_deck'], edit['page'], context) if edit
+                else parse_deck(content, context))
         # Exercise the actual exporter before recording a usable result.
-        payload = build_pptx(deck, {**context['ppt_export'], 'run_id': run_id}, context)
+        return deck, build_pptx(deck, {**context['ppt_export'], 'run_id': run_id}, context)
+    try:
+        deck, payload = build(output.content)
     except ModelError as exc:
-        exc.partial = output
-        raise
+        if exc.code != 'invalid_ppt' or context['ppt_export'].get('auto_repair') != REPAIR_POLICY:
+            exc.partial = output
+            raise
+        # One second attempt that names the concrete problem; a second failure stays a failure.
+        retry = retry_request(prepared, output.content, str(exc))
+        first_usage = output.usage
+        output = call_model(retry, lambda: None)
+        output.usage = merged_usage(first_usage, output.usage, str(exc), retry)
+        try:
+            deck, payload = build(output.content)
+        except ModelError as again:
+            again.partial = output
+            raise
     deck, payload, aesthetic = refine_presentation(run_id, deck, payload, context, prepared, call_model,
                                                   only_pages=[edit['page']] if edit else None)
     with db() as conn:
@@ -349,7 +362,7 @@ def register_presentations(app, db, queue):
                     instruction=instruction.strip(), goal=lecture['goal'],
                     source_status=STATUS_LABELS.get(version['status'], '原稿未审核'),
                     export_version=DESIGN_VERSION if template['semantic'] else EXPORT_VERSION,
-                    aesthetic_review=True, json_mode=True,
+                    aesthetic_review=True, json_mode=True, auto_repair=REPAIR_POLICY,
                     template_id=template['id'], template_name=template['name'],
                     template_sha256=template['sha256'], template_mapping_version=template['mapping_version'])
         context = {**lecture['context'], 'ppt_export': edit}

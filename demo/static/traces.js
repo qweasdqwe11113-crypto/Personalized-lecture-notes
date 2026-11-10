@@ -60,6 +60,9 @@ function drawTrace(run) {
     ['结束时间', run.finished_at ? new Date(run.finished_at).toLocaleString('zh-CN') : '尚未确认'],
     ['耗时', run.elapsed_seconds === null ? '未记录' : `${Number(run.elapsed_seconds).toFixed(2)} 秒`],
     ['输入 SHA-256', run.request_sha256], ['模型用量', JSON.stringify(run.usage)],
+    ...(run.response_metadata.stages ? [['分章节调用记录', '下面显示的冻结请求是大纲阶段；各章节请求由它、冻结上下文和大纲推导。'
+      + run.response_metadata.stages.map(s => `\n${s.stage === 'outline' ? '大纲' : s.stage} · 第 ${s.attempt} 次 · ${s.characters} 汉字 · ${s.seconds} 秒`
+        + (s.problems.length ? ' · 未通过：' + s.problems[0] : '') + ' · 请求 SHA-256 ' + s.request_sha256.slice(0, 12)).join('')]] : []),
     ['失败分类', run.error_code ? `${run.error_stage} / ${run.error_code}` : '无已记录失败']
   ]) $('trace-metadata').append(el('dt', label), el('dd', value));
   const context = run.context;

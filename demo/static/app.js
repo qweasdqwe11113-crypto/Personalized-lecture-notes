@@ -10,7 +10,7 @@ function restoreLectureSettings(r){
  historicalSettingsValid=Boolean(resolved);
  if(resolved){$('topic').value=resolved;filterStudents(r.student_id);}
  else{$('topic').value='';error('历史讲义对应的课程无法唯一确定。请手动选择当前备课副本后再生成；历史正文与输入仍可阅读。');}
- $('personalization-mode').value=r.context.personalization_mode||'profile';$('retrieval-mode').value=r.context.retrieval?.mode||'sql';$('goal').value=r.goal;
+ $('personalization-mode').value=r.context.personalization_mode||'profile';$('retrieval-mode').value=r.context.retrieval?.mode||'sql';if(r.context.lecture_pipeline){$('generation-mode').value=r.context.generation_mode||'single';$('lecture-format').value=r.context.lecture_format||'plain';}$('goal').value=r.goal;
  drawContext(r.context,true);return historicalSettingsValid;
 }
 function drawPreparation(ctx){
@@ -48,18 +48,71 @@ async function loadRetrievalStatus(version){
  }catch(e){if(version===contextVersion)note.textContent='索引状态读取失败，请检查本机 PostgreSQL。';}
 }
 // Small Markdown renderer: all model text is inserted as text nodes, never raw HTML.
-function inline(node,text,lineNumber,interactive=false){const parts=text.split(/(\*\*[^*]+\*\*|\[[MVK]\d+\])/g);for(const p of parts){if(p.startsWith('**')&&p.endsWith('**'))node.append(el('strong',p.slice(2,-2)));else if(/^\[[MV]\d+\]$/.test(p)){if(!interactive){node.append(el('span',p,'citation'));continue;}const b=el('button',p,'citation');b.type='button';b.setAttribute('aria-label','查看来源 '+p);b.onclick=()=>{if(typeof openCitationSource==='function')openCitationSource(p.slice(1,-1),lineNumber);};node.append(b);}else if(/^\[K\d+\]$/.test(p)){const mark=el('span',p,'plan-marker');mark.dataset.planId=p.slice(2,-1);mark.title='讲解安排定位，需教师核对是否落实';node.append(mark);}else node.append(document.createTextNode(p));}}
+// Formulas go through KaTeX's DOM builder and figures arrive as server-drawn SVG images,
+// so neither path can inject markup either.
+function mathNode(tex,display){
+ const node=el(display?'div':'span',tex,display?'math-display':'math-inline');node.dataset.tex=tex;node.setAttribute('aria-label','公式：'+tex);
+ if(typeof katex!=='undefined'){try{node.textContent='';katex.render(tex,node,{displayMode:display,throwOnError:false,strict:'ignore',output:'html'});}catch{node.textContent=tex;node.className+=' math-failed';}}
+ return node;
+}
+function inlinePlain(node,text,lineNumber,interactive){const parts=text.split(/(\*\*[^*]+\*\*|\[[MVK]\d+\])/g);for(const p of parts){if(p.startsWith('**')&&p.endsWith('**'))node.append(el('strong',p.slice(2,-2)));else if(/^\[[MV]\d+\]$/.test(p)){if(!interactive){node.append(el('span',p,'citation'));continue;}const b=el('button',p,'citation');b.type='button';b.setAttribute('aria-label','查看来源 '+p);b.onclick=()=>{if(typeof openCitationSource==='function')openCitationSource(p.slice(1,-1),lineNumber);};node.append(b);}else if(/^\[K\d+\]$/.test(p)){const mark=el('span',p,'plan-marker');mark.dataset.planId=p.slice(2,-1);mark.title='讲解安排定位，需教师核对是否落实';node.append(mark);}else node.append(document.createTextNode(p));}}
+function inline(node,text,lineNumber,interactive=false){
+ if(!text.includes('$')){inlinePlain(node,text,lineNumber,interactive);return;}
+ for(const p of text.split(/(\$\$[^$]+\$\$|(?<!\\)\$(?:\\.|[^$\\])+?\$)/g)){
+  if(!p)continue;
+  // A dollar sign next to a space is money or prose, not a formula delimiter.
+  if(p.length>4&&p.startsWith('$$')&&p.endsWith('$$'))node.append(mathNode(p.slice(2,-2).trim(),false));
+  else if(p.length>2&&p.startsWith('$')&&p.endsWith('$')&&!/^\$\s|\s\$$/.test(p))node.append(mathNode(p.slice(1,-1),false));
+  else inlinePlain(node,p.replace(/\\\$/g,'$'),lineNumber,interactive);
+ }
+}
+const figureCache=new Map();let figureQueue=[];
+function drawFigure(node,result){
+ node.replaceChildren();
+ if(!result||!result.ok){node.append(el('p','这幅图未能绘制：'+(result?result.error:'绘图服务没有响应。'),'check-warning'));return;}
+ const image=el('img');image.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(result.svg);image.alt=result.title+'：'+result.alt;image.width=result.width;image.height=result.height;
+ node.append(image,el('p',result.title+'（由程序按讲义中的数据绘制）','figure-caption'));
+ for(const warning of result.warnings)node.append(el('p','图中数据需核对：'+warning,'check-warning'));
+}
+async function flushFigures(){
+ const batch=figureQueue;figureQueue=[];if(!batch.length)return;
+ const sources=[...new Set(batch.map(item=>item.source))].slice(0,12);
+ try{const data=await api('/api/figures/render',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({figures:sources})});sources.forEach((source,i)=>figureCache.set(source,data.figures[i]));}catch{}
+ for(const item of batch)drawFigure(item.node,figureCache.get(item.source));
+}
+function figureNode(source,complete=true){
+ const node=el('div',undefined,'figure-block');
+ if(!complete){node.append(el('p','图的数据正在写入…','helper'));return node;}
+ if(figureCache.has(source)){drawFigure(node,figureCache.get(source));return node;}
+ node.append(el('p','正在绘制图…','helper'));figureQueue.push({node,source});setTimeout(flushFigures,0);return node;
+}
+function tableNode(rows,interactive){
+ const cells=r=>r.line.slice(1,-1).split('|').map(c=>c.trim());
+ const wrap=el('div',undefined,'table-wrap'),table=el('table'),hasHead=rows.length>1&&cells(rows[1]).every(c=>/^:?-{2,}:?$/.test(c));
+ rows.forEach((row,i)=>{if(hasHead&&i===1)return;const tr=el('tr');for(const value of cells(row)){const cell=el(hasHead&&i===0?'th':'td');inline(cell,value,row.index,interactive);tr.append(cell);}table.append(tr);});
+ wrap.append(table);return wrap;
+}
 function renderMarkdown(text,interactive=false){
- const frag=document.createDocumentFragment();let list=null,fence=null,pre=null;
+ const frag=document.createDocumentFragment();let list=null,fence=null,pre=null,figure=null,math=null,table=null;
+ const flushTable=()=>{if(table){frag.append(tableNode(table,interactive));table=null;}};
  text.split('\n').forEach((raw,index)=>{const line=raw.trim();
-  if(/^(```|~~~)/.test(line)){const token=line.slice(0,3);if(fence===token){fence=null;pre=null;}else if(!fence){list=null;fence=token;pre=el('pre',undefined,'formula-block');frag.append(pre);}else pre.append(document.createTextNode(raw+'\n'));return;}
+  if(figure){if(line.startsWith('```')){frag.append(figureNode(figure.join('\n').trim()));figure=null;}else figure.push(raw);return;}
+  if(math){if(line.endsWith('$$')){math.push(line.slice(0,-2));frag.append(mathNode(math.join('\n').trim(),true));math=null;}else math.push(raw);return;}
+  if(!fence&&/^```figure\s*$/.test(line)){list=null;flushTable();figure=[];return;}
+  if(/^(```|~~~)/.test(line)){const token=line.slice(0,3);if(fence===token){fence=null;pre=null;}else if(!fence){list=null;flushTable();fence=token;pre=el('pre',undefined,'formula-block');frag.append(pre);}else pre.append(document.createTextNode(raw+'\n'));return;}
   if(fence){pre.append(document.createTextNode(raw+'\n'));return;}
-  if(!line){list=null;return;}
+  if(!line){list=null;flushTable();return;}
+  if(line.startsWith('$$')){list=null;flushTable();const rest=line.slice(2);if(rest.length>2&&rest.endsWith('$$'))frag.append(mathNode(rest.slice(0,-2).trim(),true));else math=[rest];return;}
+  if(line.length>2&&line.startsWith('|')&&line.endsWith('|')){list=null;(table=table||[]).push({line,index});return;}
+  flushTable();
   const heading=line.match(/^(#{1,3})\s+(.+)$/),item=line.match(/^([-*]|\d+[.、])\s+(.+)$/);
   if(heading){list=null;const h=el('h'+heading[1].length);h.dataset.sectionTitle=heading[2];inline(h,heading[2],index,interactive);frag.append(h);}
   else if(item){const tag=/\d/.test(item[1])?'ol':'ul';if(!list||list.tagName.toLowerCase()!==tag){list=el(tag);frag.append(list);}const li=el('li');if(tag==='ol')li.value=parseInt(item[1],10);inline(li,item[2],index,interactive);list.append(li);}
-  else{list=null;const p=el('p');if(/^(?:P\(.+\)\s*=|[\wα-ωΑ-Ω]+\s*[=≈≤≥]|\$\$|\\\[)/.test(line)){p.className='math-line';p.setAttribute('aria-label','公式：'+line);}inline(p,line,index,interactive);frag.append(p);}
- });return frag;
+  else{list=null;const p=el('p');if(/^(?:P\(.+\)\s*=|[\wα-ωΑ-Ω]+\s*[=≈≤≥]|\\\[)/.test(line)){p.className='math-line';p.setAttribute('aria-label','公式：'+line);}inline(p,line,index,interactive);frag.append(p);}
+ });
+ // Text that is still arriving may end inside a block; show what is there without guessing the rest.
+ flushTable();if(math)frag.append(el('p','$$'+math.join('\n'),'math-line'));if(figure)frag.append(figureNode('',false));
+ return frag;
 }
 function revealResult(){const paper=$('result-paper');if(typeof paper.getBoundingClientRect!=='function'||!(window.innerWidth<1200))return;const top=paper.getBoundingClientRect().top;if(top>window.innerHeight*.6)paper.scrollIntoView({block:'start'});}
 function showResult(r, refreshReview=true, navigate=true){if(navigate&&typeof openWorkspacePage==="function")openWorkspacePage("workbench");lastResult=r;markResult(true);window.dispatchEvent(new Event('lecture-version-changed'));if(typeof drawResultPlan==='function')drawResultPlan(r);$('adjust-section').disabled=busy;$('empty').hidden=true;$('loading').hidden=true;$('lecture').hidden=false;$('lecture-meta').hidden=false;$('review-note').hidden=false;$('lecture').replaceChildren(renderMarkdown(r.content,true));if(typeof drawVisualEvidence==='function')drawVisualEvidence(r.context.visual_evidence);$('result-label').textContent=r.context.personalization_mode==='none'?'无画像对照讲义':r.context.student.name+'的讲义';$('lecture-meta').textContent=`${r.context.topic.title} · ${r.model} · ${Number(r.elapsed_seconds).toFixed(1)} 秒 · 已保存 #${r.id}`;$('review-note').textContent=(r.citation_check.review_warning ? r.citation_check.review_warning+' ' : '')+(r.citation_check.has_citations?'引用编号已核对。':'本次未检测到材料引用，请重点检查。')+' 内容正确性与引用支持关系仍需教师复核。';drawSources(r.context.materials);$('download').disabled=false;$('download-format').disabled=false;$('print-lecture').disabled=false;updateDownloadLabel();if(typeof showProfileComparison==='function')showProfileComparison(r);if(typeof showLectureComparison==='function')showLectureComparison(r);if(typeof showLectureTrace==='function')showLectureTrace(r);if(refreshReview&&typeof loadLectureReview==='function')loadLectureReview(r);if(navigate)revealResult();}
@@ -67,7 +120,7 @@ function drawHistory(history){$('history').replaceChildren();if(!history.length)
  for(const h of history){const b=el('button',`#${h.id} ${h.name} · ${h.topic}`);b.type='button';b.disabled=busy;if(h.created_at)b.append(el('span',new Date(h.created_at).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}),'history-date'));b.onclick=open(h);$('history').append(b);}
  $('empty-recent').hidden=!history.length;$('empty-recent-list').replaceChildren(...history.slice(0,3).map(h=>{const b=el('button',`#${h.id} ${h.name} · ${h.topic}`,'secondary');b.type='button';b.disabled=busy;b.onclick=open(h);return b;}));}
 async function refreshHistory(){const d=await api('/api/bootstrap');drawHistory(d.history);if(typeof refreshRuns==='function')await refreshRuns();}
-function setBusy(value){busy=value;window.dispatchEvent(new Event('lecture-version-changed'));if(typeof setTeachingBusy==='function')setTeachingBusy(value);if(typeof setLecturePlanBusy==='function')setLecturePlanBusy(value);document.querySelectorAll('#visual-evidence-options input').forEach(n=>n.disabled=value);for(const id of ['student','topic','goal','personalization-mode','retrieval-mode'])$(id).disabled=value;$('generate').disabled=value||!modelConfigured||!hasGenerationBasis(current);$('edit-profile').disabled=value||!window.selectedProfileStudentId;if(typeof setReviewBusy==='function')setReviewBusy(value);if(typeof setProfileComparisonBusy==='function')setProfileComparisonBusy(value);if(typeof setLectureComparisonBusy==='function')setLectureComparisonBusy(value);for(const b of [...$('history').querySelectorAll('button'),...$('empty-recent-list').querySelectorAll('button')])b.disabled=value;$('generate').replaceChildren(document.createTextNode(value?'正在生成…':'生成个性化讲义'),el('span',value?'':'↗'));}
+function setBusy(value){busy=value;window.dispatchEvent(new Event('lecture-version-changed'));if(typeof setTeachingBusy==='function')setTeachingBusy(value);if(typeof setLecturePlanBusy==='function')setLecturePlanBusy(value);document.querySelectorAll('#visual-evidence-options input').forEach(n=>n.disabled=value);for(const id of ['student','topic','goal','personalization-mode','retrieval-mode','generation-mode','lecture-format','batch-open'])$(id).disabled=value;$('generate').disabled=value||!modelConfigured||!hasGenerationBasis(current);$('edit-profile').disabled=value||!window.selectedProfileStudentId;if(typeof setReviewBusy==='function')setReviewBusy(value);if(typeof setProfileComparisonBusy==='function')setProfileComparisonBusy(value);if(typeof setLectureComparisonBusy==='function')setLectureComparisonBusy(value);for(const b of [...$('history').querySelectorAll('button'),...$('empty-recent-list').querySelectorAll('button')])b.disabled=value;$('generate').replaceChildren(document.createTextNode(value?'正在生成…':'生成个性化讲义'),el('span',value?'':'↗'));}
 function filterStudents(preferred){
  const ids=topics[$('topic').value]?.student_ids;
  const selected=preferred||Number($('student').value);

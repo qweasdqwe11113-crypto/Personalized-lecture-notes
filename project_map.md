@@ -39,7 +39,7 @@ flowchart TD
 
 | 页面（路由） | 前端脚本 | 主要接口 |
 | --- | --- | --- |
-| 讲义工作台 `#workbench` | `app.js`、`jobs.js`、`teaching.js`、`lecture-workflow.js`、`lesson-settings.js`、`vision.js` | `/api/bootstrap`、`/api/context`、`/api/jobs` |
+| 讲义工作台 `#workbench` | `app.js`、`jobs.js`、`live.js`、`batch.js`、`teaching.js`、`lecture-workflow.js`、`lesson-settings.js`、`vision.js` | `/api/bootstrap`、`/api/context`、`/api/jobs`、`/api/jobs/batch`、`/api/job-status`、`/api/jobs/<id>/stream`、`/api/figures/render` |
 | 出题 `#quizzes` | `quizzes.js` | `/api/quizzes`（`lecture_id` 为配套出题） |
 | 阅卷 `#grading` | `grading.js`、`grading-evidence.js` | `/api/grading`、`/api/grading/<id>/evidence-drafts` |
 | 学生画像 `#profiles`、`#profiles/new`、`#profiles/import`、`#profiles/<id>` | `student-roster.js`、`profiles.js`、`roster-import.js` | `/api/students*`、`/api/students/import*` |
@@ -60,7 +60,7 @@ flowchart TD
 | `presentations.js` | `presentations.py` | 生成课件、预览、单页微调 |
 | `packages.js` | `packages.py` | 导出授课包，显示已有练习与课件数量 |
 
-前端约定：`app.js` 定义 `$`、`api`、`el` 和共享状态（`lastResult`、`busy`、`topics` 等），后加载的脚本直接使用。跨模块通过事件同步：`lecture-version-changed`（讲义或忙碌状态变化）、`workspace-context`（课程上下文变化）、`grading-record-shown`（阅卷记录显示）。修改 DOM ID、脚本顺序或共享函数时，要同时检查依赖它的页面。`usability.css` 最后加载，覆盖前面的样式。
+前端约定：`app.js` 定义 `$`、`api`、`el` 和共享状态（`lastResult`、`busy`、`topics` 等），后加载的脚本直接使用。跨模块通过事件同步：`lecture-version-changed`（讲义或忙碌状态变化）、`workspace-context`（课程上下文变化）、`grading-record-shown`（阅卷记录显示）。修改 DOM ID、脚本顺序或共享函数时，要同时检查依赖它的页面。`usability.css` 之后依次加载 `rich.css`（公式、表格、图、实时预览、批量窗口）和 `motion.css`（动效，最后加载）。`app.js` 里的 `renderMarkdown` 负责公式（KaTeX，位于 `static/vendor/katex/`）、表格和图占位，所有讲义预览共用。`pwa.js`、`sw.js`、`manifest.webmanifest` 提供可安装外壳，`/api/` 不缓存。
 
 ## 3. 后端模块
 
@@ -82,9 +82,15 @@ flowchart TD
 | `lecture_policy.py` | 本次讲解安排、证据提醒、材料与上下文字符预算 |
 | `teaching.py` | 授课设置校验与篇幅规则 |
 | `prompts.py`、`prompts/` | 组装请求、只序列化一次并计算 SHA-256、标记提示词版本 |
-| `jobs.py`、`runs.py` | 有界任务队列、取消与重试、重启恢复；运行记录与讲义同事务保存 |
-| `qwen.py`、`model_runtime.py` | OpenAI 兼容调用、错误分类、超时 |
-| `quality.py` | 章节、篇幅、引用编号、范围与已知问题词语检查 |
+| `jobs.py`、`runs.py` | 有界任务队列（多工作线程、批量额度）、取消与重试、重启恢复；运行记录与讲义同事务保存 |
+| `gate.py` | 模型并发闸门：全进程共用，`MODEL_CONCURRENCY` 个额度；额度为 1 时等同原来的全局锁 |
+| `sectioned.py` | 分章节生成：大纲 → 各章节单独调用（有空闲额度时并行）→ 校验、重写一次 → 拼接 |
+| `repair.py` | 出题与课件的结构化输出未通过校验时，带问题自动重试一次 |
+| `qwen.py`、`model_runtime.py` | OpenAI 兼容调用（含流式 SSE）、错误分类、超时 |
+| `progress.py` | 运行中的实时正文（仅内存、仅显示），供 `/api/jobs/<id>/stream` 推送 |
+| `quality.py` | 章节、篇幅、引用编号、范围与已知问题词语检查；新流程追加算式复算、图与公式标记 |
+| `mathcheck.py` | 重算纯数字等式、把写出的解代回方程；不认识的式子跳过 |
+| `figures.py` | 结构化图：校验 JSON 数据并绘制为 SVG / PNG（概率树、数轴、等式变形、函数图像、柱状对比） |
 
 **审核、派生与评测**
 
@@ -100,6 +106,8 @@ flowchart TD
 | `grading.py` | 阅卷任务、识读与评分校验、证据草稿 |
 | `evaluation.py`、`experiment.py` | 当前版本固定对照；历史文件式实验 |
 | `rendering.py`、`model_settings.py` | 安全渲染与图片附录；模型配置的查看、测试与保存 |
+| `richdoc.py` | 导出用：LaTeX 转 Word 原生公式、图转图片、表格；`app.py` 与 `packages.py` 共用 |
+| `scale/` | 可选的扩展语料、合成班级装载（`load.py`）、检索评测（`eval_retrieval.py`）和生成基准（`bench.py`） |
 
 ## 4. 关键流程
 
@@ -190,10 +198,10 @@ flowchart TD
 
 | 对象 | 说明 |
 | --- | --- |
-| `TASKS`（`jobs.JobQueue`） | 讲义、章节调整、PPT、固定对照共用；1 个处理、3 个等待 |
+| `TASKS`（`jobs.JobQueue`） | 讲义、章节调整、PPT、固定对照共用；工作线程数等于模型并发数，单份提交最多「并发数 + 3」个未完成任务，批量提交最多 80 个 |
 | `QUIZZES`（`quizzes.QuizQueue`） | 出题独立队列，最多 4 个未完成任务 |
 | 阅卷工作线程 | 每次处理一个阅卷任务，状态存 SQLite |
-| `GENERATION_LOCK` | 同进程所有语言模型调用互斥 |
+| `GENERATION_LOCK`（`gate.ModelGate`） | 同进程所有语言模型调用共用的并发额度（默认 3）；每个任务占一个，分章节写作再借用空闲额度 |
 | `vision.VLM_LOCK` | 上传识图、阅卷识读与 PPT 视觉审查互斥 |
 
 服务启动时把未完成的讲义、出题和对照任务标为中断、阅卷任务标为失败，不自动重发模型请求。只适用于本机单进程，不支持多 worker。
@@ -232,7 +240,9 @@ flowchart TD
 | 上传与识图 | `uploads.py`、`assets.py`、`vision.py` | SQLite 结构、收录接口、图片指纹 |
 | 检索 | `retrieval.py`、`embed.py`、`app.get_context()` | 索引更新、知识点范围、检索快照、无画像模式 |
 | 讲义结构与篇幅 | `lecture_policy.py`、`teaching.py`、`prompts.py` | `quality.py`、字符预算、历史版本 |
-| 队列与重试 | `jobs.py`、`runs.py`、`jobs.js` | 取消、共享锁、失败状态、重启恢复 |
+| 队列与重试 | `jobs.py`、`runs.py`、`gate.py`、`jobs.js` | 取消、并发额度的获取与释放、失败状态、重启恢复 |
+| 分章节生成 | `sectioned.py`、`prompts/lecture-sectioned-*.md` | 冻结上下文里的 `sectioned`、章节配额与篇幅检查一致、`test_pipeline_v3.py` |
+| 公式与图 | `figures.py`、`richdoc.py`、`app.js` 的 `renderMarkdown` | 网页、HTML、Word、纯文本四种输出，`prompts/lecture-format-rich-v1.md` 里的图格式 |
 | 审核与章节调整 | `reviews.py`、`sections.py` | 版本锁、问题记录、引用检查 |
 | PPT | `presentations.py`、`ppt_story.py`、`pptkit_export.py` | 模板版本、视觉审查、单页微调、`test_presentations.py` |
 | 出题 / 阅卷 / 授课包 | `quizzes.py`、`grading.py`、`packages.py` | 冻结版本与 JSON 模式、题号映射、学生练习不含答案 |

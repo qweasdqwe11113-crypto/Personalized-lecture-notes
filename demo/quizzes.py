@@ -14,6 +14,7 @@ from psycopg.types.json import Jsonb
 
 from prompts import PreparedRequest
 from qwen import ModelError
+from repair import POLICY as REPAIR_POLICY, merged_usage, retry_request
 
 TYPES = {'single_choice': '单项选择', 'fill_blank': '填空', 'short_answer': '简答',
          'calculation': '计算', 'application': '综合应用'}
@@ -246,10 +247,19 @@ class QuizQueue:
                     with self.db() as conn:
                         conn.execute("UPDATE quiz_jobs SET status='running',started_at=now() WHERE id=%s", (job_id,))
                     output = self.call_model(prepared, lambda: None)
-                    result = parse_questions(output.content, context)
+                    usage = output.usage
+                    try:
+                        result = parse_questions(output.content, context)
+                    except ModelError as exc:
+                        if exc.code != 'invalid_questions' or context.get('auto_repair') != REPAIR_POLICY:
+                            raise
+                        retry = retry_request(prepared, output.content, str(exc))
+                        second = self.call_model(retry, lambda: None)
+                        result = parse_questions(second.content, context)
+                        usage = merged_usage(output.usage, second.usage, str(exc), retry)
                     with self.db() as conn:
                         conn.execute("UPDATE quiz_jobs SET status='succeeded',result=%s,usage=%s,finished_at=now() WHERE id=%s",
-                                     (Jsonb(result), Jsonb(output.usage), job_id))
+                                     (Jsonb(result), Jsonb(usage), job_id))
             except Exception as exc:
                 message = str(exc) if isinstance(exc, ModelError) else '出题未完成，请检查本地服务后重试。'
                 try:
@@ -346,6 +356,7 @@ def register_quizzes(app, db, queue, catalog, context_builder, model):
         ctx['knowledge_names'] = {str(p['id']): p['name'] for p in points}
         ctx['question_plan'] = question_plan(options, ctx['states'])
         ctx['json_mode'] = True
+        ctx['auto_repair'] = REPAIR_POLICY
         return jsonify(queue().submit(key, sid, ctx, options, prepare_quiz(ctx, options, model()))), 202
 
     def lecture_quiz(data):
@@ -368,6 +379,7 @@ def register_quizzes(app, db, queue, catalog, context_builder, model):
         ctx['knowledge_names'] = {str(p['id']): p['name'] for p in points}
         ctx['question_plan'] = question_plan(options, ctx['states'])
         ctx['json_mode'] = True
+        ctx['auto_repair'] = REPAIR_POLICY
         student = sid if options['student_level'] == 'profile' else None
         return jsonify(queue().submit(key, student, ctx, options, prepare_quiz(ctx, options, model()))), 202
 

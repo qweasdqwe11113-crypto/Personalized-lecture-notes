@@ -1,4 +1,4 @@
-"""One process, one worker, bounded queue; saved input freezes at submission."""
+"""One process, a few workers, bounded queue; saved input freezes at submission."""
 from collections import deque
 from threading import Condition, Thread
 from uuid import uuid4
@@ -15,13 +15,17 @@ class JobError(ValueError):
 
 
 class JobQueue:
-    def __init__(self, db, execute, capacity=4):
+    def __init__(self, db, execute, capacity=4, workers=1, bulk_capacity=80):
         self.db, self.execute, self.capacity = db, execute, capacity
-        self.pending, self.active = deque(), False
-        self.active_id = None
+        self.workers, self.bulk_capacity = max(1, workers), max(capacity, bulk_capacity)
+        self.pending, self.active_ids = deque(), set()
         self.condition = Condition()
-        self.thread = None
+        self.threads = []
         self.stopping = False
+
+    @property
+    def active(self):
+        return bool(self.active_ids)
 
     def recover(self):
         """Called once before starting a new server; never replay old requests."""
@@ -34,20 +38,23 @@ class JobQueue:
                     fail_run(conn, run['id'], ModelError('process_interrupted', '本地服务进程已中断，请核查输入后重试。', 'process'), 0)
                 conn.execute('UPDATE generation_jobs SET status=%s,finished_at=now() WHERE id=%s', (status, row['id']))
 
-    def submit(self, sid, topic, goal, context, prepared, parent=None):
+    def submit(self, sid, topic, goal, context, prepared, parent=None, bulk=False):
+        """Interactive submissions keep the small bound; a class batch may queue further."""
         with self.condition:
             if self.stopping:
                 raise JobError('服务正在停止，请稍后重试。', 503)
-            if len(self.pending) + int(self.active) >= self.capacity:
-                raise JobError('本地队列已满（最多 4 个任务），请等待后再提交。', 429)
+            waiting = len(self.pending) + len(self.active_ids)
+            if waiting >= (self.bulk_capacity if bulk else self.capacity):
+                raise JobError(f'本地队列已满（最多 {self.bulk_capacity if bulk else self.capacity} 个任务），请等待后再提交。', 429)
             job_id = uuid4().hex
             with self.db() as conn:
                 run_id = create_run(conn, sid, topic, goal, context, prepared)
                 conn.execute("INSERT INTO generation_jobs (id,run_id,parent_run_id,status) VALUES (%s,%s,%s,'queued')", (job_id, run_id, parent))
             self.pending.append((job_id, run_id, sid, topic, goal, context, prepared))
-            if self.thread is None:
-                self.thread = Thread(target=self._work, daemon=True, name='lecture-worker')
-                self.thread.start()
+            while len(self.threads) < self.workers:
+                thread = Thread(target=self._work, daemon=True, name=f'lecture-worker-{len(self.threads) + 1}')
+                self.threads.append(thread)
+                thread.start()
             self.condition.notify_all()
         return self.detail(job_id)
 
@@ -90,7 +97,7 @@ class JobQueue:
                 raise JobError('任务不存在。', 404)
             row['queue_position'] = conn.execute("SELECT count(*) AS n FROM generation_jobs WHERE status='queued' AND created_at<=%s", (row['created_at'],)).fetchone()['n'] if row['status'] == 'queued' else 0
         with self.condition:
-            owned = job_id == self.active_id or any(item[0] == job_id for item in self.pending)
+            owned = job_id in self.active_ids or any(item[0] == job_id for item in self.pending)
         row['confirmation_pending'] = row['status'] in ('queued', 'running') and not owned
         return row
 
@@ -108,8 +115,7 @@ class JobQueue:
                 if self.stopping and not self.pending:
                     return
                 item = self.pending.popleft()
-                self.active = True
-                self.active_id = item[0]
+                self.active_ids.add(item[0])
             try:
                 self.execute(*item)
             except Exception:
@@ -125,17 +131,16 @@ class JobQueue:
                     pass  # Missing final confirmation remains visible, recovered on restart.
             finally:
                 with self.condition:
-                    self.active = False
-                    self.active_id = None
+                    self.active_ids.discard(item[0])
                     self.condition.notify_all()
 
     def wait_idle(self, timeout=5):
         with self.condition:
-            return self.condition.wait_for(lambda: not self.active and not self.pending, timeout)
+            return self.condition.wait_for(lambda: not self.active_ids and not self.pending, timeout)
 
     def close(self):
         with self.condition:
             self.stopping = True
             self.condition.notify_all()
-        if self.thread:
-            self.thread.join(timeout=5)
+        for thread in self.threads:
+            thread.join(timeout=5)

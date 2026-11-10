@@ -152,7 +152,38 @@ async function backgroundCompletionPreservesPage() {
   assert.equal(page, 'profiles', 'background completion must not interrupt the page the teacher selected');
 }
 
-const cases = {markdownOrder, markdownFenceContent, automaticLengthRemainsOptional, imagePreviewOrder, uploadPreviewOrder, refreshingImagesKeepsLiveSelection, acceptedJobSurvivesHistoryFailure, backgroundCompletionPreservesPage};
+async function richMarkdown() {
+  const e = environment(); e.load('app.js');
+  const source = ['## 核心 $a^2$', '由 $P(A\\mid B)=\\frac{1}{2}$ 得 **结论** [M1]，花费 $5 和 $8。', '$$', 'x = \\frac{1}{2}', '$$',
+    '| 量 | 值 |', '|---|---|', '| $p$ | 0.6 |', '```figure', '{"type":"bar_chart"}', '```', '- 项', '```figure', '{"ty'].join('\n');
+  const tree = vm.runInContext('renderMarkdown(' + JSON.stringify(source) + ')', e.context);
+  const kinds = Array.from(tree.children, n => n.tagName + (n.className ? '.' + n.className : ''));
+  assert.deepEqual(kinds, ['H2', 'P', 'DIV.math-display', 'DIV.table-wrap', 'DIV.figure-block', 'UL', 'DIV.figure-block']);
+  const paragraph = tree.children[1].children;
+  assert.equal(paragraph.filter(n => n.className === 'math-inline').length, 1, 'money amounts must not become formulas');
+  assert.equal(paragraph.find(n => n.className === 'math-inline').dataset.tex, 'P(A\\mid B)=\\frac{1}{2}');
+  assert.ok(paragraph.some(n => n.className === 'citation'), 'citations still render next to formulas');
+  assert.equal(tree.children[2].dataset.tex, 'x = \\frac{1}{2}');
+  const table = tree.children[3].children[0];
+  assert.deepEqual(table.children.map(row => row.children.map(cell => cell.tagName).join()), ['TH,TH', 'TD,TD']);
+  assert.match(tree.children[6].children[0].textContent, /正在写入/, 'an unfinished figure block shows a placeholder while streaming');
+}
+
+async function submissionCarriesPipelineChoices() {
+  const calls = [];
+  const e = environment(async (url, options) => { calls.push([url, options]); return new Promise(() => {}); });
+  e.load('jobs.js');
+  e.$('generation-mode').value = 'single'; e.$('lecture-format').value = 'plain';
+  e.$('generate-form').onsubmit({preventDefault() {}});
+  await flush();
+  const sent = JSON.parse(calls.find(([url, options]) => url === '/api/jobs' && options)[1].body);
+  assert.equal(sent.generation_mode, 'single');
+  assert.equal(sent.lecture_format, 'plain');
+  e.$('generation-mode').value = ''; e.$('lecture-format').value = '';
+  assert.deepEqual([e.context.generationPayload().generation_mode, e.context.generationPayload().lecture_format], ['sectioned-v1', 'rich-v1']);
+}
+
+const cases = {richMarkdown, submissionCarriesPipelineChoices, markdownOrder, markdownFenceContent, automaticLengthRemainsOptional, imagePreviewOrder, uploadPreviewOrder, refreshingImagesKeepsLiveSelection, acceptedJobSurvivesHistoryFailure, backgroundCompletionPreservesPage};
 (async () => {
   const name = process.argv[2]; assert.ok(cases[name], 'choose a regression case');
   await cases[name](); console.log(name + ': OK');

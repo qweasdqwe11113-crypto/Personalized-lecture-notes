@@ -4,6 +4,13 @@
 
 当前初中模板为 [lecture-math-v3.md](lecture-math-v3.md)，大学模板为 [lecture-probability-v2.md](lecture-probability-v2.md)，新讲义输入结构为 lecture-context-teacher-v2，追加 [lecture-plan-v1.md](lecture-plan-v1.md) 的可编辑教学安排及定位要求；旧结构仍按原字节保存。此前 math v1 / v2、大学 v1 保持已使用正文。运行 #1 是 math v1 / context-v2，#2 是 math v2 / context-v3，大学固定对照 #3—#14 是 probability v1 / context-v4，后续 #15 / #16 使用 probability v2。旧输入不因更新模板而重建。
 
+新页面提交的讲义还会按「高级设置」追加两段，版本标记随之增加：
+
+- `+rich-v1`：[lecture-format-rich-v1.md](lecture-format-rich-v1.md)，改用 LaTeX 公式、允许 Markdown 表格，并规定 ` ```figure ` 代码块里五种结构化图的 JSON 格式。它明确替代基础模板里「纯文本公式、不输出表格或代码块」的规定。
+- `+sectioned-v1`：[lecture-sectioned-outline-v1.md](lecture-sectioned-outline-v1.md)，冻结的请求只要大纲（JSON 模式）。各章节的请求在运行时由冻结请求推导：去掉大纲段，换上 [lecture-sectioned-section-v1.md](lecture-sectioned-section-v1.md)，并在用户消息中加入 `target_section`、`section_brief`、`section_quota` 和 `outline`。章节提示词和各章节篇幅配额在提交时写入冻结上下文的 `sectioned` 字段（不发给模型），所以重试不受之后模板改动的影响。章节请求的版本标记为 `lecture-sectioned-section-v1`，重写请求为 `lecture-sectioned-section-repair-v1`。
+
+不带 `generation_mode` / `lecture_format` 的请求（旧客户端、固定对照实验）不追加这两段，请求字节与之前一致。
+
 ## 设计原因与检查边界
 
 | 规则 | 对应需求 |

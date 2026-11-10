@@ -15,6 +15,12 @@ class FrontendTests(unittest.TestCase):
     def test_markdown_keeps_lists_on_the_correct_side_of_formulas(self):
         self.run_case('markdownOrder')
 
+    def test_markdown_renders_formulas_tables_and_figures_without_misreading_money(self):
+        self.run_case('richMarkdown')
+
+    def test_submission_carries_writing_mode_and_format_with_safe_defaults(self):
+        self.run_case('submissionCarriesPipelineChoices')
+
     def test_markdown_keeps_other_fence_markers_inside_formula_text(self):
         self.run_case('markdownFenceContent')
 

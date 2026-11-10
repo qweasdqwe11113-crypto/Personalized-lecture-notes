@@ -9,6 +9,8 @@ from hashlib import sha256
 from io import BytesIO
 import json
 import re
+
+import richdoc
 from urllib.parse import quote
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -270,12 +272,7 @@ def _fonts(style):
 
 
 def _inline(paragraph, text, italic=False):
-    for piece in re.split(r'(\*\*[^*]+\*\*)', text):
-        if not piece:
-            continue
-        bold = piece.startswith('**') and piece.endswith('**') and len(piece) > 4
-        run = paragraph.add_run(piece[2:-2] if bold else piece)
-        run.bold, run.italic = bold or None, italic or None
+    richdoc.add_inline(paragraph, text, italic)  # bold plus $...$ as native Word formulas
 
 
 def markdown_docx(text):
@@ -299,10 +296,25 @@ def markdown_docx(text):
             run = document.add_paragraph().add_run(raw)
             run.font.name, run.font.size = 'Courier New', Pt(9.5)
             continue
+        if re.fullmatch(r'```figure\s*', line):
+            body = []
+            while index < len(lines) and not lines[index].strip().startswith('```'):
+                body.append(lines[index])
+                index += 1
+            index += 1
+            richdoc.add_figure(document, '\n'.join(body).strip())
+            continue
         if line[:3] in ('```', '~~~'):
             fence = line[:3]
             continue
         if not line:
+            continue
+        if line.startswith('$$'):
+            body = [line[2:]]
+            while not body[-1].endswith('$$') and index < len(lines):
+                body.append(lines[index].strip())
+                index += 1
+            richdoc.add_display_math(document, '\n'.join(body).removesuffix('$$').strip())
             continue
         if line == PAGE_BREAK:
             document.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
