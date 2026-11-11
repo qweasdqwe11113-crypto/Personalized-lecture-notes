@@ -172,3 +172,47 @@ footer { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--line);
   .upload-row > a { margin-left: 54px; }
   .upload-panel input:not([type="file"]) { font-size: 16px; }
 }
+
+/* ====== 折叠状态布局 ====== */
+#workspace.settings-collapsed #settings-column,
+#workspace.settings-collapsed #layout-resizer {
+  display: none !important;
+}
+
+#workspace.settings-collapsed {
+  display: block !important; 
+}
+
+#workspace.settings-collapsed #lecture-results {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+}
+
+/* ====== 边缘悬浮拉手（长条形） ====== */
+.sidebar-toggle {
+  position: absolute;
+  left: 330px; 
+  top: 250px;         
+  width: 18px;        
+  height: 100px;      
+  background: #fff;
+  border: 1px solid #e8ecf3;
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+  box-shadow: 2px 0 8px rgba(0,0,0,0.06);
+  cursor: pointer;
+  z-index: 9999; /* 极高层级 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #768297;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  padding: 0;
+}
+
+.sidebar-toggle:hover {
+  background: #f5f7ff;
+  color: #3855df;
+}

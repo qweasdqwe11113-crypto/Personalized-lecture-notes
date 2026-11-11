@@ -140,3 +140,28 @@ $('download-format').onchange=updateDownloadLabel;
 $('download').onclick=()=>{if(!lastResult)return;const format=$('download-format').value;const a=el('a');a.href=lectureDownloadUrl(format);a.download='lecture-'+lastResult.id+(lastResult.revision_number?'-R'+lastResult.revision_number:'')+'.'+format;document.body.append(a);a.click();a.remove();};
 $('print-lecture').onclick=()=>{if(lastResult)window.print();};
 (async()=>{try{const d=await api('/api/bootstrap');topics=d.topics;students=d.students;modelConfigured=d.configured;$('model-label').textContent=d.model;$('student').replaceChildren(...d.students.map(s=>{const o=el('option',s.name+' · '+s.subtitle);o.value=s.id;return o;}));$('topic').replaceChildren(...Object.entries(topics).map(([key,t])=>{const o=el('option',t.custom ? ([t.stage,t.course,t.chapter,t.title].filter(Boolean).join(' / ')||'未命名备课副本') : t.title);o.value=key;return o;}));$('topic').value='linear';filterStudents();$('goal').value=topics.linear.goal;$('student').disabled=false;$('topic').disabled=false;drawHistory(d.history);await loadContext();if(!d.configured){error('请先在系统设置中配置语言模型地址和名称。');$('generate').disabled=true;}}catch(e){error(e.message);}})();
+
+// ====== 讲义设置栏折叠功能（边缘拉手） ======
+const sidebarToggleBtn = document.getElementById('sidebar-toggle');
+const workspaceEl = document.getElementById('workspace');
+
+if (sidebarToggleBtn && workspaceEl) {
+  sidebarToggleBtn.addEventListener('click', function() {
+    const isCollapsed = workspaceEl.classList.toggle('settings-collapsed');
+    
+    // 改变箭头
+    this.innerHTML = isCollapsed ? '»' : '«';
+    this.title = isCollapsed ? '展开设置' : '收起设置';
+
+    // 【核心】用 JS 强行改变位置，绕过所有 CSS 布局拦截
+    if (isCollapsed) {
+      // 折叠时：向左移动 330px 贴在边缘
+      this.style.transform = 'translateX(-330px)'; 
+      this.style.borderRadius = '0 8px 8px 0';
+    } else {
+      // 展开时：回归原位
+      this.style.transform = 'translateX(0)';
+      this.style.borderRadius = '0 8px 8px 0';
+    }
+  });
+}
