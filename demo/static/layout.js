@@ -2,6 +2,7 @@
 (() => {
   const workspace = document.getElementById('workspace');
   const separator = document.getElementById('layout-resizer');
+  const sidebarToggle = document.getElementById('sidebar-toggle');
   const desktop = window.matchMedia('(min-width: 68.75rem)');
   const storageKey = 'lecture-demo-sidebar-width-v1';
   let preferred = 330;
@@ -18,6 +19,15 @@
     return [280, maximum];
   }
 
+  // 按钮位置唯一计算入口：workspace 已从 224px 处开始，按钮相对 workspace 偏移即可。
+  function placeToggle(actualWidth) {
+    if (!sidebarToggle) return;
+    const collapsed = workspace.classList.contains('settings-collapsed');
+    const offset = collapsed ? 0 : actualWidth;
+    sidebarToggle.style.left = offset + 'px';
+    sidebarToggle.style.transform = 'none';
+  }
+
   function apply(width, remember = false) {
     const [minimum, maximum] = limits();
     const actual = Math.round(Math.max(minimum, Math.min(maximum, width)));
@@ -26,6 +36,9 @@
     separator.setAttribute('aria-valuemax', Math.round(maximum));
     separator.setAttribute('aria-valuenow', actual);
     separator.setAttribute('aria-valuetext', `设置栏宽度 ${actual} 像素`);
+
+    placeToggle(actual);
+
     if (remember) {
       preferred = actual;
       try { localStorage.setItem(storageKey, String(preferred)); } catch (_) { /* optional */ }
@@ -43,6 +56,7 @@
 
   separator.addEventListener('pointerdown', event => {
     if (!desktop.matches || event.button !== 0) return;
+    if (workspace.classList.contains('settings-collapsed')) return;
     event.preventDefault();
     separator.focus({preventScroll: true});
     drag = {id: event.pointerId, x: event.clientX,
@@ -60,6 +74,7 @@
   separator.addEventListener('dblclick', () => apply(330, true));
   separator.addEventListener('keydown', event => {
     if (!desktop.matches || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (workspace.classList.contains('settings-collapsed')) return;
     const [minimum, maximum] = limits();
     const current = Number(separator.getAttribute('aria-valuenow'));
     const step = event.shiftKey ? 32 : 16;
@@ -69,6 +84,14 @@
       event.preventDefault();
       apply(widths[event.key], true);
     }
+  });
+
+  // 折叠 / 展开：统一在这里处理，避免 app.js 与 layout.js 双重监听。
+  sidebarToggle?.addEventListener('click', () => {
+    const collapsed = workspace.classList.toggle('settings-collapsed');
+    sidebarToggle.innerHTML = collapsed ? '»' : '«';
+    sidebarToggle.title = collapsed ? '展开设置' : '收起设置';
+    placeToggle(Number(separator.getAttribute('aria-valuenow')) || preferred);
   });
 
   function resize() {
@@ -84,6 +107,7 @@
     }
   }).observe(workspace);
   desktop.addEventListener('change', resize);
+
   for (const dialog of document.querySelectorAll('dialog')) {
     const body = dialog.querySelector('.dialog-body');
     const content = dialog.querySelector('#trace-content') || body;
@@ -94,8 +118,6 @@
         body.scrollTop = 0;
       }
     };
-    // A hidden dialog has no scroll box. Reset only after opening / loading,
-    // rather than on close; resizing an already open editor keeps its position.
     const observer = new MutationObserver(() => {
       resetScroll();
       requestAnimationFrame(resetScroll);
@@ -103,5 +125,7 @@
     observer.observe(dialog, {attributes: true, attributeFilter: ['open']});
     observer.observe(content, {attributes: true, attributeFilter: ['hidden']});
   }
+
+  // 初始化时强制应用一次位置
   apply(preferred);
 })();

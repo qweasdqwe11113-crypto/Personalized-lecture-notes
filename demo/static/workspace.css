@@ -172,3 +172,58 @@ footer { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--line);
   .upload-row > a { margin-left: 54px; }
   .upload-panel input:not([type="file"]) { font-size: 16px; }
 }
+
+/* ====== 边缘悬浮拉手 ====== */
+.sidebar-toggle {
+  position: absolute;
+  top: 250px;
+  /* 位置由 layout.js 通过 inline style 设置（相对 #workspace 偏移），
+     这里只给初始值，避免首帧闪烁。 */
+  left: 330px;
+  width: 18px;
+  height: 100px;
+  background: #fff;
+  border: 1px solid #e8ecf3;
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  box-shadow: -2px 0 8px rgba(0,0,0,0.06);
+  cursor: pointer;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #768297;
+  font-size: 14px;
+  padding: 0;
+  transition: transform 0.3s ease, border-radius 0.3s ease;
+}
+
+.sidebar-toggle:hover {
+  background: #f5f7ff;
+  color: #3855df;
+}
+
+/* ====== 折叠状态 ====== */
+#workspace.settings-collapsed {
+  grid-template-columns: 0px 0px minmax(0, 1fr) !important;
+  gap: 0 !important;
+}
+
+#workspace.settings-collapsed #settings-column,
+#workspace.settings-collapsed #layout-resizer {
+  display: none !important;
+}
+
+#workspace.settings-collapsed #lecture-results {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+}
+
+/* 折叠状态下的拉手样式：位置由 layout.js 控制，这里只改外观 */
+#workspace.settings-collapsed .sidebar-toggle {
+  border-radius: 0 8px 8px 0;
+  border-left: none;
+  border-right: 1px solid #e8ecf3;
+  box-shadow: 2px 0 8px rgba(0,0,0,0.06);
+}
