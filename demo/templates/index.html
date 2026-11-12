@@ -22,21 +22,10 @@
  <h1 id="page-title" class="visually-hidden" tabindex="-1">讲义工作台</h1>
  <div id="error" class="error" role="alert" hidden></div>
  <section class="workspace-page" id="page-workbench" aria-labelledby="page-title">
- <div class="workflow-strip" id="workflow-strip">
-   <span class="workflow-step" data-step="1"><span class="workflow-number">01</span><strong>选择备课副本与学生</strong></span><span class="workflow-line"></span>
-   <span class="workflow-step" data-step="2"><span class="workflow-number">02</span><strong>设置并生成讲义</strong></span><span class="workflow-line"></span>
-   <span class="workflow-step" data-step="3"><span class="workflow-number">03</span><strong>审核修订</strong></span><span class="workflow-line"></span>
-   <span class="workflow-step" data-step="4"><span class="workflow-number">04</span><strong>配套出题、课件与授课包</strong></span>
-   <a href="#materials" style="margin-left: auto; margin-right: 12px;">管理备课材料 ↗</a>
-   
- </div>
- <button type="button" id="sidebar-toggle" class="sidebar-toggle" title="收起/展开设置">«</button>
+ <div class="workflow-strip" id="workflow-strip"><span class="workflow-step" data-step="1"><span class="workflow-number">01</span><strong>选择备课副本与学生</strong></span><span class="workflow-line"></span><span class="workflow-step" data-step="2"><span class="workflow-number">02</span><strong>设置并生成讲义</strong></span><span class="workflow-line"></span><span class="workflow-step" data-step="3"><span class="workflow-number">03</span><strong>审核修订</strong></span><span class="workflow-line"></span><span class="workflow-step" data-step="4"><span class="workflow-number">04</span><strong>配套出题、课件与授课包</strong></span><a href="#materials">管理备课材料 ↗</a></div>
  <div class="workspace" id="workspace">
   <aside id="settings-column" aria-label="讲义设置与状态">
-   <section class="panel setup">
-  <div class="section-heading" style="display: flex; justify-content: space-between; align-items: center;">
-    <div><h2>讲义设置</h2></div>
-  </div>
+   <section class="panel setup"><div class="section-heading"><h2>讲义设置</h2><span class="small-label">01</span></div>
     <form id="generate-form">
      <div class="setup-field"><label for="topic">选择备课材料副本</label><select id="topic" disabled></select><p id="task-level" class="helper"></p><details id="preparation-preview" hidden><summary>查看副本目标与教案</summary><p id="preparation-preview-goal" class="helper"></p><p id="preparation-preview-plan" class="current-summary"></p></details></div>
      <div class="setup-field"><label for="student">选择学生</label><select id="student" disabled></select><div id="student-profile" class="profile"></div></div>
@@ -54,8 +43,6 @@
     </form>
    </section>
   </aside>
-  
-  <!-- 下面的布局保持你原本的样子即可 -->
   <div id="layout-resizer" class="layout-resizer" role="separator" tabindex="0" aria-label="调整设置栏宽度" aria-orientation="vertical" aria-controls="settings-column lecture-results" aria-valuemin="280" aria-valuemax="440" aria-valuenow="330" aria-valuetext="设置栏宽度 330 像素" title="拖动调整宽度；左右方向键微调，Home/End 调到最小/最大，双击恢复默认"></div>
   <div class="result-column" id="lecture-results">
    <section class="paper" id="result-paper"><div class="paper-toolbar"><div><span class="paper-dot"></span><strong id="result-label">讲义预览</strong></div><div class="paper-actions"><div class="action-group action-group-prep" id="lecture-prep-actions" role="group" aria-labelledby="prep-actions-label"><span class="action-group-label" id="prep-actions-label">授课准备</span><span id="lecture-prep-status" class="prep-status" role="status" aria-live="polite"></span></div><div class="action-group" role="group" aria-labelledby="review-actions-label"><span class="action-group-label" id="review-actions-label">审核与追溯</span><button id="edit-lecture" type="button" class="secondary" disabled>编辑与审核</button><button id="adjust-section" type="button" class="secondary" title="展开、简化或更换例题，预览后另存版本。" disabled>按章节调整</button><button id="view-input" type="button" class="secondary" disabled>查看生成输入</button><button id="compare-profile" type="button" class="secondary" disabled>画像对照</button><button id="compare-lectures" type="button" class="secondary" disabled>讲义比较</button></div><div class="download-group" role="group" aria-label="下载与打印"><label class="download-format-label" for="download-format">下载格式</label><select id="download-format" disabled><option value="md">Markdown (.md)</option><option value="txt">纯文本 (.txt)</option><option value="html">网页 (.html)</option><option value="docx">Word 文档 (.docx)</option></select><button id="download" class="secondary" disabled>下载原稿 Markdown</button><button id="print-lecture" class="secondary" type="button" disabled>打印 / PDF</button></div></div></div>
@@ -522,9 +509,10 @@
 <link rel="stylesheet" href="/static/usability.css">
 <link rel="stylesheet" href="/static/rich.css"><link rel="stylesheet" href="/static/motion.css">
 <script defer src="/static/live.js"></script><script defer src="/static/batch.js"></script><script defer src="/static/pwa.js"></script>
+</body></html>
+
 <link rel="stylesheet" href="/static/topic-nav.css">
 <script defer src="/static/topic-nav.js"></script>
 
 <script defer src="/static/live.js"></script><script defer src="/static/batch.js"></script><script defer src="/static/pwa.js"></script>
-</body>
-</html>
+</body></html>
