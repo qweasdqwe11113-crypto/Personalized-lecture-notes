@@ -50,9 +50,27 @@ async function loadRetrievalStatus(version){
 // Small Markdown renderer: all model text is inserted as text nodes, never raw HTML.
 // Formulas go through KaTeX's DOM builder and figures arrive as server-drawn SVG images,
 // so neither path can inject markup either.
-function mathNode(tex,display){
- const node=el(display?'div':'span',tex,display?'math-display':'math-inline');node.dataset.tex=tex;node.setAttribute('aria-label','公式：'+tex);
- if(typeof katex!=='undefined'){try{node.textContent='';katex.render(tex,node,{displayMode:display,throwOnError:false,strict:'ignore',output:'html'});}catch{node.textContent=tex;node.className+=' math-failed';}}
+function mathNode(tex, display){
+ const node=el(display?'div':'span',tex,display?'math-display':'math-inline');
+ node.dataset.tex=tex;
+ node.setAttribute('aria-label','公式：'+tex);
+ if(typeof katex!=='undefined'){
+   try{
+     node.textContent='';
+     katex.render(tex,node,{displayMode:display,throwOnError:false,strict:'ignore',output:'html'});
+   }catch{
+     node.textContent=tex;
+     node.className+=' math-failed';
+   }
+ }
+ 
+ // 新增：将公式设为可放大（通常是块级公式需要放大，行内公式可选）
+ if (display) {
+   node.classList.add('zoomable');
+   node.title = '点击放大公式';
+   node.onclick = () => openLightbox(node.cloneNode(true));
+ }
+ 
  return node;
 }
 function inlinePlain(node,text,lineNumber,interactive){const parts=text.split(/(\*\*[^*]+\*\*|\[[MVK]\d+\])/g);for(const p of parts){if(p.startsWith('**')&&p.endsWith('**'))node.append(el('strong',p.slice(2,-2)));else if(/^\[[MV]\d+\]$/.test(p)){if(!interactive){node.append(el('span',p,'citation'));continue;}const b=el('button',p,'citation');b.type='button';b.setAttribute('aria-label','查看来源 '+p);b.onclick=()=>{if(typeof openCitationSource==='function')openCitationSource(p.slice(1,-1),lineNumber);};node.append(b);}else if(/^\[K\d+\]$/.test(p)){const mark=el('span',p,'plan-marker');mark.dataset.planId=p.slice(2,-1);mark.title='讲解安排定位，需教师核对是否落实';node.append(mark);}else node.append(document.createTextNode(p));}}
@@ -69,8 +87,21 @@ function inline(node,text,lineNumber,interactive=false){
 const figureCache=new Map();let figureQueue=[];
 function drawFigure(node,result){
  node.replaceChildren();
- if(!result||!result.ok){node.append(el('p','这幅图未能绘制：'+(result?result.error:'绘图服务没有响应。'),'check-warning'));return;}
- const image=el('img');image.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(result.svg);image.alt=result.title+'：'+result.alt;image.width=result.width;image.height=result.height;
+ if(!result||!result.ok){
+   node.append(el('p','这幅图未能绘制：'+(result?result.error:'绘图服务没有响应。'),'check-warning'));
+   return;
+ }
+ const image=el('img');
+ image.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(result.svg);
+ image.alt=result.title+'：'+result.alt;
+ image.width=result.width;
+ image.height=result.height;
+ 
+ // 新增：给图片本身加上放大功能
+ image.classList.add('zoomable');
+ image.title = '点击放大查看图表';
+ image.onclick = () => openLightbox(image.cloneNode(true));
+
  node.append(image,el('p',result.title+'（由程序按讲义中的数据绘制）','figure-caption'));
  for(const warning of result.warnings)node.append(el('p','图中数据需核对：'+warning,'check-warning'));
 }
@@ -140,3 +171,122 @@ $('download-format').onchange=updateDownloadLabel;
 $('download').onclick=()=>{if(!lastResult)return;const format=$('download-format').value;const a=el('a');a.href=lectureDownloadUrl(format);a.download='lecture-'+lastResult.id+(lastResult.revision_number?'-R'+lastResult.revision_number:'')+'.'+format;document.body.append(a);a.click();a.remove();};
 $('print-lecture').onclick=()=>{if(lastResult)window.print();};
 (async()=>{try{const d=await api('/api/bootstrap');topics=d.topics;students=d.students;modelConfigured=d.configured;$('model-label').textContent=d.model;$('student').replaceChildren(...d.students.map(s=>{const o=el('option',s.name+' · '+s.subtitle);o.value=s.id;return o;}));$('topic').replaceChildren(...Object.entries(topics).map(([key,t])=>{const o=el('option',t.custom ? ([t.stage,t.course,t.chapter,t.title].filter(Boolean).join(' / ')||'未命名备课副本') : t.title);o.value=key;return o;}));$('topic').value='linear';filterStudents();$('goal').value=topics.linear.goal;$('student').disabled=false;$('topic').disabled=false;drawHistory(d.history);await loadContext();if(!d.configured){error('请先在系统设置中配置语言模型地址和名称。');$('generate').disabled=true;}}catch(e){error(e.message);}})();
+
+// ==================== 一键放大 + 滚轮缩放 + 拖拽 ====================
+let lightboxState = {
+  scale: 1,
+  translateX: 0,
+  translateY: 0,
+  isDragging: false,
+  startX: 0,
+  startY: 0
+};
+
+function updateLightboxTransform() {
+  const target = document.querySelector('.lightbox-scale-target');
+  if (target) {
+    lightboxState.scale = Math.max(0.2, Math.min(10, lightboxState.scale)); // 扩大了缩放上限
+    target.style.transform = `translate(${lightboxState.translateX}px, ${lightboxState.translateY}px) scale(${lightboxState.scale})`;
+  }
+}
+
+function openLightbox(contentNode) {
+  const lightbox = document.getElementById('image-lightbox');
+  const container = document.getElementById('lightbox-content');
+  if (!lightbox || !container) return;
+
+  // 重置状态
+  lightboxState = { scale: 1, translateX: 0, translateY: 0, isDragging: false, startX: 0, startY: 0 };
+
+  const scaleTarget = document.createElement('div');
+  scaleTarget.className = 'lightbox-scale-target';
+  scaleTarget.appendChild(contentNode);
+  
+  container.replaceChildren(scaleTarget);
+  
+  // 移除旧的 toolbar（如果有）
+  const oldToolbar = lightbox.querySelector('.lightbox-toolbar');
+  if (oldToolbar) oldToolbar.remove();
+
+  // 底部工具栏提示
+  const toolbar = document.createElement('div');
+  toolbar.className = 'lightbox-toolbar';
+  toolbar.textContent = '滚轮缩放 · 按住拖拽平移 · 按 Esc 关闭';
+  lightbox.appendChild(toolbar); // 直接添加到 lightbox 层，固定位置
+
+  lightbox.hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox() {
+  const lightbox = document.getElementById('image-lightbox');
+  const container = document.getElementById('lightbox-content');
+  if (!lightbox || !container) return;
+  
+  lightbox.hidden = true;
+  container.replaceChildren();
+  
+  const toolbar = lightbox.querySelector('.lightbox-toolbar');
+  if (toolbar) toolbar.remove();
+  
+  document.body.style.overflow = '';
+}
+
+// 绑定事件部分保持不变...
+document.addEventListener('DOMContentLoaded', () => {
+  const lightbox = document.getElementById('image-lightbox');
+  const closeBtn = document.getElementById('lightbox-close');
+  const container = document.getElementById('lightbox-content');
+  
+  if (closeBtn) closeBtn.addEventListener('click', closeLightbox);
+  if (lightbox) {
+    lightbox.querySelector('.lightbox-overlay').addEventListener('click', closeLightbox);
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && lightbox && !lightbox.hidden) {
+      closeLightbox();
+    }
+  });
+
+  if (container) {
+    // 滚轮
+    container.addEventListener('wheel', (e) => {
+      if (lightbox.hidden) return;
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.15 : 0.15;
+      lightboxState.scale += delta;
+      updateLightboxTransform();
+    }, { passive: false });
+
+    // 拖拽
+    container.addEventListener('pointerdown', (e) => {
+      if (lightbox.hidden) return;
+      // 避免点到关闭按钮时触发拖拽
+      if (e.target.closest('.lightbox-close')) return;
+      
+      lightboxState.isDragging = true;
+      lightboxState.startX = e.clientX - lightboxState.translateX;
+      lightboxState.startY = e.clientY - lightboxState.translateY;
+      container.setPointerCapture(e.pointerId);
+    });
+
+    container.addEventListener('pointermove', (e) => {
+      if (!lightboxState.isDragging) return;
+      lightboxState.translateX = e.clientX - lightboxState.startX;
+      lightboxState.translateY = e.clientY - lightboxState.startY;
+      updateLightboxTransform();
+    });
+
+    const stopDrag = (e) => {
+      if (lightboxState.isDragging) {
+        lightboxState.isDragging = false;
+        if (container.hasPointerCapture(e.pointerId)) {
+          container.releasePointerCapture(e.pointerId);
+        }
+      }
+    };
+    container.addEventListener('pointerup', stopDrag);
+    container.addEventListener('pointercancel', stopDrag);
+  }
+});

@@ -528,5 +528,15 @@
 <script defer src="/static/topic-nav.js"></script>
 
 <script defer src="/static/live.js"></script><script defer src="/static/batch.js"></script><script defer src="/static/pwa.js"></script>
+
+<!-- 放在 body 末尾，与其他 dialog 同级 -->
+<div id="image-lightbox" class="lightbox" hidden>
+  <div class="lightbox-overlay"></div>
+  <div class="lightbox-content" id="lightbox-content">
+    <!-- 放大后的内容会注入到这里 -->
+  </div>
+  <button id="lightbox-close" class="lightbox-close" aria-label="关闭">×</button>
+</div>
+
 </body>
 </html>
