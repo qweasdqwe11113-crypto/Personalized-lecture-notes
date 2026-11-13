@@ -103,6 +103,7 @@ function stageBackend() {
   }
   for (const dir of BACKEND) copyTree(path.join(repo, dir), path.join(target, dir));
   if (flavor === 'demo') for (const file of DEMO_DATA) fs.copyFileSync(path.join(repo, file), path.join(target, file));
+  fs.copyFileSync(path.join(repo, 'LICENSE'), path.join(target, 'LICENSE'));
   log(`复制服务代码（${flavor === 'demo' ? '测试版，含演示数据' : '正式版，不含演示数据'}）`);
   // Compile now: the installed program folder may be read-only at run time.
   execFileSync(pythonBinary(path.join(out, 'python')), ['-m', 'compileall', '-q', '-j', '0', path.join(target, 'demo'), path.join(target, 'tools')], {stdio: 'inherit'});
@@ -150,6 +151,8 @@ function stagePostgres() {
     filter: source => !/(^|[\\/])(include|pkgconfig)$|\.(a|lib|pdb)$|[\\/]wx[^\\/]*\.dll$|pg-symlinks\.json$/i.test(source)});
   if (!WIN) restoreLinks(native, target);
   flattenLibraries(path.join(target, 'lib'));
+  // The npm package carries only its own licence; PostgreSQL's must travel with its binaries.
+  fs.copyFileSync(path.join(desktop, 'licenses', 'PostgreSQL.txt'), path.join(target, 'LICENSE-PostgreSQL.txt'));
   log('复制 PostgreSQL');
 }
 

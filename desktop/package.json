@@ -5,7 +5,7 @@
   "private": true,
   "description": "知页桌面客户端：在本机启动数据库与服务，打开教学工作空间。",
   "author": "知页项目组",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "homepage": "https://github.com/qweasdqwe11113-crypto/Personalized-lecture-notes",
   "main": "src/main.js",
   "zhiye": {

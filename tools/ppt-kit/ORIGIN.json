@@ -1,7 +1,7 @@
 {
   "source_directory": "C:\\Users\\jiahjq\\Desktop\\tep\\ppt-kit",
   "imported_date": "2026-11-01",
-  "license_status": "not_provided_by_source",
+  "license_status": "MIT, with the rest of the project; no license file came with the source, confirmed by its provider on 2026-11-14",
   "files": [
     {
       "source": "examples/build_demo.py",

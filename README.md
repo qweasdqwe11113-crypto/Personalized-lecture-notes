@@ -177,6 +177,7 @@ All settings live in the local `.env` (ignored by git); see [.env.example](.env.
 ├── run_demo.sh              # Start script: check dependencies → init database → start server
 ├── requirements.txt         # Python dependencies
 ├── .env.example             # Configuration template
+├── LICENSE                  # MIT license for the project's own code and documentation
 ├── project_map.md           # Module map and data flow (developer docs, Chinese)
 ├── desktop/                 # Desktop client: Electron shell, bundled PostgreSQL and Python, installers
 ├── .github/workflows/       # desktop.yml builds the Windows and Linux installers
@@ -234,6 +235,18 @@ The detailed documents are written in Chinese.
 | [demo/prompts/README.md](demo/prompts/README.md) | Prompt versions and the actual input structure |
 | [docs/archive/](docs/archive/) | Early VLM + RAG planning drafts from 2026-10-21; historical only, not the current implementation |
 | [experiments/2026-10-12-bayes](experiments/2026-10-12-bayes/summary.md), [demo/VERIFICATION.md](demo/VERIFICATION.md) | Historical comparison experiment and early engineering verification |
+
+## License
+
+The project's own code and documentation, including the slide layout engine in `tools/ppt-kit/`, are released under the [MIT License](LICENSE). The software is provided as is; everything a model generates (lectures, quizzes, slides, grading suggestions) must be reviewed by a teacher before use.
+
+Third-party material keeps its own terms and is not relicensed:
+
+| Material | Where | Terms |
+| --- | --- | --- |
+| KaTeX 0.16.11 | `demo/static/vendor/katex/` | MIT (license in that folder) |
+| Slide templates from the LibreOffice design candidates | `assets/ppt-templates/` | CC0 and MIT, see `assets/ppt-templates/licenses/` |
+| Bundled in the desktop packages | PostgreSQL 17, CPython 3.12, Electron with Chromium, and the Python packages in `requirements.txt` | Each under its own license (PostgreSQL License, PSF License, MIT, BSD, Apache-2.0 and similar; psycopg is LGPL-3.0). The license texts ship inside the packages |
 
 ## Status
 
