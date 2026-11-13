@@ -260,7 +260,7 @@ Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中
 | `src/paths.js`、`config.js`、`ports.js`、`logs.js`、`backup.js`、`policy.js` | 程序与数据位置、客户端设置、端口、日志、冷备份、导航与链接规则（均不依赖 Electron，有单元测试） |
 | `src/preload.js` | 页面可用的 `window.zhiyeDesktop`：启动页多几项（状态、重试、更换目录），服务页面只有查看日志、打开数据目录、重启服务 |
 | `src/launcher/` | 启动页 |
-| `scripts/stage.mjs` | 准备 `build/resources`：便携 Python 及依赖、服务代码白名单（正式版不含演示数据文件）、PostgreSQL |
+| `scripts/stage.mjs`、`prune.mjs` | 准备 `build/resources`：便携 Python 及依赖（`prune.mjs` 删去 Tcl/Tk 与标准库测试，按平台只扫描原生库目录）、服务代码白名单（正式版不含演示数据文件）、PostgreSQL |
 | `scripts/smoke.mjs`、`dist.mjs`、`dev.mjs` | 无界面冒烟测试、打包、从源码运行 |
 | `electron-builder.config.cjs` | 两个版本的应用名、安装包名和安装选项 |
 

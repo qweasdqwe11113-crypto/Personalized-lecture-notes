@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+import {pruneStdlib} from './prune.mjs';
 
 const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repo = path.resolve(desktop, '..');
@@ -59,7 +60,8 @@ async function stagePython() {
   if (!spec) throw new Error(`暂不支持在 ${process.platform} 上打包。`);
   const requirements = fs.readFileSync(path.join(repo, 'requirements.txt'));
   const marker = path.join(out, 'python', '.zhiye-requirements');
-  const want = crypto.createHash('sha256').update(spec.sha256).update(requirements).digest('hex');
+  // The pruning rules are part of the marker, so changing them reinstalls Python.
+  const want = crypto.createHash('sha256').update(spec.sha256).update(requirements).update(pruneStdlib.toString()).digest('hex');
   if (fs.existsSync(marker) && fs.readFileSync(marker, 'utf8') === want) return log('Python 运行环境已是最新，跳过');
   const archive = await download(spec.url, path.join(cache, decodeURIComponent(path.basename(spec.url))), spec.sha256);
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'zhiye-python-'));
@@ -80,24 +82,8 @@ async function stagePython() {
     '--only-binary=:all:', '-r', path.join(repo, 'requirements.txt')], {stdio: 'inherit', env: {...process.env, PYTHONNOUSERSITE: '1'}});
   // pip is only needed while building.
   execFileSync(python, ['-m', 'pip', 'uninstall', '-y', '--disable-pip-version-check', 'pip'], {stdio: 'inherit'});
-  pruneStdlib(path.join(out, 'python'));
+  pruneStdlib(path.join(out, 'python'), WIN);
   fs.writeFileSync(marker, want);
-}
-
-/** Parts of the standard library the service never uses (GUI toolkit, its own tests). */
-function pruneStdlib(root) {
-  const lib = WIN ? path.join(root, 'Lib') : path.join(root, 'lib', fs.readdirSync(path.join(root, 'lib')).find(n => /^python3\.\d+$/.test(n)));
-  for (const name of ['test', 'idlelib', 'tkinter', 'turtledemo', 'ensurepip', 'lib2to3', 'pydoc_data']) {
-    fs.rmSync(path.join(lib, name), {recursive: true, force: true});
-  }
-  for (const name of ['tcl', 'share']) fs.rmSync(path.join(root, name), {recursive: true, force: true});
-  // Tcl/Tk runtime libraries and the _tkinter extension.
-  for (const dir of [path.join(root, 'lib'), path.join(root, 'DLLs'), path.join(lib, 'lib-dynload')]) {
-    if (!fs.existsSync(dir)) continue;
-    for (const name of fs.readdirSync(dir)) {
-      if (/^(lib)?(tcl|tk|itcl|thread)[\d.]*|^_tkinter|^tcl\d|^tk\d/i.test(name)) fs.rmSync(path.join(dir, name), {recursive: true, force: true});
-    }
-  }
 }
 
 function copyTree(from, to, keep = () => true) {
