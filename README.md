@@ -215,7 +215,7 @@ Runtime data is written to `.runtime/` (ignored; below `ZHIYE_DATA_DIR` when set
 .venv/bin/python -m unittest discover -s demo/tests -v
 ```
 
-Tests create a temporary schema in the dedicated database and drop it afterwards; they never touch production data or call a real model. With Node.js installed, frontend behaviour regressions run as well. The desktop client has its own unit tests (`cd desktop && npm test`) and a smoke test of the bundled runtime (see [Desktop Client](#desktop-client-windows--linux)). All 378 Python tests and 23 desktop unit tests pass as of 2026-11-13.
+Tests create a temporary schema in the dedicated database and drop it afterwards; they never touch production data or call a real model. With Node.js installed, frontend behaviour regressions run as well. The desktop client has its own unit tests (`cd desktop && npm test`) and a smoke test of the bundled runtime (see [Desktop Client](#desktop-client-windows--linux)). All 378 Python tests and 24 desktop unit tests pass as of 2026-11-13.
 
 ## Documentation
 

@@ -13,6 +13,23 @@ function stamp(date = new Date()) {
   return `${date.getFullYear()}${p(date.getMonth() + 1)}${p(date.getDate())}-${p(date.getHours())}${p(date.getMinutes())}${p(date.getSeconds())}`;
 }
 
+/**
+ * Recursive copy with the basic file calls. fs.cpSync is not used: on Windows, Node 22 writes to
+ * the wrong place when a path contains characters outside ASCII, such as 知页备份 or a Chinese
+ * user name.
+ */
+function copyTree(source, target) {
+  const stat = fs.lstatSync(source);
+  if (stat.isDirectory()) {
+    fs.mkdirSync(target, {recursive: true});
+    for (const name of fs.readdirSync(source)) copyTree(path.join(source, name), path.join(target, name));
+  } else if (stat.isSymbolicLink()) {
+    fs.symlinkSync(fs.readlinkSync(source), target);
+  } else {
+    fs.copyFileSync(source, target);
+  }
+}
+
 function postgresMajor(dataDir) {
   try { return fs.readFileSync(path.join(dataDir, 'database', 'PG_VERSION'), 'utf8').trim(); } catch { return null; }
 }
@@ -24,7 +41,7 @@ function createBackup(dataDir, parent, {version, edition, now = new Date()} = {}
   fs.mkdirSync(target, {recursive: true});
   for (const part of PARTS) {
     const source = path.join(dataDir, part);
-    if (fs.existsSync(source)) fs.cpSync(source, path.join(target, part), {recursive: true});
+    if (fs.existsSync(source)) copyTree(source, path.join(target, part));
   }
   // Runtime lock files belong to the server that wrote them, not to the copy.
   fs.rmSync(path.join(target, 'database', 'postmaster.pid'), {force: true});
@@ -68,9 +85,9 @@ function restoreBackup(folder, dataDir, {now = new Date()} = {}) {
   }
   for (const part of PARTS) {
     const source = path.join(folder, part);
-    if (fs.existsSync(source)) fs.cpSync(source, path.join(dataDir, part), {recursive: true});
+    if (fs.existsSync(source)) copyTree(source, path.join(dataDir, part));
   }
   return aside;
 }
 
-module.exports = {createBackup, checkBackup, restoreBackup, readManifest, stamp, MANIFEST};
+module.exports = {createBackup, checkBackup, restoreBackup, readManifest, stamp, copyTree, MANIFEST};

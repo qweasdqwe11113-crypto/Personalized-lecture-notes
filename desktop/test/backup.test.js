@@ -53,3 +53,16 @@ test('folders that are not a matching backup are refused before anything is touc
     assert.throws(() => backup.checkBackup(old, data, 'release'), /缺少数据库文件/);
   } finally { fs.rmSync(temp, {recursive: true, force: true}); }
 });
+
+test('copies keep nested folders and files whose names are not ASCII', () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'zhiye-copy-'));
+  try {
+    const source = path.join(temp, '林晓 的资料');
+    fs.mkdirSync(path.join(source, '第一章', '空目录'), {recursive: true});
+    fs.writeFileSync(path.join(source, '第一章', '数列极限.txt'), '内容');
+    const target = path.join(temp, '知页备份-测试', 'workspace');
+    backup.copyTree(source, target);
+    assert.equal(fs.readFileSync(path.join(target, '第一章', '数列极限.txt'), 'utf8'), '内容');
+    assert.ok(fs.statSync(path.join(target, '第一章', '空目录')).isDirectory());
+  } finally { fs.rmSync(temp, {recursive: true, force: true}); }
+});
