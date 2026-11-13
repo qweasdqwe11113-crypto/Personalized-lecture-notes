@@ -22,7 +22,9 @@ class QualityTests(unittest.TestCase):
         scope = assess_scope(self.ctx, self.goal)
         self.assertEqual(scope['coverage'][0]['material_ids'], [10])
         self.assertFalse(scope['coverage'][2]['has_material'])
-        self.assertIn('知识点 3', scope['warnings'][0])
+        # The warning names the point as the teacher sees it, not by its database id.
+        self.assertIn(f"「{scope['coverage'][2]['scope']}」缺少关联课程材料", scope['warnings'][0])
+        self.assertNotIn('知识点 3', scope['warnings'][0])
 
     def test_custom_and_outside_goals_are_hints_not_semantic_guarantees(self):
         scope = assess_scope(self.ctx, '不要使用贝叶斯公式，解释去括号。')

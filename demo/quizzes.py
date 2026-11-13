@@ -4,6 +4,7 @@ from hashlib import sha256
 import html
 from io import BytesIO
 import json
+import re
 from pathlib import Path
 from threading import Condition, Thread
 from urllib.parse import quote
@@ -297,6 +298,17 @@ class QuizQueue:
             self.thread.join(timeout=5)
 
 
+def option_lines(options):
+    """「A. …」 lines. A model that already labelled an option with its own letter (「A. 」「A、」「（A）」)
+    is not labelled twice; text such as 「A.B 两事件独立」 is left as written."""
+    lines = []
+    for letter, value in zip('ABCD', options):
+        own = f'[{letter}{chr(ord(letter) + 0xFEE0)}]'
+        label = rf'^\s*(?:[(（]{own}[)）]|{own}(?:[.:]\s+|[．、：]))\s*'
+        lines.append(f'{letter}. ' + re.sub(label, '', value, count=1))
+    return lines
+
+
 def quiz_markdown(row, teacher=False):
     context = row['context']
     lines = ['# '+context['topic']['title']+' · 练习题', '',
@@ -308,7 +320,7 @@ def quiz_markdown(row, teacher=False):
                         f"（出题时状态：{lecture['status']}）", '']
     for q in row['result']['questions']:
         lines.extend([f"## 第 {q['number']} 题 · {TYPES[q['type']]} · {DIFFICULTIES[q['difficulty']]}", '', q['stem'], ''])
-        lines.extend(f'{letter}. {value}' for letter, value in zip('ABCD', q['options']))
+        lines.extend(option_lines(q['options']))
         lines.extend(['', '作答：', '____________________________', ''])
     if teacher:
         lines.extend(['## 参考答案与解析', ''])

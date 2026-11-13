@@ -303,12 +303,14 @@ def register_grading(app, root, call_model, generation_lock, quiz_reference=None
         if not row or row['status'] != 'completed':
             return jsonify(error='阅卷结果尚未完成。'), 404
         result = json.loads(row['result'])
+        quiz = json.loads(row['quiz_reference']) if row['quiz_reference'] else None
+        provided = f"题组「{quiz['title']}」的教师版答案" if quiz else '提供的答案'
         lines = [row['filename'], 'AI建议评分，需教师复核。',
                  f"已评得分 {result['score']} / 全卷 {result['max_score']}；待核对 {result['pending']} 题"]
         for q in result['questions']:
             lines.extend([f"\n第{q['number']}题：{q['stem']}", '学生作答：' + q['student_answer'],
                           '参考答案：' + q['reference_answer'],
-                          '答案依据：' + ('提供的答案' if q['basis'] == 'provided' else '模型推导，需核对'),
+                          '答案依据：' + (provided if q['basis'] == 'provided' else '模型推导，需核对'),
                           f"建议得分：{q['score'] if q['score'] is not None else '待核对'} / {q['max_score']}", q['feedback']])
         return Response('\n\n'.join(lines), content_type='text/plain; charset=utf-8',
                         headers={'Content-Disposition': 'attachment; filename="grading-' + identity + '.txt"'})

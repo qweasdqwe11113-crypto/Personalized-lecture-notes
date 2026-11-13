@@ -5,7 +5,7 @@ from flask import jsonify, request
 from psycopg.types.json import Jsonb
 
 from courses import TOPICS, course_family
-from classes import library_ids
+from classes import library_ids, library_names, name_key
 from uploads import read_upload
 
 
@@ -86,8 +86,8 @@ def save_task(conn, data, key=None, origin=None):
             or any(not isinstance(p, str) or not p.strip() or len(p.strip()) > 80 for p in points)):
         raise CatalogError(f'请填写 {0 if preparation_copy else 1}—20 个知识点，每个不超过 80 字。')
     points = [p.strip() for p in points]
-    if len(set(points)) != len(points):
-        raise CatalogError('知识点名称不能重复。')
+    if len({name_key(p) for p in points}) != len(points):
+        raise CatalogError('知识点名称不能重复（全角半角、空格和大小写不同也算同名）。')
     lesson_plan = data.get('lesson_plan', '')
     if not isinstance(lesson_plan, str) or len(lesson_plan) > 20000:
         raise CatalogError('教案正文请控制在 20000 字以内。')
@@ -109,7 +109,8 @@ def save_task(conn, data, key=None, origin=None):
             raise CatalogError('任务已被修改，请重新读取后再保存。', 409)
     conn.execute('LOCK TABLE knowledge_points IN EXCLUSIVE MODE')
     same_subject = previous and previous['payload']['course'] == payload['course'] and previous['payload']['stage'] == payload['stage']
-    old = dict(zip(previous['payload']['knowledge_names'], previous['payload']['knowledge_ids'])) if same_subject else {}
+    old = ({name_key(n): (k, n) for n, k in zip(previous['payload']['knowledge_names'], previous['payload']['knowledge_ids'])}
+           if same_subject else {})
     origin_ids = dict(zip(origin['knowledge_names'], origin['knowledge_ids'])) if origin else {}
     ids, names = [], []
     if picked:
@@ -122,17 +123,14 @@ def save_task(conn, data, key=None, origin=None):
                 raise CatalogError('所选知识点不在本课程的知识点库中，请刷新后重试。', 409)
             ids.append(kid)
             names.append(rows[kid])
-    shelf_names = {}
-    if library:
-        for row in conn.execute('''SELECT k.id,k.name FROM knowledge_points k WHERE k.course_id=%s
-                AND NOT EXISTS (SELECT 1 FROM knowledge_aliases a WHERE a.knowledge_id=k.id)
-                ORDER BY k.archived DESC,k.id DESC''', (course_id,)):
-            shelf_names[row['name']] = row['id']
+    shelf_names = library_names(conn, course_id) if library else {}
     for name in points:
-        if name in names:
+        wanted = name_key(name)
+        if wanted in {name_key(n) for n in names}:
             continue
-        # Same name in the course library: the lesson shares that point (and its diagnoses).
-        kid = old.get(name) or shelf_names.get(name)
+        # Same name in the course library (ignoring width, spaces and case): the lesson shares that
+        # point, its diagnoses and its library spelling.
+        kid, name = old.get(wanted) or shelf_names.get(wanted) or (None, name)
         if kid is None:
             kid = conn.execute('''INSERT INTO knowledge_points(id,name,course_id,chapter,position)
                 VALUES ((SELECT COALESCE(max(id),0)+1 FROM knowledge_points),%s,%s,%s,

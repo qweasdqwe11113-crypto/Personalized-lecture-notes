@@ -54,7 +54,8 @@
     try{
       const data=await api('/api/students/import',{method:'POST',body:form({token:preview.token,confirmed:'true',recorder:$('roster-import-recorder').value})});
       status(preview.kind==='students'?`已新建 ${data.created_ids.length} 份学生档案，并加入${scope?.klass()?.name||'本班'}。`:`已记录 ${data.ready} 条学习证据，可在各学生档案中查看。`);
-      reset();$('roster-import-form').reset();syncKind();
+      // Clear the file but keep the kind (and recorder): the next file is often of the same kind.
+      reset();$('roster-import-file').value='';
       if(typeof refreshWorkspaceCatalog==='function')await refreshWorkspaceCatalog();
       if(scope)await scope.refresh();await refreshStudentRoster();
     }catch(e){status(e.message+(e.status===409?'':' 本次未写入任何记录。'));button.disabled=false;}

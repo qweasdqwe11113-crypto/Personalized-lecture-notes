@@ -19,15 +19,17 @@ from threading import Condition, Thread
 from flask import jsonify, request
 from psycopg.types.json import Jsonb
 
-from classes import LIBRARY
+from classes import LIBRARY, library_names, name_key
 from prompts import PreparedRequest
 from qwen import ModelError
 from uploads import pdf_pages, read_upload
 
-PROMPT = Path(__file__).with_name('prompts') / 'knowledge-recognition-v1.md'
-PROMPT_VERSION, INPUT_VERSION = 'knowledge-recognition-v1', 'knowledge-units-v1'
+# v2 also sends the course library's names so a segment about an existing point reuses its name.
+PROMPT = Path(__file__).with_name('prompts') / 'knowledge-recognition-v2.md'
+PROMPT_VERSION, INPUT_VERSION = 'knowledge-recognition-v2', 'knowledge-units-v2'
 UNIT_CHARS = 1600        # target size of a text block when the upload has no pages
 PROMPT_CHARS = 60000     # unit text sent to the model, shared evenly across units
+MAX_LIBRARY_NAMES = 400  # existing library names offered for reuse
 MATERIAL_CHARS = 12000   # one confirmed point's source segment
 MAX_POINTS = 60
 NUMBERED = re.compile(r'^\s*(\d{1,2}(?:\.\d{1,2}){1,3})\.?\s*([A-Za-z一-鿿][^\n]{0,78}?)\s*$')
@@ -141,9 +143,9 @@ def rule_items(chapter, sections):
                  summary='', source='rules') for s in sections][:MAX_POINTS]
 
 
-def prepare_recognition(course, upload, units, sections, toc, model):
+def prepare_recognition(course, upload, units, sections, toc, model, library=()):
     per = max(300, PROMPT_CHARS // max(1, len(units)))
-    data = {'course': course, 'upload': upload, 'sections': sections,
+    data = {'course': course, 'upload': upload, 'sections': sections, 'library': list(library)[:MAX_LIBRARY_NAMES],
             'units': [{'n': n, 'label': label, **({'contents_page': True} if n in toc else {}),
                        'text': text[:200 if n in toc else per]} for n, (label, text) in enumerate(units, 1)]}
     payload = dict(model=model, temperature=0.2, max_tokens=8000, chat_template_kwargs={'enable_thinking': False},
@@ -249,11 +251,12 @@ class KnowledgeQueue:
             draft = conn.execute('''UPDATE knowledge_drafts SET status='running',updated_at=now()
                 WHERE upload_id=%s RETURNING course_id''', (upload_id,)).fetchone()
             course = conn.execute('SELECT name,stage FROM courses WHERE id=%s', (draft['course_id'],)).fetchone()
+            names = [r['name'] for r in conn.execute(f'SELECT k.name {LIBRARY} ORDER BY k.position,k.id', (draft['course_id'],))]
         units = strip_furniture(units_of(record))
         if not any(text for _, text in units):
             raise KnowledgeError('这份资料没有可识别的正文。')
         chapter, sections, toc = structure(units)
-        prepared = prepare_recognition(dict(course), record['title'], units, sections, toc, self.model())
+        prepared = prepare_recognition(dict(course), record['title'], units, sections, toc, self.model(), names)
         method, notice = 'rules+model', ''
         try:
             with self.gate:
@@ -302,9 +305,9 @@ def confirmed_items(data, count):
         if not isinstance(item, dict):
             raise KnowledgeError('知识点格式无效。')
         name = text_value(item, 'name', '知识点名称', 40, True)
-        if name in names:
-            raise KnowledgeError(f'知识点「{name}」重复了，请合并或改名。')
-        names.add(name)
+        if name_key(name) in names:
+            raise KnowledgeError(f'知识点「{name}」重复了（全角半角、空格和大小写不同也算同名），请合并或改名。')
+        names.add(name_key(name))
         span = item.get('units')
         if (not isinstance(span, list) or len(span) != 2 or any(type(x) is not int for x in span)
                 or not 1 <= span[0] <= span[1] <= count):
@@ -346,16 +349,6 @@ def renumber(conn, course_id):
             conn.execute('UPDATE knowledge_points SET position=%s WHERE id=%s', (position, row['id']))
 
 
-def shelf(conn, course_id):
-    """{name: id} of the course library, preferring a visible point over an archived one."""
-    found = {}
-    for row in conn.execute(f'''SELECT k.id,k.name FROM knowledge_points k WHERE k.course_id=%s
-            AND NOT EXISTS (SELECT 1 FROM knowledge_aliases a WHERE a.knowledge_id=k.id)
-            ORDER BY k.archived DESC,k.id DESC''', (course_id,)):
-        found[row['name']] = row['id']
-    return found
-
-
 def confirm(conn, upload_id, data, record):
     draft = conn.execute('SELECT * FROM knowledge_drafts WHERE upload_id=%s FOR UPDATE', (upload_id,)).fetchone()
     if not draft:
@@ -371,19 +364,19 @@ def confirm(conn, upload_id, data, record):
     items = confirmed_items(data, len(units))
     conn.execute('LOCK TABLE knowledge_points IN EXCLUSIVE MODE')
     conn.execute('LOCK TABLE materials IN EXCLUSIVE MODE')
-    names = shelf(conn, course_id)
+    names = library_names(conn, course_id)
     position = conn.execute('SELECT COALESCE(max(position),0) AS p FROM knowledge_points WHERE course_id=%s',
                             (course_id,)).fetchone()['p']
     prefix = 'p' if units and units[0]['label'].endswith('页') else 's'
     created = reused = 0
     for item in items:
-        kid = names.get(item['name'])
+        kid, item['name'] = names.get(name_key(item['name']), (None, item['name']))
         if kid is None:
             position += 1
             kid = conn.execute('''INSERT INTO knowledge_points(id,name,course_id,chapter,position,summary)
                 VALUES ((SELECT COALESCE(max(id),0)+1 FROM knowledge_points),%s,%s,%s,%s,%s) RETURNING id''',
                                (item['name'], course_id, item['chapter'], position, item['summary'])).fetchone()['id']
-            names[item['name']] = kid
+            names[name_key(item['name'])] = (kid, item['name'])
             created += 1
         else:
             conn.execute('''UPDATE knowledge_points SET archived=false,
@@ -480,9 +473,10 @@ def register_knowledge(app, db, root, queue, topics):
         with db() as conn:
             course_or_404(conn, course_id)
             conn.execute('LOCK TABLE knowledge_points IN EXCLUSIVE MODE')
-            existing = conn.execute(f'SELECT k.id {LIBRARY} AND k.name=%s', (course_id, name)).fetchone()
-            if existing:
-                raise KnowledgeError('知识点库中已有同名知识点。', 409)
+            kid, existing = library_names(conn, course_id).get(name_key(name), (None, None))
+            if kid is not None:
+                archived = conn.execute('SELECT archived FROM knowledge_points WHERE id=%s', (kid,)).fetchone()['archived']
+                raise KnowledgeError(f'知识点库中已有同名知识点「{existing}」' + ('（已归档，可在归档列表中恢复）。' if archived else '。'), 409)
             row = conn.execute('''INSERT INTO knowledge_points(id,name,course_id,chapter,position,summary)
                 VALUES ((SELECT COALESCE(max(id),0)+1 FROM knowledge_points),%s,%s,%s,
                         (SELECT COALESCE(max(position),0)+1 FROM knowledge_points WHERE course_id=%s),%s)
@@ -508,9 +502,10 @@ def register_knowledge(app, db, root, queue, topics):
             archived = data.get('archived', point['archived'])
             if type(archived) is not bool:
                 raise KnowledgeError('归档状态无效。')
-            if not archived and conn.execute(f'SELECT 1 {LIBRARY} AND k.name=%s AND k.id<>%s',
-                                             (point['course_id'], name, kid)).fetchone():
-                raise KnowledgeError('知识点库中已有同名知识点。', 409)
+            clash = None if archived else next((r['name'] for r in conn.execute(
+                f'SELECT k.name {LIBRARY} AND k.id<>%s', (point['course_id'], kid)) if name_key(r['name']) == name_key(name)), None)
+            if clash:
+                raise KnowledgeError(f'知识点库中已有同名知识点「{clash}」。', 409)
             conn.execute('UPDATE knowledge_points SET name=%s,chapter=%s,summary=%s,archived=%s WHERE id=%s',
                          (name, chapter, summary, archived, kid))
             if name != point['name']:
@@ -549,12 +544,12 @@ def register_knowledge(app, db, root, queue, topics):
             draft = conn.execute('SELECT * FROM knowledge_drafts WHERE upload_id=%s', (upload_id,)).fetchone()
             if not draft:
                 raise KnowledgeError('这份资料还没有识别知识点。', 404)
-            names = shelf(conn, draft['course_id'])
+            names = library_names(conn, draft['course_id'])
         record = read_upload(root, upload_id) or {}
         units = [{'n': u['n'], 'label': u['label'], 'preview': u['text'][:240], 'characters': len(u['text'])}
                  for u in draft.pop('units')]
         draft['version'] = draft['updated_at'].isoformat()
-        return jsonify(draft=draft, units=units, library=sorted(names), upload={
+        return jsonify(draft=draft, units=units, library=sorted(name for _, name in names.values()), upload={
             'title': record.get('title'), 'filename': record.get('filename')})
 
     @app.post('/api/knowledge/drafts/<upload_id>/confirm')

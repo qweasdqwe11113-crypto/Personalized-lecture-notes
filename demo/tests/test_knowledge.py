@@ -121,6 +121,13 @@ class LibraryTests(ProfileDatabaseFixture):
         self.assertEqual(body['response_format'], {'type': 'json_object'})
         sent = json.loads(body['messages'][1]['content'])
         self.assertEqual([s['number'] for s in sent['sections']], ['2.1.1', '2.1.2', '2.2'])
+        # The model sees the library's names so a segment about an existing point reuses its name.
+        with self.fixture_db() as conn:
+            shelf = [r['name'] for r in conn.execute('SELECT name FROM knowledge_points WHERE id=ANY(%s) ORDER BY position,id',
+                                                     (library_ids(conn, self.course),))]
+        self.assertEqual(sent['library'], shelf)
+        self.assertEqual(self.calls[0].prompt_version, 'knowledge-recognition-v2')
+        self.assertIn('逐字使用 library 中的名称', body['messages'][0]['content'])
         self.assertTrue(all(u['label'].endswith('段') for u in detail['units']))
         # The teacher renames one point, adds one whose name the library already has, and keeps the other.
         items = [{**draft['items'][0], 'name': '随机变量'}, draft['items'][1],
@@ -194,6 +201,39 @@ class LibraryTests(ProfileDatabaseFixture):
                                                          'knowledge_names': ['泊松分布（Poisson）']}, 201)['task']
         self.assertEqual(again['knowledge_ids'], [point['id']])
         self.assertEqual(self.client.put('/api/knowledge/1', json={'name': '泊松近似的条件'}).status_code, 409)
+
+    def test_names_differing_only_in_width_spacing_or_case_name_one_library_point(self):
+        point = self.json('post', f'/api/courses/{self.course}/knowledge', {'name': '泊松分布（Poisson）'}, 201)['point']
+        clash = self.json('post', f'/api/courses/{self.course}/knowledge', {'name': '泊松分布 (poisson)'}, status=409)
+        self.assertIn('「泊松分布（Poisson）」', clash['error'])
+        other = self.json('post', f'/api/courses/{self.course}/knowledge', {'name': '二项分布'}, 201)['point']
+        self.json('put', f"/api/knowledge/{other['id']}", {'name': '泊松分布(POISSON)'}, status=409)
+        self.json('put', f"/api/knowledge/{point['id']}", {'archived': True})
+        self.assertIn('已归档', self.json('post', f'/api/courses/{self.course}/knowledge', {'name': '泊松分布(Poisson)'}, status=409)['error'])
+        # A lesson typing the name another way reuses the point (restoring it) under the library spelling.
+        lesson = {'course_id': self.course, 'chapter': '第二章', 'title': '泊松分布', 'goal': '理解泊松定理',
+                  'task_level': '基础任务', 'student_ids': [1], 'knowledge_ids': [], 'knowledge_names': ['泊松分布(poisson)']}
+        self.json('post', '/api/course-tasks', {**lesson, 'knowledge_names': ['A（B）', 'a(b)']}, status=400)
+        created = self.json('post', '/api/course-tasks', lesson, 201)
+        self.assertEqual((created['task']['knowledge_ids'], created['task']['knowledge_names']), ([point['id']], ['泊松分布（Poisson）']))
+        # Editing the lesson and naming a new point keeps the lesson's own key.
+        edited = self.json('put', f"/api/course-tasks/{created['key']}",
+                           {**lesson, 'revision': 0, 'knowledge_ids': [point['id']], 'knowledge_names': ['泊松近似的条件']})
+        self.assertEqual((edited['key'], edited['task']['revision']), (created['key'], 1))
+        self.assertEqual([k for k, t in module.topic_catalog().items() if t.get('title') == '泊松分布'], [created['key']])
+        # Recognition confirms 「泊松分布(POISSON)」 into the same point and files its segment under the library name.
+        self.reply = {'chapter': '第二章 随机变量与分布', 'points': [
+            {'name': '泊松分布(POISSON)', 'section': '2.2', 'units': [3, 3], 'summary': '泊松定理'}]}
+        detail = self.recognize()
+        self.assertIn('泊松分布（Poisson）', detail['library'])
+        result = self.json('post', f"/api/knowledge/drafts/{self.upload['id']}/confirm",
+                           {'items': detail['draft']['items'], 'version': detail['draft']['version']})
+        self.assertEqual((result['created'], result['items'][0]['knowledge_id'], result['items'][0]['name']),
+                         (0, point['id'], '泊松分布（Poisson）'))
+        with self.fixture_db() as conn:
+            title = conn.execute("SELECT title FROM materials WHERE knowledge_id=%s AND source_url LIKE 'upload:%%'",
+                                 (point['id'],)).fetchone()['title']
+        self.assertTrue(title.startswith('泊松分布（Poisson） · '))
 
     def test_student_record_in_a_course_lists_library_points(self):
         point = self.json('post', f'/api/courses/{self.course}/knowledge', {'name': '泊松分布'}, 201)['point']

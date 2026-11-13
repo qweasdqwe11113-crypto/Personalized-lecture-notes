@@ -33,7 +33,8 @@
       for (const [title, text] of [['参考答案',q.reference_answer],['评分解析与错因',q.feedback]]) {
         const p = el('p'); p.append(el('strong', title + '：'), document.createTextNode(text)); details.append(p);
       }
-      details.append(el('p', q.basis === 'provided' ? '答案依据：材料提供的参考答案（需核对对应关系）' : '答案依据：模型推导，请重点核对。', 'grading-basis'));
+      const provided = row.quiz_reference ? `答案依据：题组「${row.quiz_reference.title}」的教师版答案（请核对题号对应）` : '答案依据：材料提供的参考答案（需核对对应关系）';
+      details.append(el('p', q.basis === 'provided' ? provided : '答案依据：模型推导，请重点核对。', 'grading-basis'));
       card.append(details);
       $('grading-results').append(card);
     }

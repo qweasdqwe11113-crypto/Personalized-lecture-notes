@@ -5,6 +5,9 @@ holds its students. Students remain shared records: one student may join classes
 courses, but only one class per course. A class profile is an aggregate of the students'
 teacher-confirmed states; it never writes or infers any individual state.
 """
+import re
+import unicodedata
+
 from flask import jsonify, request
 from psycopg.types.json import Jsonb
 
@@ -294,6 +297,24 @@ LIBRARY = '''FROM knowledge_points k WHERE k.course_id=%s AND NOT k.archived
 def library_ids(conn, course_id):
     """The course's knowledge library in teaching order: no archived points, no lesson-copy aliases."""
     return [r['id'] for r in conn.execute(f'SELECT k.id {LIBRARY} ORDER BY k.position,k.id', (course_id,))]
+
+
+def name_key(name):
+    """Point names match regardless of full- or half-width forms, spaces and letter case."""
+    return re.sub(r'\s+', '', unicodedata.normalize('NFKC', name)).casefold()
+
+
+def library_names(conn, course_id):
+    """{name_key: (id, name)} of the course library, archived points included.
+
+    A visible point wins over an archived one with the same key, and the oldest visible point wins
+    over later ones, so every writer that names a point reuses the same library entry."""
+    found = {}
+    for row in conn.execute('''SELECT k.id,k.name FROM knowledge_points k WHERE k.course_id=%s
+            AND NOT EXISTS (SELECT 1 FROM knowledge_aliases a WHERE a.knowledge_id=k.id)
+            ORDER BY k.archived DESC,k.id DESC''', (course_id,)):
+        found[name_key(row['name'])] = (row['id'], row['name'])
+    return found
 
 
 def diagnosed_library_ids(conn, course_id, student_ids):

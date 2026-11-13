@@ -3,6 +3,8 @@
   const difficultyLabels={basic:'基础',medium:'中等',advanced:'拔高',mixed:'混合'};
   const levelLabels={foundation:'基础待巩固',standard:'常规水平',advanced:'学有余力'};
   const statusLabels={queued:'排队中',running:'生成中',succeeded:'已生成',failed:'失败',interrupted:'已中断'};
+  // Same rule as quizzes.option_lines: an option the model already labelled with its own letter is not labelled twice.
+  const optionText=(i,text)=>{const own=`[${'ABCD'[i]}${'ＡＢＣＤ'[i]}]`;return 'ABCD'[i]+'. '+text.replace(new RegExp(`^\\s*(?:[(（]${own}[)）]|${own}(?:[.:]\\s+|[．、：]))\\s*`),'');};
   let catalog={}, roster=[], pointNames=new Map(), displayed=null, teacher=false, watching=0, submitting=false, linked=null;
   const option=(value,label)=>{const node=el('option',label);node.value=value;return node;};
   function showError(message){$('quiz-error').textContent=message||'';$('quiz-error').hidden=!message;}
@@ -100,7 +102,7 @@
     for(const q of d.result.questions){
       const card=el('section',undefined,'quiz-question');
       card.append(el('h3',`第 ${q.number} 题 · ${typeLabels[q.type]} · ${difficultyLabels[q.difficulty]}`),el('p',q.stem,'quiz-text'));
-      for(const [i,text] of q.options.entries())card.append(el('p','ABCD'[i]+'. '+text,'quiz-text'));
+      for(const [i,text] of q.options.entries())card.append(el('p',optionText(i,text),'quiz-text'));
       if(!teacher)card.append(el('p','作答：____________________________','quiz-workspace'));
       else{
         const answer=el('div',undefined,'quiz-answer');

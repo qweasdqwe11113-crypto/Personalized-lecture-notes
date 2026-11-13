@@ -1,6 +1,7 @@
 """Scale corpus, arithmetic and figure checks, rich exports, and automatic repair of structured replies."""
 from io import BytesIO
 import json
+import math
 from pathlib import Path
 import sys
 import unittest
@@ -77,6 +78,18 @@ class FigureTests(unittest.TestCase):
             self.assertTrue(result['svg'].startswith('<svg') and result['svg'].endswith('</svg>'))
             self.assertEqual(result['warnings'], [])
         self.assertIn('联合概率 0.012', figures.render(json.dumps(TREE, ensure_ascii=False))['svg'])
+
+    def test_function_graphs_draw_probability_densities(self):
+        # Exponential and normal densities, as models write them in plain, implicit-product or LaTeX form.
+        for expr, x, want in [('0.5*exp(-0.5*x)', 2, 0.5 * math.exp(-1)), ('2exp(-2x)', 0, 2), ('0.5e^{-0.5x}', 2, 0.5 * math.exp(-1)),
+                              (r'\frac{1}{\sqrt{2\pi}}e^{-x^2/2}', 0, 1 / math.sqrt(2 * math.pi)), ('1-e^(-x)', 0, 0), ('x^0.5', 4, 2)]:
+            self.assertAlmostEqual(figures.plot_value(expr, x), want, msg=expr)
+        density = {'type': 'function_plot', 'x': [0, 8], 'functions': [{'expr': '0.5*exp(-0.5*x)'}, {'expr': '2exp(-2x)'}]}
+        self.assertTrue(figures.render(json.dumps(density))['ok'])
+        # Where a curve has no real value it leaves a gap; a curve with no value at all is refused.
+        self.assertTrue(figures.render(json.dumps({'type': 'function_plot', 'x': [-2, 2], 'functions': [{'expr': 'ln(x)'}]}))['ok'])
+        self.assertIn('没有定义', figures.render(json.dumps({'type': 'function_plot', 'x': [-2, -1], 'functions': [{'expr': 'ln(x)'}]}))['error'])
+        self.assertIn('exp、ln', figures.render(json.dumps({'type': 'function_plot', 'x': [0, 1], 'functions': [{'expr': 'gamma(x)'}]}))['error'])
 
     def test_inconsistent_or_malformed_figures_are_reported_never_raised(self):
         bad_tree = {**TREE, 'branches': [{'label': 'A', 'p': 0.7}, {'label': 'B', 'p': 0.4}]}

@@ -1,6 +1,6 @@
 # Prompt 与实际输入
 
-知识点识别使用 [knowledge-recognition-v1.md](knowledge-recognition-v1.md)，输入结构为 `knowledge-units-v1`：课程名称与学段、资料标题、程序找到的编号小节（`sections`），以及按页（PDF）或按段切分、去掉页眉页脚后的正文（`units`，目录页只送 200 字并标 `contents_page`；正文合计约 60000 字，按单元平均分配）。请求使用 JSON 模式、关闭思考，输出为章名和带页码范围的知识点。结果只是草稿，教师确认前不写入知识点库；请求的 SHA-256 记在 `knowledge_drafts.input_sha256`。
+知识点识别现用 [knowledge-recognition-v2.md](knowledge-recognition-v2.md)，输入结构为 `knowledge-units-v2`：在 v1 的基础上多送本课程知识点库已有的名称（`library`，最多 400 个），要求资料讲的是已有知识点时逐字沿用原名，避免同一概念在库中出现多个近似名称；历史草稿记录的 v1 模板保持不变。v1（[knowledge-recognition-v1.md](knowledge-recognition-v1.md)，`knowledge-units-v1`）的输入为：课程名称与学段、资料标题、程序找到的编号小节（`sections`），以及按页（PDF）或按段切分、去掉页眉页脚后的正文（`units`，目录页只送 200 字并标 `contents_page`；正文合计约 60000 字，按单元平均分配）。请求使用 JSON 模式、关闭思考，输出为章名和带页码范围的知识点。结果只是草稿，教师确认前不写入知识点库；请求的 SHA-256 记在 `knowledge_drafts.input_sha256`。
 
 授课课件使用独立模板 [lecture-ppt-v1.md](lecture-ppt-v1.md)，输入结构为 `lecture-ppt-context-v1`。实际发送的是所选已保存讲义、教学目标、授课设置、材料及课件要求，不额外发送学生画像、诊断或本次观察字段。该模板要求简洁投屏内容与详细逐页教师讲稿分开，使用固定页数和可读 Unicode 公式；后台对 JSON 结构、文字预算、封面、末页总结及 M/V 来源编号进行检查。程序检查不替代教师对课件正确性及教学可用性的审核；原讲义中的个体描述仍应在内容复核时检查。
 

@@ -1,7 +1,7 @@
 "use strict";
 // Grading → profile evidence. Drafts are only text; each write is one teacher-confirmed evidence record.
 (() => {
-  let record = null, drafts = null, catalog = null, states = {}, token = 0;
+  let record = null, drafts = null, catalog = null, library = [], states = {}, token = 0;
   const option = (value, label) => { const node = el('option', label); node.value = value; return node; };
   const status = text => { $('grading-evidence-status').textContent = text || ''; };
   const localDate = date => new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -12,9 +12,14 @@
     const midday = new Date(value + 'T12:00:00'), now = new Date();
     return (midday > now ? now : midday).toISOString();
   }
-  async function ensureCatalog() {
-    if (!catalog) catalog = await api('/api/course-tasks');
-    return catalog;
+  // Lessons, students and the course library change while the page stays open: read them each time
+  // a grading record is shown or the course changes.
+  async function loadCatalog() {
+    const course = window.workspaceScope?.courseId();
+    const [tasks, points] = await Promise.all([api('/api/course-tasks'),
+      course == null ? {points: []} : api(`/api/courses/${course}/knowledge`)]);
+    catalog = tasks;
+    library = points.points.filter(p => !p.archived);
   }
   function pointName(id) {
     return catalog.knowledge_points.find(p => p.id === id)?.name || '知识点 ' + id;
@@ -26,7 +31,7 @@
     if (!ready) return;
     const current = ++token;
     status('正在整理证据草稿…');
-    const [data] = await Promise.all([api(`/api/grading/${row.id}/evidence-drafts`), ensureCatalog()]);
+    const [data] = await Promise.all([api(`/api/grading/${row.id}/evidence-drafts`), loadCatalog()]);
     if (current !== token) return;
     drafts = data;
     drawScope();
@@ -52,7 +57,9 @@
     studentSelect.replaceChildren(option('', '请选择学生'), ...(cls && inClass.length ? [group(cls.name, inClass), ...(others.length ? [group('其他学生', others)] : [])] : catalog.students.map(s => option(s.id, `${s.name} · ${s.subtitle}`))));
     if (catalog.students.some(s => String(s.id) === previous)) studentSelect.value = previous;
   }
-  window.addEventListener('scope-changed', () => { if (record && drafts) { drawScope(); draw().catch(e => status(e.message)); } });
+  window.addEventListener('scope-changed', () => {
+    if (record && drafts) loadCatalog().then(() => { drawScope(); return draw(); }).catch(e => status(e.message));
+  });
   function card(item, sid) {
     const box = el('article', undefined, 'evidence-draft');
     const title = item.knowledge_id ? `知识点：${item.knowledge_name || pointName(item.knowledge_id)}` : '未对应题组知识点的题目';
@@ -60,10 +67,18 @@
       (item.pending ? ` · ${item.pending} 题待核对未计分` : ''), 'helper'));
     let pointSelect = null;
     if (!item.knowledge_id) {
-      const topic = catalog.topics[$('grading-evidence-topic').value];
+      // The chosen lesson's points first, then the rest of the course library by chapter.
+      const topic = catalog.topics[$('grading-evidence-topic').value], lessonIds = topic?.knowledge_ids || [];
+      const group = (label, options) => { const g = el('optgroup'); g.label = label; g.append(...options); return g; };
+      const chapters = new Map();
+      for (const p of library) if (!lessonIds.includes(p.id)) {
+        const chapter = p.chapter || '未分章节';
+        chapters.set(chapter, [...(chapters.get(chapter) || []), option(p.id, p.name)]);
+      }
       pointSelect = el('select');
-      pointSelect.append(option('', '请选择知识点'), ...(topic?.knowledge_ids || []).map(id => option(id, pointName(id))));
-      const label = el('label', '对应知识点'); box.append(label, pointSelect);
+      pointSelect.append(option('', '请选择知识点'), ...(lessonIds.length ? [group('本备课', lessonIds.map(id => option(id, pointName(id))))] : []),
+        ...[...chapters].map(([chapter, options]) => group(chapter, options)));
+      const label = el('label', '对应知识点（本备课或课程知识点库）'); box.append(label, pointSelect);
     }
     const stateLine = el('p', '', 'helper');
     const describe = () => {

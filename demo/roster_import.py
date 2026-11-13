@@ -12,12 +12,11 @@ from hashlib import sha256
 import io
 import json
 import re
-import unicodedata
 
 from flask import Response, jsonify, request
 
 from catalog import load_catalog
-from classes import library_ids
+from classes import library_ids, name_key
 from profiles import SOURCE_LABELS, STATE_LABELS, ProfileError, record_evidence
 
 MAX_BYTES = 120_000
@@ -116,11 +115,6 @@ def plan_students(conn, text, class_id=None):
     return rows, dict(names=sorted(existing), class_id=class_id)
 
 
-def name_key(name):
-    """Point names match regardless of full- or half-width forms, spaces and letter case."""
-    return re.sub(r'\s+', '', unicodedata.normalize('NFKC', name)).casefold()
-
-
 def evidence_scope(conn, topic, class_id, course_id):
     """(course, students, knowledge ids) an evidence file may name.
 
@@ -175,6 +169,10 @@ def point_finder(conn, course_id, ids):
     def find(name):
         key = name_key(name)
         matches = points.get(key, [])
+        # Older data may hold 「A（B）」 and 「A(B)」 side by side: a name written exactly as one of them picks it.
+        exact = [k for k in matches if names[k] == name]
+        if len({aliases.get(k, k) for k in exact}) == 1:
+            matches = exact
         if len({aliases.get(k, k) for k in matches}) > 1:
             return None, '有多个同名知识点，无法确定对应哪一个；请在知识点库中改名后重试'
         if matches:

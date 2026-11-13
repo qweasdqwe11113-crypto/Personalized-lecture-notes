@@ -19,7 +19,7 @@ from flask import Response, jsonify, request
 from presentations import presentation_pptx
 from profiles import SOURCE_LABELS, STATE_LABELS
 from quality import check_output
-from quizzes import DIFFICULTIES, LEVELS, TYPES, lecture_topic_key, quiz_markdown
+from quizzes import DIFFICULTIES, LEVELS, TYPES, lecture_topic_key, option_lines, quiz_markdown
 from reviews import STATUS_LABELS, ReviewError, lecture_row, review_bundle, version_row
 from teaching import DETAILS, LESSON_TYPES
 
@@ -195,7 +195,7 @@ def quiz_section(parts):
     for q in quiz['result']['questions']:
         lines.extend([f"### 第 {q['number']} 题 · {TYPES[q['type']]} · {DIFFICULTIES[q['difficulty']]}", '',
                       f"考查知识点：{names.get(str(q['knowledge_id']), q['knowledge_id'])}", '', q['stem'], ''])
-        lines.extend(f'{letter}. {value}' for letter, value in zip('ABCD', q['options']))
+        lines.extend(option_lines(q['options']))
         lines.extend(['', '**参考答案**：' + q['answer'], '', '**解析**：' + q['analysis'], '',
                       '**易错点**：' + q['common_mistake'], '',
                       '材料依据：' + ('、'.join(q['source_ids']) if q['source_ids'] else '自编题目，未标注直接材料依据，请复核。'), ''])

@@ -37,7 +37,9 @@ async function watchJob(id){
    if(job.status==='succeeded'){
      const r=await api('/api/lectures/'+job.lecture_id);
      restoreLectureSettings(r);showResult(r,true,false);
-     $('progress').textContent=`已保存讲义 #${r.id} · 模型用时 ${job.elapsed_seconds} 秒 · 用量 ${JSON.stringify(job.usage)}`;
+     // Token counts read as a sentence; 查看生成输入 keeps the raw usage object.
+     const usage=job.usage||{},parts=[usage.total_tokens!=null&&`${Number(usage.total_tokens).toLocaleString('zh-CN')} tokens`,usage.model_calls>1&&`${usage.model_calls} 次模型调用`].filter(Boolean);
+     $('progress').textContent=`已保存讲义 #${r.id} · 模型用时 ${Number(job.elapsed_seconds).toFixed(0)} 秒`+(parts.length?` · 用量 ${parts.join('，')}`:'');
      await refreshHistory();break;
    }
    if(['failed','interrupted','cancelled'].includes(job.status)){

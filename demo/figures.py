@@ -8,11 +8,14 @@ reproducible from the saved lecture text alone and its numbers can be checked.
 from fractions import Fraction
 import html
 import json
+import math
 import re
 
-from mathcheck import MathError, evaluate
+from mathcheck import MathError, evaluate, normalize
 
-VERSION = 'figure-v1'
+# v2: function graphs also accept exp, ln, sqrt, abs, sin, cos, tan, the constants e and π and
+# non-integer powers (densities such as 0.5*exp(-0.5x) are drawn instead of refused).
+VERSION = 'figure-v2'
 TYPES = {'probability_tree': '概率树', 'number_line': '数轴', 'balance': '等式变形',
          'function_plot': '函数图像', 'bar_chart': '柱状对比'}
 INK, ACCENT, SOFT, LINE, MUTED, WARN, PAPER = '#233249', '#365bd6', '#edf2ff', '#94a3b8', '#64748b', '#b45309', '#ffffff'
@@ -317,6 +320,136 @@ def _balance(spec, warnings):
     return canvas, ' → '.join(described)
 
 
+_FUNCTIONS = {'exp': math.exp, 'ln': math.log, 'log': math.log, 'sqrt': math.sqrt, 'abs': abs,
+              'sin': math.sin, 'cos': math.cos, 'tan': math.tan}
+_CONSTANTS = {'e': math.e, 'pi': math.pi, 'π': math.pi}
+_NAMES = sorted([*_FUNCTIONS, *_CONSTANTS, 'x'], key=len, reverse=True)
+_PLOT_RULE = '只支持含 x 的四则运算、乘方，以及 exp、ln、sqrt、abs、sin、cos、tan 和常数 e、π'
+
+
+class _Undefined(ArithmeticError):
+    """The curve has no real value at this x (log of a negative number, division by zero...)."""
+
+
+def _plot_tokens(text):
+    text = re.sub(r'\\(exp|ln|log|sqrt|sin|cos|tan|pi)(?![A-Za-z])', r'\1', text)
+    # \sqrt{2\pi} inside \frac{1}{…}: turn function braces into parentheses first so \frac can match.
+    while (flat := re.sub(r'(exp|ln|log|sqrt|sin|cos|tan|abs)\s*\{([^{}]*)\}', r'\1(\2)', text)) != text:
+        text = flat
+    text = normalize(text).replace('**', '^')
+    tokens, position = [], 0
+    for match in re.finditer(r'\s*(\d+\.\d+|\.\d+|\d+|[A-Za-zπ]+|[-+*/^(),])', text):
+        if match.start() != position:
+            raise MathError('unsupported')
+        position = match.end()
+        word = match[1]
+        if not (word[0].isalpha() or word == 'π'):
+            tokens.append(word)
+            continue
+        # 「xexp」 or 「ex」 are products of known names; the longest name wins, so 「exp」 stays one call.
+        while word:
+            name = next((n for n in _NAMES if word.startswith(n)), None)
+            if name is None:
+                raise MathError('unknown name')
+            tokens.append(name)
+            word = word[len(name):]
+    if text[position:].strip():
+        raise MathError('unsupported')
+    return tokens
+
+
+class _PlotParser:
+    """Float version of the arithmetic grammar for drawing: expr := term (('+'|'-') term)*."""
+
+    def __init__(self, tokens, x):
+        self.tokens, self.index, self.x = tokens, 0, x
+
+    def peek(self):
+        return self.tokens[self.index] if self.index < len(self.tokens) else None
+
+    def take(self):
+        self.index += 1
+        return self.tokens[self.index - 1] if self.index <= len(self.tokens) else None
+
+    def expression(self):
+        value = self.term()
+        while self.peek() in ('+', '-'):
+            value = value + self.term() if self.take() == '+' else value - self.term()
+        return value
+
+    def term(self):
+        value = self.unary()
+        while True:
+            token = self.peek()
+            if token in ('*', '/'):
+                self.take()
+                right = self.unary()
+                if token == '/' and right == 0:
+                    raise _Undefined
+                value = value * right if token == '*' else value / right
+            elif token is not None and (token == '(' or token[0].isdigit() or token[0] == '.' or token in _NAMES):
+                value *= self.power()
+            else:
+                return value
+
+    def unary(self):
+        if self.peek() in ('-', '+'):
+            return -self.unary() if self.take() == '-' else self.unary()
+        return self.power()
+
+    def power(self):
+        base = self.atom()
+        if self.peek() == '^':
+            self.take()
+            exponent = self.unary()
+            try:
+                value = base ** exponent
+            except (ZeroDivisionError, OverflowError):
+                raise _Undefined from None
+            if isinstance(value, complex):
+                raise _Undefined
+            return value
+        return base
+
+    def atom(self):
+        token = self.take()
+        if token is None:
+            raise MathError('incomplete')
+        if token == '(':
+            value = self.expression()
+            if self.take() != ')':
+                raise MathError('unbalanced')
+            return value
+        if token[0].isdigit() or token[0] == '.':
+            return float(token)
+        if token == 'x':
+            return self.x
+        if token in _CONSTANTS:
+            return _CONSTANTS[token]
+        if token in _FUNCTIONS:
+            if self.take() != '(':
+                raise MathError('function needs parentheses')
+            argument = self.expression()
+            if self.take() != ')':
+                raise MathError('unbalanced')
+            try:
+                return _FUNCTIONS[token](argument)
+            except (ValueError, OverflowError):
+                raise _Undefined from None
+        raise MathError('unexpected token')
+
+
+def plot_value(expression, x):
+    """y of a function graph at x; raises _Undefined where the curve has no real value."""
+    parser = _PlotParser(_plot_tokens(expression), float(x))
+    value = parser.expression()
+    if parser.index != len(parser.tokens):
+        raise MathError('trailing input')
+    if not math.isfinite(value):
+        raise _Undefined
+    return value
+
+
 def _function_plot(spec, warnings):
     span = spec.get('x')
     if not isinstance(span, list) or len(span) != 2:
@@ -332,13 +465,15 @@ def _function_plot(spec, warnings):
         label = _text(function.get('label'), '函数说明', 30, False) or 'y = ' + expression
         samples = []
         for i in range(81):
-            x = Fraction(str(low)) + (Fraction(str(high)) - Fraction(str(low))) * i / 80
+            x = low + (high - low) * i / 80
             try:
-                samples.append((float(x), float(evaluate(expression, {'x': x}))))
-            except ZeroDivisionError:
+                samples.append((x, plot_value(expression, x)))
+            except _Undefined:
                 samples.append(None)
-            except (MathError, OverflowError):
-                raise FigureError(f'无法计算函数表达式 {expression}；只支持含 x 的加减乘除与整数次幂。') from None
+            except MathError:
+                raise FigureError(f'无法计算函数表达式 {expression}；{_PLOT_RULE}。') from None
+        if not any(samples):
+            raise FigureError(f'函数 {expression} 在 x 的范围内没有定义，请调整 x 的范围。')
         curves.append((label, samples))
     marked = [(_number(p.get('x'), '点的 x', low, high), _number(p.get('y'), '点的 y'), _text(p.get('label'), '点的说明', 24, False)) for p in points]
     ys = [y for _, samples in curves for s in samples if s for y in [s[1]]] + [y for _, y, _ in marked] + [0]

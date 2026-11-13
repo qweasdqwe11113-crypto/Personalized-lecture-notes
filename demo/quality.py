@@ -38,9 +38,10 @@ def assess_scope(context, goal):
         coverage.append({'knowledge_id': kid, 'scope': names.get(kid, '未定义范围') if general else SCOPE.get(canonical.get(str(kid), kid), ('未定义范围', []))[0],
                          'material_ids': [m['id'] for m in selected], 'has_material': bool(selected)})
     warnings = []
-    missing = [c['knowledge_id'] for c in coverage if not c['has_material']]
+    # Teachers know points by name, not by database id.
+    missing = [f"「{names.get(c['knowledge_id']) or c['scope']}」" for c in coverage if not c['has_material']]
     if missing:
-        warnings.append('知识点 ' + '、'.join(map(str, missing)) + ' 缺少关联课程材料。')
+        warnings.append('知识点' + '、'.join(missing) + '缺少关联课程材料。')
     university = family == 'probability'
     outside = ['导数', '积分', '微分', '二次方程', '三角函数', '连续密度', '重复观测'] if university else OUTSIDE
     possible_outside = [] if general else [word for word in outside if word in goal]

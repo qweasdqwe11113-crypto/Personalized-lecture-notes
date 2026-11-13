@@ -7,6 +7,8 @@
   if (!scope) return;
   const json = (method, body) => ({method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
   const pending = d => d.status === 'queued' || d.status === 'running';
+  // Same rule as classes.name_key: full- / half-width forms, spaces and case do not make a new point.
+  const nameKey = name => name.normalize('NFKC').replace(/\s+/g, '').toLowerCase();
   let library = {courseId: null, points: [], drafts: []}, loadVersion = 0, poll = null, editingPoint = null;
 
   async function load(courseId = scope.courseId()) {
@@ -76,8 +78,8 @@
       const row = el('li', undefined, 'knowledge-item');
       const name = el('input'); name.value = item.name; name.maxLength = 40; name.required = true;
       name.setAttribute('aria-label', `第 ${index + 1} 条知识点名称`);
-      const known = el('span', '库中已有：合并资料', 'knowledge-badge done'); known.hidden = !shelf.has(item.name.trim());
-      name.oninput = () => { item.name = name.value; known.hidden = !shelf.has(name.value.trim()); summary(); };
+      const known = el('span', '库中已有：合并资料', 'knowledge-badge done'); known.hidden = !shelf.has(nameKey(item.name));
+      name.oninput = () => { item.name = name.value; known.hidden = !shelf.has(nameKey(name.value)); summary(); };
       const range = el('span', undefined, 'knowledge-range');
       const bound = (value, label, apply) => {
         const input = el('input'); input.type = 'number'; input.min = 1; input.max = max; input.value = value;
@@ -112,7 +114,7 @@
   }
   function summary() {
     const {items, shelf} = review_;
-    const reused = items.filter(i => shelf.has(i.name.trim())).length;
+    const reused = items.filter(i => shelf.has(nameKey(i.name))).length;
     $('knowledge-dialog-summary').textContent = `共 ${items.length} 条：新增 ${items.length - reused}，合并到已有 ${reused}`;
     $('knowledge-dialog-submit').disabled = !items.length;
   }
@@ -121,7 +123,7 @@
     try {
       const d = await api('/api/knowledge/drafts/' + uploadId);
       const items = d.draft.items.map(i => ({name: i.name, chapter: i.chapter || '', section: i.section || '', summary: i.summary || '', units: [...i.units]}));
-      review_ = {uploadId, version: d.draft.version, units: d.units, items, shelf: new Set(d.library), chapter: mainChapter(items)};
+      review_ = {uploadId, version: d.draft.version, units: d.units, items, shelf: new Set(d.library.map(nameKey)), chapter: mainChapter(items)};
       $('knowledge-dialog-title').textContent = (d.draft.status === 'confirmed' ? '知识点识别结果 · ' : '确认知识点 · ') + (d.upload.title || '资料');
       const method = d.draft.method === 'rules' ? '只按资料中的编号标题切分' : '按编号标题切分资料，再由模型细分';
       $('knowledge-dialog-meta').textContent = `${method} · 资料共 ${d.units.length} ${d.units[0]?.label.endsWith('页') ? '页' : '段'} · ${d.draft.status === 'confirmed' ? '已确认，可修改后再次确认' : '确认后才会加入知识点库'}`;
