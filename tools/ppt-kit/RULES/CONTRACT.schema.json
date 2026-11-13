@@ -1,0 +1,205 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://local/pptkit/contract.schema.json",
+  "title": "PPT Page Contract",
+  "description": "页面契约：模型输出的唯一中间层。渲染器只认这个结构，不认自然语言。",
+  "type": "object",
+  "required": ["meta", "slides"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["title"],
+      "properties": {
+        "title": { "type": "string", "description": "演示文稿总标题，也用作文件名" },
+        "subtitle": { "type": "string" },
+        "en_title": { "type": "string" },
+        "org": { "type": "string", "description": "汇报单位，用于页脚左" },
+        "date": { "type": "string", "description": "如 2026-11" },
+        "tone": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 3,
+          "maxItems": 5,
+          "description": "视觉调性 3-5 个词"
+        },
+        "chapters": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "章节标题，长度必须等于 section 页数量"
+        }
+      }
+    },
+    "theme": {
+      "type": "object",
+      "properties": {
+        "primary": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "accent": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "text": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "muted": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "hint": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "bg_sub": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "font_cn": { "type": "string" },
+        "font_en": { "type": "string" }
+      }
+    },
+    "slides": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/slide" }
+    }
+  },
+  "definitions": {
+    "slide": {
+      "type": "object",
+      "required": ["type", "role", "rhythm", "layout"],
+      "properties": {
+        "type": { "enum": ["cover", "catalog", "section", "content", "ending"] },
+        "role": { "enum": ["hero", "supporting", "transition"] },
+        "rhythm": { "enum": ["peak", "valley", "transition"] },
+        "layout": {
+          "enum": [
+            "cover_split",
+            "catalog",
+            "section",
+            "split_title_body",
+            "asym_two_col",
+            "table_insight",
+            "flow_axis",
+            "cards_row",
+            "big_number_insight",
+            "chart_insight"
+          ]
+        },
+        "no": { "type": "string", "description": "section 页编号，01..N" },
+        "eyebrow": { "type": "string", "description": "标题上方栏目小字" },
+        "title": { "type": "string", "description": "必须是论断句，不能是栏目名" },
+        "subtitle": { "type": "string" },
+        "en_title": { "type": "string" },
+        "bullets": { "type": "array", "items": { "type": "string" } },
+        "points": { "type": "array", "items": { "type": "string" }, "maxItems": 4 },
+        "body": {
+          "type": "array",
+          "description": "正文段落。字符串即纯段落；对象可带小标题 {heading, text}",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "properties": {
+                  "heading": { "type": "string" },
+                  "text": { "type": "string" }
+                }
+              }
+            ]
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "no": { "type": "string" },
+              "title": { "type": "string" },
+              "desc": { "type": "string" }
+            }
+          }
+        },
+        "left": {
+          "type": "object",
+          "properties": {
+            "heading": { "type": "string" },
+            "body": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "right": {
+          "type": "object",
+          "properties": {
+            "heading": { "type": "string" },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "no": { "type": "string" },
+                  "title": { "type": "string" },
+                  "desc": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "table": {
+          "type": "object",
+          "properties": {
+            "header": { "type": "array", "items": { "type": "string" } },
+            "rows": {
+              "type": "array",
+              "items": { "type": "array", "items": { "type": "string" } }
+            },
+            "col_widths": {
+              "type": "array",
+              "items": { "type": "number" },
+              "description": "相对权重，自动归一化到内容宽"
+            }
+          }
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": { "type": "string" },
+              "desc": { "type": "string" }
+            }
+          }
+        },
+        "cards": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string" },
+              "desc": { "type": "string" }
+            }
+          }
+        },
+        "numbers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": { "type": "string" },
+              "unit": { "type": "string" },
+              "label": { "type": "string" }
+            }
+          }
+        },
+        "chart": {
+          "type": "object",
+          "properties": {
+            "kind": { "enum": ["bar", "line"] },
+            "categories": { "type": "array", "items": { "type": "string" } },
+            "series": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "values": { "type": "array", "items": { "type": "number" } }
+                }
+              }
+            }
+          }
+        },
+        "insight": { "type": "string", "description": "底部论断条：这一页所以然" },
+        "anti_pattern": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 0,
+          "description": "本页禁止出现的形式，生成时自检"
+        },
+        "footnote": { "type": "string", "description": "替换默认页脚左文案" }
+      }
+    }
+  }
+}

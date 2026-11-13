@@ -1,0 +1,161 @@
+{
+  "source_directory": "C:\\Users\\jiahjq\\Desktop\\tep\\ppt-kit",
+  "imported_date": "2026-11-01",
+  "license_status": "not_provided_by_source",
+  "files": [
+    {
+      "source": "examples/build_demo.py",
+      "file": "examples/build_demo.py",
+      "sha256": "e5dfc0c206d63f7125570080521e245e5e20fdb33d07dfb325c6ab791e4a7286"
+    },
+    {
+      "source": "examples/deck.json",
+      "file": "examples/deck.json",
+      "sha256": "f6153ad894419dd217ff48ca23df4bb8ef983bda70776e30f93b9d768fcb5870"
+    },
+    {
+      "source": "pptkit/__init__.py",
+      "file": "pptkit/__init__.py",
+      "sha256": "964c7ec93f8ce9c73a407d8ce360f74fcd2679d074c428259eabf1d138c25fe9"
+    },
+    {
+      "source": "pptkit/__main__.py",
+      "file": "pptkit/__main__.py",
+      "sha256": "89775b01a13413329ffd4dc0ef7cd58aafeb33e15b4188e4a32ed971303f4a16"
+    },
+    {
+      "source": "pptkit/builder.py",
+      "file": "pptkit/builder.py",
+      "sha256": "822773873458b50e1c7dfda200b96b68e2800665c7a32d6b29fded3c65d6da53"
+    },
+    {
+      "source": "pptkit/check.py",
+      "file": "pptkit/check.py",
+      "sha256": "0ea6f0ccc3d247586306ec4ad0c62894f7b57683f5f216cecaaf55a964a48247"
+    },
+    {
+      "source": "pptkit/contract.py",
+      "file": "pptkit/contract.py",
+      "sha256": "c1e166f7b0b594abcc503cb9ce24740b852957d8b4c164b91fb93a509e8e53ac"
+    },
+    {
+      "source": "pptkit/layouts.py",
+      "file": "pptkit/layouts.py",
+      "sha256": "45d815ab24e29253ca15f0b98f1e3b481e1c07922d4923e0f64ad81c4cec686b"
+    },
+    {
+      "source": "pptkit/preview.py",
+      "file": "pptkit/preview.py",
+      "sha256": "d42a947990b516a91fd15365d5e299082d90fb98f81012a54f19b076220c15a4"
+    },
+    {
+      "source": "pptkit/theme.py",
+      "file": "pptkit/theme.py",
+      "sha256": "d2a50f85dec271ccc289e7b46ef3dda8a059879c4505e71fe99a6ea6430ef836"
+    },
+    {
+      "source": "prompts/system.md",
+      "file": "prompts/system.md",
+      "sha256": "3998800456ecd933739845385e097070b7fd0f1585b95b6bdd5e8846b362d309"
+    },
+    {
+      "source": "README.md",
+      "file": "UPSTREAM-README.md",
+      "sha256": "2fa6588fdd4232211685c51e0869f6d471861e7e0f2249a35470124f008b14f7"
+    },
+    {
+      "source": "RULES/CONTRACT.schema.json",
+      "file": "RULES/CONTRACT.schema.json",
+      "sha256": "3d5fdac438864e2c7de12104e3bcd41a306be86f5fada5a3d5fbdd82d107669f"
+    },
+    {
+      "source": "RULES/DESIGN.rules.md",
+      "file": "RULES/DESIGN.rules.md",
+      "sha256": "9734b40523e7063b388c5802b80ca6fcfd5c725e31c3905d14408bb29615cd6d"
+    },
+    {
+      "source": "RULES/LAYOUTS.md",
+      "file": "RULES/LAYOUTS.md",
+      "sha256": "fbe5ed5a1968286eda5c50f18c9e27e7a86195e1f1275ca3807ed00b8a9504e7"
+    },
+    {
+      "source": "RULES/STORY.template.md",
+      "file": "RULES/STORY.template.md",
+      "sha256": "832b08e100a319c05962a5866a339104698b33741d03e0cad46634bfba85fbb1"
+    }
+  ],
+  "removed_example_outputs": [
+    {
+      "source": "examples/preview.pdf",
+      "file": "examples/preview.pdf",
+      "sha256": "92c8a97a88904b488ebd32321e1699a9a1cee71e2d8097574ade07a75ed1bf81"
+    },
+    {
+      "source": "examples/shots/s-01.png",
+      "file": "examples/shots/s-01.png",
+      "sha256": "046fc073abdbba580f20ae585d1e464b191609b4ed6b75b783e451248c3282fd"
+    },
+    {
+      "source": "examples/shots/s-02.png",
+      "file": "examples/shots/s-02.png",
+      "sha256": "89c41a4f73c6ab14b0fbc83a96efec9a25933d26e0b2f8970aad5deb0e7c29fa"
+    },
+    {
+      "source": "examples/shots/s-03.png",
+      "file": "examples/shots/s-03.png",
+      "sha256": "f289f32667cb6b01f4510763fc03fd74d360c325e765d663d55873f0f3c8fd2f"
+    },
+    {
+      "source": "examples/shots/s-04.png",
+      "file": "examples/shots/s-04.png",
+      "sha256": "369da8267a5415f6a3e0e70929744d2707fff77b86d3cca421306d96dbd73848"
+    },
+    {
+      "source": "examples/shots/s-05.png",
+      "file": "examples/shots/s-05.png",
+      "sha256": "f3d7c1c3639a15faeadb9f8d744e28114720d725c84b2ef1dc1044f575312eff"
+    },
+    {
+      "source": "examples/shots/s-06.png",
+      "file": "examples/shots/s-06.png",
+      "sha256": "40bfe8733cb9a39dc5d5837ccb2dfbb7bbed5961c4a5dcd65efd48784ec2edc8"
+    },
+    {
+      "source": "examples/shots/s-07.png",
+      "file": "examples/shots/s-07.png",
+      "sha256": "1f36c5ade1b53d1f25cd501124e6e7db7ec8c6cd838a0afece6a221eb93d01fe"
+    },
+    {
+      "source": "examples/shots/s-08.png",
+      "file": "examples/shots/s-08.png",
+      "sha256": "138e85fa3f7b053a91528c5c963145effe7a3ac0b1f31980f2e8b14e5650d76b"
+    },
+    {
+      "source": "examples/shots/s-09.png",
+      "file": "examples/shots/s-09.png",
+      "sha256": "57a2cf4ece4a39722a1124b4d65694df7c99019d8e75757f4637b4816bf58db1"
+    },
+    {
+      "source": "examples/shots/s-10.png",
+      "file": "examples/shots/s-10.png",
+      "sha256": "c7e8355b4af4d3601c73d6722664ff292a838022a17d45a5fde8b2af8e40aff8"
+    },
+    {
+      "source": "examples/课程知识库问答系统.pptx",
+      "file": "examples/课程知识库问答系统.pptx",
+      "sha256": "551952d8902a8d1197783728b5dd8e866e053f51bba22a0b3e9a42a0ed80588f"
+    },
+    {
+      "source": "examples/课程知识库问答系统.preview.pdf",
+      "file": "examples/课程知识库问答系统.preview.pdf",
+      "sha256": "5af7e7b8e3fa403fdbb4f26bf8395f6fd9e22544ce83eca9892cb1920be22002"
+    }
+  ],
+  "local_modifications": [
+    {
+      "file": "pptkit/layouts.py",
+      "sha256": "80f4cd59c5b771c0e0033efdcec59d3ef7331ab7c3d3942739b437e6102930e1",
+      "purpose": "Classroom typography, dynamic cover title height, optional template-safe cover decoration"
+    }
+  ]
+}

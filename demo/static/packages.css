@@ -1,0 +1,7 @@
+dialog.package-dialog{width:min(620px,calc(100vw - 32px));inline-size:min(620px,calc(100vw - 32px));height:auto;block-size:auto;max-height:calc(100dvh - 48px);max-block-size:calc(100dvh - 48px)}
+.package-form{display:grid;grid-template-columns:96px minmax(0,1fr);gap:12px 14px;align-items:center;margin:16px 0}
+.package-form label{font-size:13px;font-weight:600}
+.package-form select{width:100%;min-width:0}
+.package-contents{margin:6px 0 4px;padding:12px 14px 12px 32px;border:1px solid var(--line);border-radius:10px;background:#fafbfe;font-size:13px;line-height:1.8;color:#33435c}
+.package-actions{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 4px}
+@media(max-width:560px){.package-form{grid-template-columns:1fr}.package-form label{margin-top:6px}}

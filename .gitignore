@@ -1,0 +1,76 @@
+# 本地配置与凭据；保留可提交的配置示例
+.env
+.env.*
+!.env.example
+
+# Personal interview preparation notes
+/docs/实习面试准备手册.md
+/docs/项目实现详解.md
+
+# Python 环境、缓存与构建产物
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# 本地运行数据、日志与临时文件
+.runtime/
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.log
+/demo/test-results-*.txt
+*.tmp
+*.swp
+*.swo
+*~
+
+# AI 助手配置、记忆与本地计划
+/.workbuddy/
+/.codex/
+/.agents/
+/.claude/
+/.gemini/
+/.cursor/
+/.windsurf/
+/.roo/
+/.kilocode/
+/.clinerules/
+/.aider*
+/.cursorrules
+/.windsurfrules
+/.clinerules
+/.mcp.json
+/.github/copilot-instructions.md
+/.github/instructions/
+AGENTS.md
+AGENTS.local.md
+CLAUDE.md
+CLAUDE.local.md
+GEMINI.md
+[Tt][Oo][Dd][Oo]
+[Tt][Oo][Dd][Oo].*
+
+# 已移除的旧周报
+/part1.*
+
+# 本机云服务凭据
+/.aws/
+
+# 操作系统生成的文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 课程资料、测试夹具、提示模板和已有实验记录应继续跟踪，
+# 不使用 *.txt、*.pdf、*.png、artifacts/ 等宽泛规则。

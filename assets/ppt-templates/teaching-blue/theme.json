@@ -1,0 +1,10 @@
+{
+  "id": "teaching-blue",
+  "name": "蓝白教学 · 内容自适应",
+  "version": "teaching-blue-v1",
+  "description": "参考创新实践汇报的蓝白视觉层次，按课堂内容选择原生可编辑版式。",
+  "canvas_pt": [1280, 720],
+  "palette": {"primary": "#143F88", "accent": "#3269D4", "text": "#172235", "muted": "#4B5B73", "hint": "#8494AC", "bg_sub": "#F4F7FC", "line": "#D6E0EF"},
+  "font_cn": "Microsoft YaHei",
+  "layouts": ["cover", "explain", "definition", "steps", "comparison", "table", "process", "metrics", "practice", "recap"]
+}

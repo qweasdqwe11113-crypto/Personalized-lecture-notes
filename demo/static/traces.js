@@ -1,0 +1,117 @@
+// Every value below is displayed as text. Model/user input is never HTML.
+let lectureTraceId = null, dialogTraceId = null, traceSession = 0;
+const runLabels = {running: '未完成', succeeded: '讲义已保存', failed: '生成失败'};
+function clearLectureTrace() {
+  lectureTraceId = null;
+  $('view-input').disabled = true;
+  $('input-trace-note').hidden = true;
+}
+function showLectureTrace(result) {
+  lectureTraceId = result.generation_run_id || null;
+  $('view-input').disabled = !lectureTraceId;
+  $('input-trace-note').hidden = false;
+  $('input-trace-note').textContent = lectureTraceId
+    ? `本次生成输入已留存 · 记录 #${lectureTraceId}`
+    : '这份历史讲义没有保存完整 Prompt 与参数，无法精确还原当时的调用。学生与材料快照仍可查看。';
+}
+function showFailedTrace(runId) {
+  if (!runId) return;
+  lectureTraceId = runId;
+  $('view-input').disabled = false;
+  $('input-trace-note').hidden = false;
+  $('input-trace-note').textContent = `本次未生成完整讲义，输入与状态可从记录 #${runId} 核查。`;
+}
+async function refreshRuns() {
+  const data = await api('/api/generation-runs');
+  $('generation-runs').replaceChildren(...data.runs.map(run => {
+    const button = el('button', undefined, 'run-history-item');
+    button.type = 'button';
+    button.append(el('span', `#${run.id} ${run.name} · ${run.ppt_generation?(run.status==='succeeded'?'PPT 已生成':'PPT · '+runLabels[run.status]):run.section_rewrite?(run.status==='succeeded'?'章节候选已生成':runLabels[run.status]):runLabels[run.status]}`, 'run-' + run.status),
+                  el('span', run.topic, 'helper'));
+    button.onclick = () => openTrace(run.id);
+    return button;
+  }));
+  if (!data.runs.length) $('generation-runs').append(el('p', '尚无保存完整输入的新请求。既有讲义在“最近生成”查看。', 'helper'));
+}
+function traceError(message) {
+  $('trace-dialog-error').textContent = message || '';
+  $('trace-dialog-error').hidden = !message;
+}
+function drawTrace(run) {
+  const payload = run.request_payload || {};
+  const edit=run.context.section_edit;const saved=run.response_metadata.saved_revision;
+  const ppt=run.context.ppt_export;
+  const messages = Array.isArray(payload.messages) ? payload.messages : [];
+  $('trace-title').textContent = `生成记录 #${run.id} · ${edit&&run.status==='succeeded'?'章节候选已生成':runLabels[run.status]}`;
+  $('trace-status').textContent = run.status === 'running'
+    ? '记录尚未结束，可能仍在处理或曾中断，请刷新核查。'
+    : run.status === 'succeeded' ? `已关联讲义 #${run.lecture_id}，输入与输出一起留存。` : '此记录没有进入成功讲义历史。';
+  if(edit&&run.status==='succeeded')$('trace-status').textContent=saved?`本次章节修改已另存讲义 #${edit.lecture_id} / R${saved} 草稿。`:`章节候选尚未采用，可从后台任务恢复预览；原讲义未修改。`;
+  if(ppt){$('trace-title').textContent=`PPT 生成记录 #${run.id} · ${run.status==='succeeded'?'课件已生成':runLabels[run.status]}`;$('trace-status').textContent=`来源：讲义 #${ppt.lecture_id} / ${ppt.base_revision?'R'+ppt.base_revision:'原稿'} · ${ppt.slide_count} 页；课件需单独教师复核，可从后台任务恢复预览。`;}
+  traceError(!run.integrity_valid ? '输入校验值不匹配，请核查存储记录。' : run.error_message);
+  $('trace-call-note').textContent = run.attempted_at
+    ? `已尝试调用模型 · ${new Date(run.attempted_at).toLocaleString('zh-CN')}`
+    : '输入已准备，尚未记录模型调用尝试。配置或资料检查失败时，输入仍可核查。';
+  $('trace-metadata').replaceChildren();
+  for (const [label, value] of [
+    ['提示模板版本', run.prompt_version], ['输入结构版本', run.input_version],
+    ['请求模型', payload.model || '未记录'], ['服务返回模型', run.response_metadata.response_model || '未记录'],
+    ['记录时间', new Date(run.created_at).toLocaleString('zh-CN')],
+    ['结束时间', run.finished_at ? new Date(run.finished_at).toLocaleString('zh-CN') : '尚未确认'],
+    ['耗时', run.elapsed_seconds === null ? '未记录' : `${Number(run.elapsed_seconds).toFixed(2)} 秒`],
+    ['输入 SHA-256', run.request_sha256], ['模型用量', JSON.stringify(run.usage)],
+    ...(run.response_metadata.stages ? [['分章节调用记录', '下面显示的冻结请求是大纲阶段；各章节请求由它、冻结上下文和大纲推导。'
+      + run.response_metadata.stages.map(s => `\n${s.stage === 'outline' ? '大纲' : s.stage} · 第 ${s.attempt} 次 · ${s.characters} 汉字 · ${s.seconds} 秒`
+        + (s.problems.length ? ' · 未通过：' + s.problems[0] : '') + ' · 请求 SHA-256 ' + s.request_sha256.slice(0, 12)).join('')]] : []),
+    ['失败分类', run.error_code ? `${run.error_stage} / ${run.error_code}` : '无已记录失败']
+  ]) $('trace-metadata').append(el('dt', label), el('dd', value));
+  const context = run.context;
+  $('trace-context-summary').textContent = [
+    `学生：${context.student.name}`, `备课副本 / 主题：${run.topic}`,
+    `本次目标：${run.goal}`, `主题默认目标：${context.topic.goal}`,
+    `学习特点：${context.student.profile}`,
+    `备注：${context.teaching_options?.requirements || '无'}`,
+    ...(context.learner_note ? [`历史学生观察：${context.learner_note}`] : []),
+    `授课设置：${context.teaching_options ? JSON.stringify(context.teaching_options,null,2) : '历史输入未设置'}`,
+    ...(edit ? [`章节调整：讲义 #${edit.lecture_id} / ${edit.base_revision?'R'+edit.base_revision:'原稿'} / ${edit.title}；要求：${edit.instruction||edit.action}`] : []),
+    `副本教案：${context.topic.lesson_plan || '未填写教案正文。'}`,
+    '知识状态：' + context.states.map(s => `${s.name} / ${s.label} / 记录版本 ${s.revision ?? '未记录'}`).join('；'),
+    '课程材料：' + context.materials.map(m => `M${m.id} ${m.title}`).join('；')
+  ].join('\n\n');
+  $('trace-system').textContent = messages.find(m => m.role === 'system')?.content || '记录中缺少系统消息。';
+  $('trace-user').textContent = messages.find(m => m.role === 'user')?.content || '记录中缺少用户消息。';
+  $('trace-parameters').textContent = JSON.stringify(Object.fromEntries(Object.entries(payload).filter(([key]) => key !== 'messages')), null, 2);
+  $('trace-body').textContent = run.request_body;
+  $('trace-output-section').hidden = !run.content;
+  $('trace-output-title').textContent = run.status === 'succeeded' ? '输出正文（仍需教师审核）' : '部分输出（生成失败，不能当作完整讲义）';
+  $('trace-output').textContent = run.content;
+  $('download-input').hidden = !run.integrity_valid || !run.request_payload;
+  $('download-input').href = `/api/generation-runs/${run.id}/input`;
+  $('download-input').download = `generation-${run.id}-input.json`;
+  $('retry-run').hidden = run.status !== 'failed' || !run.integrity_valid || !run.request_payload;
+  $('retry-run').dataset.runId = run.id;
+  $('trace-content').hidden = false;
+}
+async function openTrace(runId) {
+  dialogTraceId = runId;
+  const session = ++traceSession;
+  traceError('');
+  $('trace-content').hidden = true;
+  $('download-input').hidden = true;
+  $('retry-run').hidden = true;
+  $('trace-title').textContent = `生成记录 #${runId}`;
+  $('trace-status').textContent = '正在读取保存的输入…';
+  if (!$('trace-dialog').open) $('trace-dialog').showModal();
+  try {
+    const run = await api(`/api/generation-runs/${runId}`);
+    if (session === traceSession && $('trace-dialog').open) drawTrace(run);
+  } catch (err) {
+    if (session === traceSession) { traceError(err.message); $('trace-status').textContent = '记录暂时无法读取。'; }
+  }
+}
+$('view-input').onclick = () => { if (lectureTraceId) openTrace(lectureTraceId); };
+$('reload-trace').onclick = () => { if (dialogTraceId) openTrace(dialogTraceId); };
+$('close-trace').onclick = () => { traceSession++; $('trace-dialog').close(); };
+$('trace-dialog').addEventListener('cancel', () => { traceSession++; });
+$('refresh-runs').onclick = () => refreshRuns().catch(err => error(err.message));
+refreshRuns().catch(() => { $('generation-runs').replaceChildren(el('p', '记录暂时无法读取，请刷新。', 'helper')); });

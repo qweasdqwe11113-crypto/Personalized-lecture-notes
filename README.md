@@ -1,41 +1,198 @@
-# 知课 AI：VLM + RAG 教学助手（简易原型）
+# Zhiye · Personalized Lecture, Quiz and Grading Assistant for Teachers
 
-这是一个带前端的轻量演示项目，用于展示“资料入库 → RAG 检索 → 个性化讲义/出题 → 来源引用”的基本流程。
+A VLM + RAG prototype for lesson preparation. It generates editable, teacher-facing lecture notes from **course materials**, **student profiles** and **the requirements of the current lesson**, then builds on the same lecture to create matching quizzes, classroom slides and a lesson package, grade student work, and record the grading results back into the student profile.
 
-## 启动
+> Single-machine prototype; all students are synthetic. Lectures, questions, slides and scores are model-generated. Automated checks only verify structure and citation IDs — correctness and teaching value must be reviewed by a teacher.
 
-需要 Node.js 18 或更高版本，无需安装第三方依赖。
+## Features
 
-```powershell
-cd "C:\Users\jiahjq\Desktop\vlm+rag"
-npm start
+| Page | What it does |
+| --- | --- |
+| Lecture Workbench (讲义工作台) | Pick a lesson of the current course and a target — the whole class (class profile) or one student — set duration, detail level, number of examples and exercises, and adjust the per-topic teaching plan; generate a personalized lecture; read, revise, rewrite single sections, compare and export |
+| Writing mode and format (高级设置) | **Outline first, then one model call per section** with its own length quota and one automatic rewrite on failed checks; **LaTeX formulas, tables and program-drawn figures** (probability tree, number line, equation steps, function plot, bar chart); a live preview while the model writes |
+| Class batch (批量生成) | Queue the same lesson for up to 60 students; each gets a separately frozen input, run and lecture |
+| Lesson prep (授课准备, lecture toolbar) | **Matching quiz** (配套出题, questions follow the lecture's methods and notation), **classroom slides** (生成授课 PPT, editable PPTX with per-slide edits), **lesson package** (导出授课包, teacher handbook + student worksheet + slides) |
+| Quizzes (出题) | Generate exercises by course, student level, difficulty and question type; export student and teacher versions |
+| Grading (阅卷) | Upload student answers (images / PDF / Word); suggested per-question scores against a generated quiz or an uploaded answer key; record results into the student profile by knowledge point |
+| Course / class switcher (课程 › 班级) | Every working page follows the course and class chosen at the top; students are shared across courses, one class per course |
+| Courses (课程) | Per course: lesson prep (goals, lesson plan, knowledge points ticked from the course library), course resources shared by all its classes, a **knowledge library** (知识点库), and its classes; uploads are recognized into knowledge points automatically (section headings by rule, fine-grained points by the model), reviewed and confirmed by the teacher, and each point keeps its source pages; images are read by a vision model |
+| Classes & profiles (班级与画像) | Class profile (per-point mastery distribution, students to watch, class notes with history), one-click class lecture, class roster and CSV import, class-only resources, and each student's record and learning evidence |
+| Records (生成记录) | Lecture, quiz and grading history, background jobs, fixed-input comparison experiments |
+| Settings (系统设置) | Configure and test the language, vision and embedding models |
+
+## Core Workflow
+
+```mermaid
+flowchart LR
+    M["Course materials<br/>lesson plan, documents, images"] --> L["Generate personalized lecture"]
+    P["Student profile<br/>mastery and evidence"] --> L
+    L --> R["Teacher review and revision"]
+    R --> Q["Matching quiz"]
+    R --> S["Classroom slides"]
+    Q --> K["Lesson package"]
+    S --> K
+    R --> K
+    Q --> G["Grading"]
+    G --> E["Teacher-confirmed<br/>profile evidence"]
+    E --> P
 ```
 
-浏览器访问：<http://localhost:3000>
+Design principles:
 
-## 已实现
+- **Frozen, traceable inputs**: every request is saved with its SHA-256 before it is sent, so failures can be retried byte for byte, and history never changes when materials or profiles change later.
+- **Teacher confirmation**: the model never edits a student profile; every evidence entry and mastery change is confirmed by a teacher.
+- **Separate vision step**: images are transcribed by a dedicated vision model; the language model only receives the transcribed text.
+- **Checks are not correctness**: the program checks structure, length and citation IDs; subject correctness, source support and fit for the student are the teacher's call.
+- **Figures are drawn by code**: the model only states a figure's data as JSON; the program validates it (branch probabilities sum to 1, a stated solution satisfies every step) and renders it, so a figure is reproducible from the saved text.
+- **Arithmetic is recomputed**: numeric equalities and stated solutions written in a lecture are re-evaluated with exact fractions and disagreements are flagged; anything the parser cannot read is skipped, not guessed.
 
-- 教学聊天工作台
-- 根据学生水平和薄弱项生成不同内容
-- 文本、Markdown、JSON、CSV 文件上传与切分
-- PDF、PPT、图片等多模态文件的上传占位流程
-- 本地 JSON 知识库及简单关键词检索
-- 讲义、试题、答案和评分点生成演示
-- 中文维基百科联网搜索及自动入库，失败时使用演示资料
-- 检索来源展示和知识库管理
+## Quick Start
 
-## 演示版边界
+### 1. Requirements
 
-- 当前生成逻辑是本地规则引擎，尚未调用真实大语言模型。
-- 当前检索是关键词匹配，尚未接入 Embedding 和向量数据库。
-- PDF、PPT 和图片只保存元数据，尚未启用 OCR/VLM 解析。
-- 联网资料会直接加入本地演示库；正式系统应增加可信来源筛选和教师审核。
+- Python 3.12+ and PostgreSQL 13+ (local connection is enough)
+- An OpenAI-compatible model service. [Alibaba Cloud Model Studio (百炼)](https://help.aliyun.com/zh/model-studio/first-api-call-to-qwen) is recommended: one API key covers the language, vision and embedding models
+- Optional: Node.js (frontend regression tests); Windows with PowerPoint and Ollama (visual review of rendered slides)
 
-## 后续接入真实模型的位置
+### 2. Install and configure
 
-- 将 `server.js` 中的 `buildChatResponse()` 替换为大模型调用。
-- 将 `retrieve()` 替换为 pgvector/Qdrant 的向量与关键词混合检索。
-- 在 `/api/documents` 入库流程中加入 PDF 解析、OCR、VLM 图片理解和 Embedding。
-- 在 `/api/web-search` 中增加来源白名单、正文抓取、可信度评分和人工审核状态。
+Linux / macOS:
 
-数据保存在 `data/knowledge.json`，首次启动时自动创建。
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+cp .env.example .env
+```
+
+Windows PowerShell:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+Copy-Item .env.example .env
+```
+
+Edit `.env` and fill in at least the model keys (`QWEN_API_KEY`, `VLM_API_KEY`) and the database connection `DATABASE_URL`. See [Configuration](#configuration).
+
+### 3. Run
+
+Linux / macOS:
+
+```bash
+./run_demo.sh
+```
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 demo\init_db.py
+.\.venv\Scripts\python.exe -X utf8 demo\app.py
+```
+
+Open <http://127.0.0.1:5055>; stop with Ctrl+C. Startup initializes the dedicated database `lecture_demo_prototype`: it is created automatically if missing and your account may create databases, and existing data is never cleared. Without that permission, ask an administrator to create it once:
+
+```bash
+sudo -u postgres createdb --owner="$USER" lecture_demo_prototype
+```
+
+Restart the service after editing `.env`. In Settings (系统设置), use each model's test button to confirm it can actually be called.
+
+**After `git pull`**, stop the service and start it again the same way. Startup adds new tables and columns and migrates existing records in place, so nothing needs resetting. For example, the course and class structure and each course's knowledge library (知识点库) are built from your existing lessons. Check `requirements.txt` and `.env.example` for new entries. The database, `.runtime/` uploads and `.env` stay on each machine and are never pushed: a fresh setup starts from the seed data (two preset courses, each with a demo class of three fictional students), and records you add stay on your machine.
+
+### 4. Five-minute tour
+
+1. **Lecture Workbench**: choose 「大学概率：贝叶斯推导与先验敏感性（进阶任务）」 and student 「小唐」, then click 「生成个性化讲义」. It takes about a minute.
+2. Read the lecture, check the program-check summary above the text, and click citation IDs such as `[M11]` to see the source; to change the text, use 「编辑与审核」 and save it as R1.
+3. In the toolbar's 「授课准备」 group, click **配套出题** (10 questions, mixed difficulty) and **生成授课 PPT** (12 slides).
+4. Click **导出授课包** to download the ZIP: teacher handbook, student worksheet, slides and manifest.
+5. After students answer, open **阅卷**, choose that quiz as the answer source and upload the answers; when grading finishes, confirm each evidence draft under 「记入学生画像」.
+
+To try everything without calling a real model, start the offline sandbox. All model replies are fixed test responses and data goes into a temporary schema, so production data is untouched:
+
+```bash
+.venv/bin/python demo/tests/serve_workspace_fixture.py   # then open http://127.0.0.1:5056
+```
+
+## Configuration
+
+All settings live in the local `.env` (ignored by git); see [.env.example](.env.example).
+
+| Variable | Description |
+| --- | --- |
+| `DATABASE_URL` | PostgreSQL connection; the database name must be `lecture_demo_prototype`. With a password: `postgresql://user:password@127.0.0.1:5432/lecture_demo_prototype` |
+| `QWEN_BASE_URL` / `QWEN_MODEL` / `QWEN_API_KEY` | Language model for lectures, quizzes, slides and grading. Model Studio example: `https://dashscope.aliyuncs.com/compatible-mode/v1`, `qwen3.8-max` |
+| `QWEN_TIMEOUT_SECONDS` | Timeout per model call, 30–600 seconds, default 600 |
+| `VLM_BASE_URL` / `VLM_MODEL` / `VLM_API_KEY` | Vision model for reading uploaded images and answer sheets. In our tests `qwen3.8-flash` marks unreadable content honestly instead of guessing |
+| `QWEN_EMBEDDING_MODEL` / `_BASE_URL` / `_API_KEY` | Embedding model for vector retrieval (optional); URL and key fall back to the language model's |
+| `PPT_AESTHETIC_BASE_URL` / `PPT_AESTHETIC_MODEL` | Visual review of rendered slides (optional; Windows + PowerPoint + local Ollama only, skipped elsewhere) |
+| `MODEL_CONCURRENCY` | Language-model calls allowed at the same time, 1–8, default 3. Used by sectioned writing and class batches; `1` restores strictly serial calls |
+| `QWEN_EMBEDDING_BATCH_SIZE` | Texts per embedding request, default 10 (the Model Studio limit); long documents are embedded in batches |
+| `PORT` | Service port, default 5055; listens on localhost only |
+
+## Project Structure
+
+```text
+.
+├── run_demo.sh              # Start script: check dependencies → init database → start server
+├── requirements.txt         # Python dependencies
+├── .env.example             # Configuration template
+├── project_map.md           # Module map and data flow (developer docs, Chinese)
+├── demo/                    # The Flask application
+│   ├── app.py               # Entry point: lecture context and generation, exports, module registration
+│   ├── schema.sql           # PostgreSQL schema; init_db.py creates it and loads seed data
+│   ├── prompts.py, prompts/ # Prompt assembly and versioned prompt files (lectures, quizzes, slides)
+│   ├── quizzes.py           # Quizzes and lecture-linked quizzes
+│   ├── presentations.py     # Classroom slides (rendering in ppt_*.py and pptkit_export.py)
+│   ├── packages.py          # Lesson package export
+│   ├── grading.py           # Grading and evidence drafts
+│   ├── profiles.py          # Student profiles and evidence; roster_import.py for CSV import
+│   ├── catalog.py           # Lesson-prep copies; uploads.py / vision.py for uploads and image reading
+│   ├── courses.py, classes.py # Courses, their classes and rosters, class profiles; legacy data migration
+│   ├── knowledge.py         # Course knowledge library; recognizes points in uploads → teacher review → library
+│   ├── retrieval.py         # SQL and vector material selection; embed.py embedding client
+│   ├── reviews.py           # Revisions and review; quality.py automated checks
+│   ├── sectioned.py         # Outline → per-section calls → checks and one rewrite → assembly
+│   ├── gate.py, progress.py # Shared model-concurrency gate; live text of running jobs (display only)
+│   ├── mathcheck.py         # Recomputes written arithmetic and substitutes stated solutions
+│   ├── figures.py           # Validates figure specs and renders SVG/PNG; richdoc.py exports formulas, figures, tables
+│   ├── scale/               # Optional chapter-sized corpus, synthetic class, retrieval and generation benchmarks
+│   ├── templates/, static/  # Frontend page, scripts and styles (vanilla JS, no build step)
+│   └── tests/               # Unit and integration tests; offline sandboxes serve_*_fixture.py
+├── docs/                    # Feature documentation and topic notes (Chinese); scale-data.md for the benchmarks
+├── tools/ppt-kit/           # In-repo slide layout engine
+├── assets/ppt-templates/    # Slide templates and previews
+├── experiments/             # 2026-10-12 fixed-input comparison experiment
+└── artifacts/               # Sample files for grading
+```
+
+Runtime data is written to `.runtime/` (ignored): the upload store, grading store, slide-review records and exported lesson packages.
+
+## Tests
+
+```bash
+.venv/bin/python -m unittest discover -s demo/tests -v
+```
+
+Tests create a temporary schema in the dedicated database and drop it afterwards; they never touch production data or call a real model. With Node.js installed, frontend behaviour regressions run as well. All 340 tests pass as of 2026-11-10.
+
+## Documentation
+
+The detailed documents are written in Chinese.
+
+| Document | Contents |
+| --- | --- |
+| [docs/features.md](docs/features.md) | Behaviour, limits and design details of each page: lectures, profiles, retrieval, quizzes, slides, lesson packages, grading, job queue, experiments |
+| [project_map.md](project_map.md) | Module responsibilities, call relationships, data flow and storage — read before changing code |
+| [docs/image-lecture-workflow.md](docs/image-lecture-workflow.md) | How image reading feeds into lectures, and its limits |
+| [docs/scale-data.md](docs/scale-data.md) | Optional chapter-sized corpus and synthetic class, the retrieval evaluation and the generation benchmark |
+| [docs/ppt-template-integration.md](docs/ppt-template-integration.md) | Semantic slide layouts, template adaptation and version compatibility |
+| [demo/prompts/README.md](demo/prompts/README.md) | Prompt versions and the actual input structure |
+| [docs/archive/](docs/archive/) | Early VLM + RAG planning drafts from 2026-10-21; historical only, not the current implementation |
+| [experiments/2026-10-12-bayes](experiments/2026-10-12-bayes/summary.md), [demo/VERIFICATION.md](demo/VERIFICATION.md) | Historical comparison experiment and early engineering verification |
+
+## Status
+
+- **Implemented**: lecture generation and review, matching quizzes, classroom slides, lesson packages, grading into profiles, and batch import of student data. All are covered by automated tests and have been run end to end once with a real model (qwen3.8-max).
+- **Added on 2026-11-10, covered by automated tests and exercised in the offline sandbox, not yet run against a real model**: sectioned writing with automatic rewrite, streaming preview, LaTeX formulas and program-drawn figures, arithmetic recomputation, class batches with bounded model concurrency, automatic single retry for invalid quiz and slide output, an installable (PWA) shell, and the scale corpus with its benchmarks.
+- **Known issues**: single-call lectures came back at about a third of the requested length (1,177 of 3,600–5,400 characters in the one qwen3.8-max run). Sectioned writing is meant to fix this, but whether it does has to be measured with `demo/scale/bench.py --real`. It costs about six model calls per lecture and roughly six times the input tokens. Lectures and quizzes still contain occasional math errors from the model; the arithmetic check only catches numbers that disagree, so teachers still need to check every question.
+- **Not yet done**: a with/without-profile comparison on the current version, ablations of the vision and retrieval components with a real embedding model, and independent teacher review. Until then, no claims can be made about saving preparation time or improving learning. Slides still use plain-text formulas and carry no figures; exported HTML keeps formulas as LaTeX source.

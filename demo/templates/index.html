@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>知页 · 教学工作空间</title><meta name="theme-color" content="#365bd6"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icons/icon-192.png"><link rel="apple-touch-icon" href="/static/icons/icon-192.png"><link rel="stylesheet" href="/static/vendor/katex/katex.min.css"><script defer src="/static/vendor/katex/katex.min.js"></script><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/layout.css"><script defer src="/static/app.js"></script><script defer src="/static/context.js"></script><script defer src="/static/profiles.js"></script><script defer src="/static/traces.js"></script><script defer src="/static/reviews.js"></script><script defer src="/static/jobs.js"></script><script defer src="/static/profile-comparison.js"></script><script defer src="/static/lecture-comparison.js"></script><script defer src="/static/layout.js"></script><script defer src="/static/navigation.js"></script><link rel="stylesheet" href="/static/workspace.css"><script defer src="/static/uploads.js"></script><script defer src="/static/vision.js"></script><link rel="stylesheet" href="/static/vision.css"></head>
+<body>
+<aside class="app-sidebar" aria-label="主导航">
+ <a class="brand" href="#workbench"><span class="brand-icon">知</span><div><strong>知页</strong><span>教学工作空间</span></div></a>
+ <div class="workspace-label">教学管理</div>
+ <nav class="app-nav" aria-label="页面导航">
+  <a href="#workbench" data-page="workbench" aria-current="page"><span class="nav-icon" aria-hidden="true">▦</span>讲义工作台</a>
+  <a href="#quizzes" data-page="quizzes"><span class="nav-icon" aria-hidden="true">✎</span>出题</a>
+  <a href="#grading" data-page="grading"><span class="nav-icon" aria-hidden="true">✓</span>阅卷</a>
+  <a href="#materials" data-page="materials"><span class="nav-icon" aria-hidden="true">▤</span>课程</a>
+  <a href="#profiles" data-page="profiles"><span class="nav-icon" aria-hidden="true">◎</span>班级与画像</a>
+  <a href="#records" data-page="records"><span class="nav-icon" aria-hidden="true">◷</span>生成记录</a>
+  <a href="#settings" data-page="settings"><span class="nav-icon" aria-hidden="true">⚙</span>系统设置</a>
+ </nav>
+ <div class="sidebar-note"><span class="status-dot"></span>本地工作空间<p>学生画像驱动的个性化教学</p></div>
+ <div class="sidebar-user"><span class="user-avatar">教</span><div><strong>教师工作空间</strong><span>本地演示环境</span></div></div>
+</aside>
+<main>
+ <div class="context-bar" id="context-bar" role="group" aria-label="当前课程与班级">
+  <label class="context-pick" for="ctx-course"><span class="context-pick-label"><span aria-hidden="true">▤</span>课程</span><select id="ctx-course" disabled><option>正在读取…</option></select></label>
+  <span class="context-sep" aria-hidden="true">›</span>
+  <label class="context-pick" for="ctx-class"><span class="context-pick-label"><span aria-hidden="true">◎</span>班级</span><select id="ctx-class" disabled></select></label>
+  <a class="context-all" href="#courses">全部课程</a>
+ </div>
+ <h1 id="page-title" class="visually-hidden" tabindex="-1">讲义工作台</h1>
+ <div id="error" class="error" role="alert" hidden></div>
+ <section class="workspace-page" id="page-workbench" aria-labelledby="page-title">
+ <div class="workflow-strip" id="workflow-strip">
+   <span class="workflow-step" data-step="1"><span class="workflow-number">01</span><strong>选择备课与讲义对象</strong></span><span class="workflow-line"></span>
+   <span class="workflow-step" data-step="2"><span class="workflow-number">02</span><strong>设置并生成讲义</strong></span><span class="workflow-line"></span>
+   <span class="workflow-step" data-step="3"><span class="workflow-number">03</span><strong>审核修订</strong></span><span class="workflow-line"></span>
+   <span class="workflow-step" data-step="4"><span class="workflow-number">04</span><strong>配套出题、课件与授课包</strong></span>
+   <a href="#materials">管理课程备课 ↗</a>
+   
+ </div>
+  <div class="workspace" id="workspace">
+  <button type="button" id="sidebar-toggle" class="sidebar-toggle" aria-controls="settings-column" aria-expanded="true" aria-label="收起讲义设置" title="收起讲义设置">«</button>
+
+  <aside id="settings-column" aria-label="讲义设置与状态">
+    <section class="panel setup">
+      <div class="section-heading">
+        <div><h2>讲义设置</h2></div>
+      </div>
+    <form id="generate-form">
+     <div class="setup-field"><label for="topic">选择备课</label><select id="topic" disabled></select><p id="task-level" class="helper"></p><details id="preparation-preview" hidden><summary>查看副本目标与教案</summary><p id="preparation-preview-goal" class="helper"></p><p id="preparation-preview-plan" class="current-summary"></p></details></div>
+     <div class="setup-field"><label for="student" id="student-label">选择学生</label><select id="student" disabled></select><div id="student-profile" class="profile"></div></div>
+     <div class="setup-field setup-goal"><label for="goal">本次教学目标</label><textarea id="goal" rows="3" maxlength="400"></textarea></div>
+     <div class="lesson-setting-links" aria-label="更多讲义设置">
+      <button type="button" class="lesson-setting-link" data-setting-dialog="lesson-teaching-dialog" aria-haspopup="dialog" aria-controls="lesson-teaching-dialog"><span><strong>本次怎么讲</strong><span id="teaching-summary">45 分钟 · 新授 · 常规讲解</span></span><span class="setting-chevron" aria-hidden="true">›</span></button>
+      <button type="button" class="lesson-setting-link" data-setting-dialog="lesson-advanced-dialog" aria-haspopup="dialog" aria-controls="lesson-advanced-dialog"><span><strong>高级设置</strong><span>画像与材料取用</span></span><span class="setting-chevron" aria-hidden="true">›</span></button>
+      <button type="button" class="lesson-setting-link" data-setting-dialog="lesson-visual-dialog" aria-haspopup="dialog" aria-controls="lesson-visual-dialog"><span><strong>图片解析依据</strong><span id="visual-selection-count">未选择 · 选填，最多 4 张</span></span><span class="setting-chevron" aria-hidden="true">›</span></button>
+      <button type="button" class="lesson-setting-link" id="lecture-plan-box" data-setting-dialog="lesson-plan-dialog" aria-haspopup="dialog" aria-controls="lesson-plan-dialog"><span><strong>本次讲解安排</strong><span>按知识点查看与调整讲法</span></span><span class="setting-chevron" aria-hidden="true">›</span></button>
+     </div>
+     <div class="setup-field setup-goal"><label for="teaching-requirements">备注 <span>选填</span></label><textarea id="teaching-requirements" rows="3" maxlength="2000" placeholder="无"></textarea><p class="helper">默认无，按需填写。仅用于本次讲义，随生成输入保存。</p></div>
+     <button class="primary" id="generate" type="submit" disabled>生成个性化讲义 <span>↗</span></button>
+     <button class="secondary batch-open" id="batch-open" type="button" data-setting-dialog="batch-dialog" aria-haspopup="dialog" aria-controls="batch-dialog">为班内学生逐个生成…</button>
+     <p id="progress" class="helper" role="status" aria-live="polite">读取学生状态与课程证据后生成。</p>
+    </form>
+   </section>
+  </aside>
+  
+  <div id="layout-resizer" class="layout-resizer" role="separator" tabindex="0" aria-label="调整设置栏宽度" aria-orientation="vertical" aria-controls="settings-column lecture-results" aria-valuemin="280" aria-valuemax="440" aria-valuenow="330" aria-valuetext="设置栏宽度 330 像素" title="拖动调整宽度；左右方向键微调，Home/End 调到最小/最大，双击恢复默认"></div>
+  <div class="result-column" id="lecture-results">
+   <section class="paper" id="result-paper"><div class="paper-toolbar"><div><span class="paper-dot"></span><strong id="result-label">讲义预览</strong></div><div class="paper-actions"><div class="action-group action-group-prep" id="lecture-prep-actions" role="group" aria-labelledby="prep-actions-label"><span class="action-group-label" id="prep-actions-label">授课准备</span><span id="lecture-prep-status" class="prep-status" role="status" aria-live="polite"></span></div><div class="action-group" role="group" aria-labelledby="review-actions-label"><span class="action-group-label" id="review-actions-label">审核与追溯</span><button id="edit-lecture" type="button" class="secondary" disabled>编辑与审核</button><button id="adjust-section" type="button" class="secondary" title="展开、简化或更换例题，预览后另存版本。" disabled>按章节调整</button><button id="view-input" type="button" class="secondary" disabled>查看生成输入</button><button id="compare-profile" type="button" class="secondary" disabled>画像对照</button><button id="compare-lectures" type="button" class="secondary" disabled>讲义比较</button></div><div class="download-group" role="group" aria-label="下载与打印"><label class="download-format-label" for="download-format">下载格式</label><select id="download-format" disabled><option value="md">Markdown (.md)</option><option value="txt">纯文本 (.txt)</option><option value="html">网页 (.html)</option><option value="docx">Word 文档 (.docx)</option></select><button id="download" class="secondary" disabled>下载原稿 Markdown</button><button id="print-lecture" class="secondary" type="button" disabled>打印 / PDF</button></div></div></div>
+    <div id="version-controls" class="version-controls" hidden><label for="lecture-version">阅读版本</label><select id="lecture-version"></select><p id="version-status" class="helper" role="status"></p></div>
+    <p id="input-trace-note" class="input-trace-note" hidden></p>
+    <div id="empty" class="empty"><div class="page-symbol">Aa<span>＋</span></div><h2>从学生的起点出发</h2><p>选择一名学生，查看知识状态，<br>生成针对当前学习需要的讲义。</p><div class="steps"><span>学生状态</span><i>→</i><span>课程证据</span><i>→</i><span>专属讲义</span></div><div id="empty-recent" class="empty-recent" hidden><p class="helper">或继续最近的讲义</p><div id="empty-recent-list"></div></div></div>
+    <div id="loading" class="empty" hidden><div class="spinner"></div><h2>正在组织这份讲义</h2><p>Qwen 正在结合学生状态与课程材料生成。<br>完成后会自动保存到本地数据库。</p></div>
+    <div id="live-preview" class="live-preview" hidden><div class="live-head"><span class="live-dot" aria-hidden="true"></span><strong id="live-stage">模型写作中</strong><span id="live-count" class="helper"></span></div><div id="live-sections" class="live-sections"></div><article id="live-text" class="lecture live-text"></article><p class="helper live-note">这是模型正在写的内容，尚未保存；完成后以通过程序检查并保存的版本为准。</p></div>
+    <div id="lecture-meta" class="lecture-meta" hidden></div><button id="quality-jump" type="button" class="quality-jump" hidden></button><details id="result-plan" class="result-plan" hidden><summary>查看本份讲义的安排与定位</summary><div id="result-plan-content"></div></details><article id="lecture" class="lecture" hidden></article>
+    <div id="review-note" class="review-note" hidden></div>
+   </section>
+   <section id="quality-panel" class="panel" hidden>
+    <div class="section-heading"><h2>讲义检查</h2></div>
+    <h3>发现的问题</h3><div id="quality-warnings"></div><div id="lecture-issues"></div>
+    <h3 id="teacher-checks-title">待确认事项</h3><div id="teacher-checks"></div>
+    <details id="quality-details" class="trace-section"><summary>展开其余检查结果</summary>
+     <p id="quality-summary" class="current-summary"></p><p class="helper">检查规则：<span id="quality-version"></span></p>
+     <h3>其余程序检查</h3><div id="automatic-checks"></div>
+     <h3>保存时已确认的事项</h3><div id="confirmed-teacher-checks"></div>
+     <h3>已有处理说明的问题</h3><div id="resolved-lecture-issues"></div>
+     <details class="trace-section"><summary>逐处引用与对应材料</summary><div id="citation-checks"></div></details>
+     <p class="helper">自动检查不能证明数学正确性。问题记录指向明确的已保存版本；处理说明是修订记录者的判断。</p>
+    </details>
+   </section>
+   <div class="evidence-link"><div><strong>每一份讲义，都有课程依据</strong><p>查阅当前任务的材料与知识点来源。</p></div><a href="#materials" class="secondary">查看课程材料 ↗</a></div>
+  </div>
+ </div>
+ </section>
+ <section class="workspace-page" id="page-quizzes" hidden>
+  <div class="quiz-layout">
+   <section class="panel quiz-settings"><div class="section-heading"><h2>出题设置</h2><div class="quiz-actions"><a href="#records/quizzes" class="secondary">出题记录</a><button id="quiz-refresh-catalog" type="button" class="secondary">刷新副本</button></div></div>
+    <form id="quiz-form">
+     <label for="quiz-topic">备课材料副本</label><select id="quiz-topic" required disabled></select>
+     <div id="quiz-lecture-link" class="quiz-lecture-link" hidden><div><strong id="quiz-lecture-label"></strong><p class="helper">题目依据该讲义版本及其生成时的材料与画像快照出题，与课堂讲法保持一致；选择通用水平时不发送个体诊断。</p></div><button id="quiz-lecture-clear" type="button" class="secondary">取消关联</button></div>
+     <p id="quiz-goal" class="helper"></p>
+     <label for="quiz-student">参考对象 <span>选填 · 全班或学生</span></label><select id="quiz-student"><option value="">通用学生水平</option></select>
+     <label for="quiz-level">学生水平</label><select id="quiz-level"><option value="profile">按所选画像（班级或学生）</option><option value="foundation">基础待巩固</option><option value="standard" selected>常规水平</option><option value="advanced">学有余力</option></select>
+     <p id="quiz-profile-note" class="helper">学生水平决定题目情境和解析方式，题目难度可另行选择。</p>
+     <div class="quiz-form-pair"><div><label for="quiz-count">题目数量</label><input id="quiz-count" type="number" min="1" max="30" step="1" value="10" required></div><div><label for="quiz-difficulty">题目难度</label><select id="quiz-difficulty"><option value="basic">基础难度</option><option value="medium" selected>中等难度</option><option value="advanced">拔高难度</option><option value="mixed">混合 · 基础 / 中等 / 拔高</option></select></div></div>
+     <p id="quiz-allocation" class="helper"></p>
+     <fieldset><legend>题型 <span>至少选择一种</span></legend><div class="quiz-checks"><label><input type="checkbox" name="quiz-type" value="single_choice" checked>单项选择</label><label><input type="checkbox" name="quiz-type" value="fill_blank">填空</label><label><input type="checkbox" name="quiz-type" value="short_answer" checked>简答</label><label><input type="checkbox" name="quiz-type" value="calculation">计算</label><label><input type="checkbox" name="quiz-type" value="application">综合应用</label></div></fieldset>
+     <details class="quiz-focus"><summary>考查知识点 <span class="helper">默认覆盖副本全部知识点</span></summary><div id="quiz-knowledge" class="quiz-checks"></div></details>
+     <label for="quiz-requirements">出题要求 <span>选填</span></label><textarea id="quiz-requirements" maxlength="2000" rows="3" placeholder="例如：重点考查单位换算，增加错例辨析；不出超纲题。"></textarea>
+     <button id="quiz-generate" class="primary" type="submit" disabled>生成练习题</button>
+     <p class="helper">每题附参考答案、解析和易错点。混合难度约按 5∶3∶2 分配；题型轮流分配，题量少时优先采用靠前的所选题型。</p>
+    </form><p id="quiz-status" class="helper" role="status" aria-live="polite"></p><div id="quiz-error" class="error" role="alert" hidden></div>
+   </section>
+   <div class="quiz-main"><section class="panel"><div class="section-heading"><h2 id="quiz-preview-title">题组预览</h2><div class="quiz-actions"><button id="quiz-student-view" class="secondary" type="button" aria-pressed="true">学生版</button><button id="quiz-teacher-view" class="secondary" type="button" aria-pressed="false">教师版 · 含解析</button></div></div>
+    <p id="quiz-preview-note" class="helper">选择备课副本和出题设置，即可生成练习题。学生版隐藏答案，教师版显示解析与易错点。想让题目与某份讲义的讲法一致，可在讲义工作台打开讲义后点击「配套出题」。</p>
+    <div id="quiz-export" class="quiz-actions" hidden><label for="quiz-format">下载格式</label><select id="quiz-format"><option value="docx">Word (.docx)</option><option value="md">Markdown (.md)</option><option value="txt">纯文本 (.txt)</option><option value="html">网页 (.html)</option></select><a id="quiz-download" class="secondary">下载学生版</a></div>
+    <div id="quiz-questions" class="quiz-questions"></div><button id="quiz-retry" class="secondary" type="button" hidden>按原输入重试</button>
+   </section>
+   </div>
+  </div>
+ </section>
+ <section class="workspace-page" id="page-profiles" hidden>
+  <div id="class-empty" class="panel scope-empty" hidden><span class="intro-icon" aria-hidden="true">◎</span><div><h2 id="class-empty-title">这门课程还没有班级</h2><p id="class-empty-text" class="helper">先在课程中新建班级，再添加学生；班级画像由班内学生的诊断汇总而成。</p><a class="primary" href="#materials/classes">前往新建班级</a></div></div>
+  <div id="class-home-page" hidden>
+  <section class="panel scope-header"><div class="scope-header-main"><span class="scope-kicker" id="class-home-course">课程</span><h2 id="class-home-name">班级</h2><p id="class-home-meta" class="helper"></p><p id="class-home-profile" class="current-summary"></p></div>
+   <div class="trace-actions"><button id="edit-class" class="secondary" type="button">编辑班级画像</button><button id="class-start-lecture" class="primary" type="button">为全班生成讲义</button></div>
+   <form id="edit-class-form" class="editor-form scope-edit" hidden>
+    <div class="course-fields"><div><label for="edit-class-name">班级名称</label><input id="edit-class-name" maxlength="80" required></div><div><label for="edit-class-recorder">录入者</label><input id="edit-class-recorder" maxlength="80" required placeholder="例如：王老师"></div></div>
+    <label for="edit-class-profile">班级特点 <span class="helper">整体学情、课堂氛围、常见问题等；用于班级讲义</span></label><textarea id="edit-class-profile" rows="4" maxlength="1200" placeholder="例如：整体计算较稳，文字题读题慢；课堂讨论积极。"></textarea>
+    <label for="edit-class-reason">修改理由</label><input id="edit-class-reason" maxlength="600" required placeholder="例如：期中测验后更新">
+    <div class="trace-actions"><button id="save-class" class="primary" type="submit">保存班级画像</button><button id="cancel-class-edit" class="secondary" type="button">取消</button></div>
+   </form><p id="class-edit-status" class="helper" role="status" aria-live="polite"></p></section>
+  <div class="record-tabs" role="tablist" aria-label="班级内容"><a href="#profiles" id="class-tab-profile" role="tab" aria-selected="true" aria-controls="class-panel-profile">班级画像</a><a href="#profiles/students" id="class-tab-students" role="tab" aria-selected="false" aria-controls="class-panel-students" tabindex="-1">学生</a><a href="#profiles/resources" id="class-tab-resources" role="tab" aria-selected="false" aria-controls="class-panel-resources" tabindex="-1">班级资料</a></div>
+  <div id="class-panel-profile" role="tabpanel" aria-labelledby="class-tab-profile">
+   <section class="panel"><div class="section-heading"><div><h2>知识点掌握分布</h2><p class="helper" id="class-profile-summary">汇总班内每位学生经教师确认的掌握状态。</p></div><div class="class-topic-filter"><label for="class-profile-topic">范围</label><select id="class-profile-topic"><option value="">本课程全部备课</option></select></div></div>
+    <div class="state-legend" aria-hidden="true"><span class="legend needs_support">需要补充</span><span class="legend partial">部分掌握</span><span class="legend mastered">已掌握</span><span class="legend unknown">未诊断</span></div>
+    <div id="class-profile-points" class="class-points"><p class="helper">正在读取…</p></div>
+    <p id="class-profile-rule" class="footnote"></p></section>
+   <section class="panel"><div class="section-heading"><h2 id="class-focus-title">需要重点关注</h2></div><div id="class-focus-list" class="class-focus"></div></section>
+   <section class="panel"><details id="class-history-box"><summary>班级画像修改历史</summary><div id="class-history"></div></details></section>
+  </div>
+  <div id="class-panel-students" role="tabpanel" aria-labelledby="class-tab-students" hidden>
+   <section class="panel"><div class="section-heading"><h2 id="student-roster-title">学生名单</h2><div class="trace-actions"><button id="refresh-student-roster" class="secondary" type="button">刷新名单</button><button id="toggle-add-existing" class="secondary" type="button" aria-expanded="false" aria-controls="add-existing-form">添加已有学生</button><a href="#profiles/import" class="secondary student-page-link">批量导入</a><a href="#profiles/new" class="primary student-page-link">新建学生</a></div></div>
+    <form id="add-existing-form" class="editor-form add-existing" hidden><div class="course-fields"><div><label for="add-existing-student">选择学生</label><select id="add-existing-student" required></select></div><div class="add-existing-move"><label class="roster-import-check"><input id="add-existing-move" type="checkbox"><span>如已在本课程的其他班级，转入本班</span></label></div></div><div class="trace-actions"><button id="add-existing-submit" class="primary" type="submit">加入本班</button></div><p class="helper">学生档案在各课程间共享；一门课程中每名学生只属于一个班级。</p></form>
+    <div id="student-roster" class="student-roster"></div></section>
+  </div>
+  <div id="class-panel-resources" role="tabpanel" aria-labelledby="class-tab-resources" hidden><div class="resource-host" id="class-resource-host"></div></div>
+  </div>
+  <div id="student-create-page" hidden><div class="section-heading"><h2 id="student-create-heading">新建学生画像</h2><a href="#profiles/students" class="student-page-link">返回学生名单</a></div>
+  <section class="panel"><form id="new-student-form" class="editor-form"><div class="course-fields"><div><label for="new-student-name">姓名</label><input id="new-student-name" maxlength="80" required></div><div><label for="new-student-subtitle">年级 / 学生说明</label><input id="new-student-subtitle" maxlength="80" required placeholder="例如：高一 · 物理基础巩固"></div></div><label for="new-student-profile">学生信息与学习特点</label><textarea id="new-student-profile" rows="4" maxlength="600" required placeholder="记录学习特点、已掌握的内容、长期薄弱点等。"></textarea><div class="trace-actions"><button id="create-student" class="primary" type="submit">保存学生档案</button><a href="#profiles/students" class="student-page-link">取消并返回</a></div></form></section></div>
+  <div id="student-import-page" hidden><div class="section-heading"><h2 id="student-import-heading">批量导入学生资料</h2><a href="#profiles/students" class="student-page-link">返回学生名单</a></div>
+  <section class="panel"><form id="roster-import-form" class="editor-form">
+   <div class="course-fields"><div><label for="roster-import-kind">导入内容</label><select id="roster-import-kind"><option value="students">学生名单 · 姓名、年级或说明、学习特点</option><option value="evidence">学习证据 · 作业、测验、课堂观察、教师复核</option></select></div></div>
+   <p id="roster-import-help" class="helper"></p>
+   <p><a id="roster-import-template" class="secondary" href="/api/students/import/template?kind=students">下载 CSV 模板</a></p>
+   <label for="roster-import-file">CSV 文件 <span class="helper">UTF-8 或 Excel 默认的 GBK 编码，最多 300 行</span></label><input id="roster-import-file" type="file" accept=".csv,text/csv" required>
+   <p><button id="roster-import-preview" class="primary" type="submit">预览导入</button></p>
+  </form><p id="roster-import-status" class="helper" role="status" aria-live="polite"></p></section>
+  <section class="panel roster-import-result" id="roster-import-result" hidden><div class="section-heading"><h2 id="roster-import-summary">预览结果</h2></div>
+   <div class="roster-import-table-wrap"><table class="roster-import-table"><thead id="roster-import-head"></thead><tbody id="roster-import-rows"></tbody></table></div>
+   <div class="roster-import-confirm"><div id="roster-import-recorder-field" hidden><label for="roster-import-recorder">录入者</label><input id="roster-import-recorder" maxlength="80" placeholder="例如：王老师"></div>
+   <label class="roster-import-check"><input id="roster-import-confirmed" type="checkbox"><span>我已逐行核对。学生名单只新增，不覆盖同名档案；学习证据按每行的判断写入画像，与逐条录入相同。</span></label>
+   <button id="roster-import-submit" class="primary" type="button" disabled>确认导入</button></div>
+  </section></div>
+  <div id="student-detail-page" hidden><div class="section-heading"><a href="#profiles/students" class="student-page-link">← 返回学生名单</a><div class="trace-actions"><button class="secondary" id="view-current-profile" type="button">读取最新档案</button><button class="primary" id="profile-start-lecture" type="button">为该学生备课</button></div></div>
+  <section class="panel scope-header"><div class="scope-header-main"><span class="scope-kicker">学生画像</span><h2 id="roster-student-name">学生信息</h2><p id="roster-student-subtitle" class="helper"></p><p id="roster-student-profile" class="current-summary"></p><p id="roster-student-classes" class="helper"></p></div>
+   <div class="trace-actions"><button id="edit-student" class="secondary" type="button" aria-expanded="false" aria-controls="edit-student-form" disabled>编辑学生画像</button></div>
+   <form id="edit-student-form" class="editor-form scope-edit" hidden>
+    <div class="course-fields"><div><label for="edit-student-name">姓名</label><input id="edit-student-name" maxlength="80" required></div><div><label for="edit-student-subtitle">年级 / 学生说明</label><input id="edit-student-subtitle" maxlength="80" required></div></div>
+    <label for="edit-student-profile">学习特点 <span class="helper">已掌握的内容、长期薄弱点、学习习惯等；个人讲义会参考</span></label><textarea id="edit-student-profile" rows="4" maxlength="600" required></textarea>
+    <div class="course-fields"><div><label for="edit-student-recorder">录入者</label><input id="edit-student-recorder" maxlength="80" required placeholder="例如：王老师"></div><div><label for="edit-student-reason">修改理由</label><input id="edit-student-reason" maxlength="600" required placeholder="例如：单元测验后更新"></div></div>
+    <div class="trace-actions"><button id="save-student" class="primary" type="submit">保存学生画像</button><button id="cancel-student-edit" class="secondary" type="button">取消</button></div>
+    <p class="helper">原内容保留在修改历史中；已生成的讲义仍按生成时的画像记录。</p>
+   </form><p id="student-edit-status" class="helper" role="status" aria-live="polite"></p>
+   <details id="student-history-box" class="scope-edit"><summary id="student-history-title">修改历史</summary><div id="student-history"></div></details></section>
+<section class="panel"><div class="section-heading"><h2 id="student-states-title">知识点掌握情况</h2><button id="edit-profile" type="button" class="secondary" disabled>记录诊断证据</button></div><p id="profile-view-note" class="helper"></p><div id="states" class="states"><p class="helper">正在读取…</p></div><p class="footnote">预置档案包含虚拟演示数据。新增同学的信息由你维护；生成讲义和本次备注不会自动改变长期状态。</p></section>
+  </div><p id="student-roster-status" class="helper" role="status"></p>
+ </section>
+ <section class="workspace-page" id="page-materials" hidden>
+  <div id="course-all-page" hidden><div class="page-intro"><span class="intro-icon">▤</span><div><h2>全部课程</h2><p>每门课程有自己的备课、资料和班级。选择一门课程进入，或新建课程。</p></div></div>
+   <section class="panel"><div class="section-heading"><h2 id="course-all-title">我的课程</h2><button id="toggle-new-course" class="primary" type="button" aria-expanded="false" aria-controls="new-course-form">新建课程</button></div>
+    <form id="new-course-form" class="editor-form scope-edit" hidden><div class="course-fields"><div><label for="new-course-name">课程名称</label><input id="new-course-name" maxlength="80" required placeholder="例如：高中物理、大学英语"></div><div><label for="new-course-stage">学段</label><input id="new-course-stage" list="course-stages" maxlength="40" placeholder="选择或填写学段"></div></div><label for="new-course-description">课程说明 <span class="helper">选填</span></label><textarea id="new-course-description" rows="2" maxlength="600" placeholder="教材版本、课时安排等"></textarea><div class="trace-actions"><button class="primary" type="submit">创建课程</button></div></form>
+    <p id="course-all-status" class="helper" role="status" aria-live="polite"></p>
+    <div id="course-cards" class="student-roster course-cards"></div><p id="course-unassigned" class="helper"></p></section></div>
+  <div id="course-home-page" hidden>
+  <section class="panel scope-header"><div class="scope-header-main"><span class="scope-kicker" id="course-home-stage">课程</span><h2 id="course-home-name">课程</h2><p id="course-home-meta" class="helper"></p><p id="course-home-description" class="current-summary"></p></div>
+   <div class="trace-actions"><button id="edit-course" class="secondary" type="button">编辑课程</button><a class="secondary" href="#courses">切换课程</a></div>
+   <form id="edit-course-form" class="editor-form scope-edit" hidden><div class="course-fields"><div><label for="edit-course-name">课程名称</label><input id="edit-course-name" maxlength="80" required></div><div><label for="edit-course-stage">学段</label><input id="edit-course-stage" list="course-stages" maxlength="40"></div></div><label for="edit-course-description">课程说明</label><textarea id="edit-course-description" rows="2" maxlength="600"></textarea><div class="trace-actions"><button class="primary" type="submit">保存课程</button><button id="cancel-course-edit" class="secondary" type="button">取消</button></div></form>
+   <p id="course-home-status" class="helper" role="status" aria-live="polite"></p></section>
+  <div class="record-tabs" role="tablist" aria-label="课程内容"><a href="#materials" id="course-tab-lessons" role="tab" aria-selected="true" aria-controls="course-list-page">备课</a><a href="#materials/resources" id="course-tab-resources" role="tab" aria-selected="false" aria-controls="course-panel-resources" tabindex="-1">课程资料</a><a href="#materials/knowledge" id="course-tab-knowledge" role="tab" aria-selected="false" aria-controls="course-panel-knowledge" tabindex="-1">知识点库</a><a href="#materials/classes" id="course-tab-classes" role="tab" aria-selected="false" aria-controls="course-panel-classes" tabindex="-1">班级</a></div>
+  <div id="course-list-page" role="tabpanel" aria-labelledby="course-tab-lessons"><section class="panel"><div class="section-heading"><h2 id="course-list-title">我的备课</h2><a href="#materials/new" class="primary student-page-link">新建备课</a></div><div id="course-copy-list" class="student-roster"></div></section><section class="panel" id="course-example-panel"><h2>预设示例</h2><p class="helper">打开示例后可复制成自己的备课，再独立修改。</p><div id="course-example-list" class="student-roster"></div></section></div>
+  <div id="course-panel-resources" role="tabpanel" aria-labelledby="course-tab-resources" hidden><div class="resource-host" id="course-resource-host">
+  <div id="resource-workspace" class="resource-workspace">
+  <div class="upload-grid">
+   <section class="panel upload-panel">
+    <div class="section-heading"><div><h2 id="upload-panel-title">上传课程资料</h2><p class="helper" id="upload-scope-note">资料归入当前课程，供所有班级使用。</p></div><span class="count" id="upload-scope-badge">课程资料</span></div>
+    <div class="upload-tabs" role="tablist" aria-label="资料上传模式"><button id="upload-file-tab" role="tab" aria-selected="true" aria-controls="upload-file-pane" type="button">本地上传</button><button id="upload-url-tab" role="tab" aria-selected="false" aria-controls="upload-url-pane" tabindex="-1" type="button">网址上传</button></div>
+    <form id="upload-file-pane" role="tabpanel" aria-labelledby="upload-file-tab">
+     <label for="upload-file-title">资料名称 <span>选填，默认使用文件名</span></label><input id="upload-file-title" maxlength="120" placeholder="例如：一元一次方程教学参考">
+     <label class="upload-dropzone" id="upload-dropzone" for="upload-file"><span class="upload-symbol" aria-hidden="true">↥</span><strong>点击选择文件，或拖拽到这里</strong><span>支持 TXT、MD、PDF、DOCX 和图片 · 单个文件不超过 10 MB，最多提取 128 张插图；超出不影响正文保存</span><input id="upload-file" type="file" accept=".txt,.md,.pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp,.gif,.tif,.tiff" required></label>
+     <p id="upload-file-selection" class="helper" role="status">尚未选择文件</p>
+     <button id="upload-file-submit" type="submit" class="primary">上传并解析资料 <span>↗</span></button>
+    </form>
+    <form id="upload-url-pane" role="tabpanel" aria-labelledby="upload-url-tab" hidden>
+     <label for="upload-url-title">资料名称 <span>选填，默认使用网页标题</span></label><input id="upload-url-title" maxlength="120" placeholder="例如：课程参考资料">
+     <label for="upload-url">资料网址</label><input id="upload-url" type="url" maxlength="2048" required placeholder="https://example.com/article">
+     <div class="url-import-hint"><span aria-hidden="true">↗</span><div><strong>通过链接导入网页正文</strong><p>支持公开网页、文本、PDF 和 Word 文档直链。需要登录或动态加载的页面可能无法读取。</p></div></div>
+     <button id="upload-url-submit" type="submit" class="primary">导入网址资料 <span>↗</span></button>
+    </form>
+    <p id="upload-status" class="upload-status" role="status" aria-live="polite" hidden></p>
+   </section>
+   <aside class="panel upload-guide"><span class="intro-icon" aria-hidden="true">▤</span><h2>资料怎样进入讲义</h2><p>上传后保存原文件，提取正文与插图，并自动识别知识点：先按章节标题切分，再由模型细分。教师在「审核并确认」中改名、合并、删除或新增后，知识点连同对应资料片段加入「知识点库」，备课勾选即引用。「收录到备课」可把整份资料补充给某个备课。</p><ul><li><strong>课程资料</strong>：所有班级共用的教材、参考文章</li><li><strong>班级资料</strong>：本班试卷、专用讲义；收录后只在为该班或班内学生生成时使用</li><li>图片与扫描件点「图片识读」解析，在讲义工作台的「图片解析依据」中选用；识读结果需核对公式、数值与单位</li></ul></aside>
+  </div>
+  <section class="panel upload-library"><div class="section-heading"><div><h2 id="upload-library-title">课程资料</h2><p class="helper" id="upload-library-note">最近 100 条 · 保存原文件与提取正文</p></div><button id="refresh-uploads" type="button" class="secondary">刷新列表</button></div><div id="upload-list"><p class="helper">正在读取资料…</p></div>
+   <details id="upload-unassigned-box" class="upload-unassigned" hidden><summary id="upload-unassigned-title">未归类的旧资料</summary><p class="helper">这些资料上传于课程划分之前，归入课程后才会出现在资料列表中。</p><div id="upload-unassigned-list"></div></details></section>
+  </div>
+  </div></div>
+  <div id="course-panel-knowledge" role="tabpanel" aria-labelledby="course-tab-knowledge" hidden><section class="panel">
+   <div class="section-heading"><div><h2 id="knowledge-library-title">知识点库</h2><p class="helper">本课程所有备课共用的知识点。上传资料后自动识别，教师确认后加入；学生诊断按知识点记录，备课时直接勾选。</p></div><div class="trace-actions"><a class="secondary" href="#materials/resources">上传资料</a><button id="toggle-new-point" class="primary" type="button" aria-expanded="false" aria-controls="new-point-form">新增知识点</button></div></div>
+   <form id="new-point-form" class="editor-form scope-edit" hidden><div class="course-fields"><div><label for="new-point-name">知识点名称</label><input id="new-point-name" maxlength="40" required placeholder="例如：泊松分布"></div><div><label for="new-point-chapter">章节</label><input id="new-point-chapter" maxlength="100" list="knowledge-chapters" placeholder="例如：第二章 随机变量与分布"></div></div><label for="new-point-summary">概括 <span class="helper">选填</span></label><input id="new-point-summary" maxlength="200"><div class="trace-actions"><button class="primary" type="submit">加入知识点库</button></div></form>
+   <datalist id="knowledge-chapters"></datalist>
+   <p id="knowledge-page-status" class="helper" role="status" aria-live="polite"></p>
+   <div id="knowledge-drafts" class="knowledge-drafts"></div>
+   <div id="knowledge-groups" class="knowledge-groups"><p class="helper">正在读取知识点库…</p></div>
+   <details id="knowledge-archived-box" class="knowledge-archived" hidden><summary id="knowledge-archived-title">已归档</summary><p class="helper">归档的知识点不出现在备课的勾选列表中；已使用它的备课、诊断与历史讲义保持不变。</p><div id="knowledge-archived"></div></details>
+  </section></div>
+  <div id="course-panel-classes" role="tabpanel" aria-labelledby="course-tab-classes" hidden><section class="panel"><div class="section-heading"><h2 id="course-classes-title">班级</h2><button id="toggle-new-class" class="primary" type="button" aria-expanded="false" aria-controls="new-class-form">新建班级</button></div>
+   <form id="new-class-form" class="editor-form scope-edit" hidden><div class="course-fields"><div><label for="new-class-name">班级名称</label><input id="new-class-name" maxlength="80" required placeholder="例如：初二（3）班"></div></div><label for="new-class-profile">班级特点 <span class="helper">选填，之后可在班级画像中修改</span></label><textarea id="new-class-profile" rows="2" maxlength="1200"></textarea><div class="trace-actions"><button class="primary" type="submit">创建班级</button></div></form>
+   <p id="course-classes-status" class="helper" role="status" aria-live="polite"></p><div id="course-class-cards" class="student-roster"></div></section></div>
+  </div>
+  <div id="course-editor-page" hidden><div class="section-heading"><a href="#materials" class="student-page-link">← 返回备课列表</a><h2 id="course-editor-heading">新建备课</h2></div>
+  <section class="panel" id="course-manager">
+   <div hidden><button id="new-course-task" type="button">新建备课副本</button><select id="managed-course-task"><option value="">新建副本</option></select></div>
+   <div class="trace-actions" id="course-saved-actions" hidden><button id="duplicate-course-task" type="button" class="secondary" disabled>复制为新备课</button><button id="use-course-task" type="button" class="secondary" disabled>用此备课生成讲义</button></div>
+   <form id="course-task-form">
+    <p class="helper" id="course-editor-course"></p><p class="helper">以下信息均可留空，先保存，之后可随时补充。</p><datalist id="course-stages"><option value="小学"><option value="初中"><option value="高中"><option value="大学"><option value="职业教育"><option value="其他 / 培训"></datalist><div class="course-fields">
+     <div><label for="course-chapter">章节</label><input id="course-chapter" maxlength="100" placeholder="例如：第一章 运动的描述"></div>
+     <div><label for="course-task-title">备课名称</label><input id="course-task-title" maxlength="120" placeholder="例如：速度与加速度 · 第一课时教案"></div>
+     <div><label for="course-task-level">任务层次</label><input id="course-task-level" maxlength="40" placeholder="例如：概念入门、巩固练习、拓展应用"></div>
+    </div>
+    <label for="course-goal">教学目标</label><textarea id="course-goal" maxlength="400" rows="3" placeholder="描述本次要理解的概念、掌握的方法或完成的任务"></textarea>
+    <label for="course-lesson-plan">教案 / 备课正文</label><textarea id="course-lesson-plan" maxlength="20000" rows="8" placeholder="填写导入、教学重点、难点、讲解顺序、例题安排与课堂小结。也可从自己的教案复制粘贴。"></textarea>
+    <fieldset id="course-knowledge-picker" class="knowledge-picker"><legend>知识点 <span id="course-knowledge-count" class="helper"></span></legend>
+     <p class="helper" id="course-knowledge-help">从本课程知识点库勾选，最多 20 个。知识点已确认的资料片段会自动作为本备课的参考资料。<a href="#materials/knowledge">管理知识点库</a></p>
+     <input id="course-knowledge-filter" type="search" placeholder="筛选知识点" aria-label="筛选知识点">
+     <div id="course-knowledge-groups" class="knowledge-picker-groups"></div>
+    </fieldset>
+    <label for="course-knowledge">新增知识点 <span class="helper">每行一个，保存时加入知识点库；与库中同名的直接沿用</span></label><textarea id="course-knowledge" rows="2" placeholder="位移与路程&#10;速度与速率"></textarea>
+    <p class="helper">历史讲义保留生成时的知识点与资料快照。</p>
+    <p class="helper">备课属于当前课程，供课程内所有班级使用。生成讲义时再选择学生或全班，并补充本次要求。</p>
+    <button id="save-course-task" class="primary" type="submit">保存备课</button>
+   </form>
+   <p id="course-manager-status" class="helper" role="status" aria-live="polite"></p>
+  </section>
+  <section class="panel" id="course-reference-panel" hidden>
+   <div class="section-heading"><div><h2>此备课的参考资料</h2><p class="helper">从本课程或其班级的资料中选择，收录到对应知识点；班级资料只用于该班。<a href="#materials/resources">前往课程资料上传</a></p></div><button id="refresh-course-uploads" class="secondary" type="button">刷新资料列表</button></div>
+   <p id="course-reference-status" class="helper" role="status"></p><div id="course-reference-list" class="sources"></div>
+   <details id="course-attach-details"><summary>添加参考资料</summary>
+   <form id="course-material-form" class="course-fields">
+    <div hidden><label for="attach-topic">备课材料副本</label><select id="attach-topic" required></select></div>
+    <div><label for="attach-knowledge">知识点</label><select id="attach-knowledge" required></select></div>
+    <div><label for="attach-upload">课程或班级资料</label><select id="attach-upload" required></select></div>
+    <button id="attach-course-material" class="primary" type="submit">收录资料</button>
+   </form><p id="course-material-status" class="helper" role="status" aria-live="polite"></p></details>
+  </section>
+  </div><div hidden>
+  <div class="panel context-selector"><div><label for="material-topic-select">课程任务</label><select id="material-topic-select" disabled></select></div><p class="helper">切换课程任务后，展示对应材料；已打开讲义使用生成时的材料快照。</p></div>
+   <section class="panel sources-panel"><div class="section-heading"><div><h2>本次课程证据</h2><p class="helper">按主题知识点从 PostgreSQL 查询 · 中文整理，例题自编</p></div><span id="source-count" class="count">—</span></div><div id="sources" class="sources"></div></section>
+  </div>
+ </section>
+ <section class="workspace-page" id="page-grading" hidden>
+  <div class="grading-layout">
+   <section class="panel">
+    <div class="section-heading"><h2>上传阅卷材料</h2><a href="#records/grading" class="secondary">阅卷记录</a></div>
+    <form id="grading-form">
+     <label for="grading-paper">学生作答材料</label>
+     <input id="grading-paper" type="file" accept=".png,.jpg,.jpeg,.webp,.bmp,.gif,.tif,.tiff,.pdf,.docx,.txt,.md" required>
+     <p class="helper">上传包含题目与学生作答的试卷或答题照片。</p><details class="upload-guidance"><summary>支持格式与上传限制</summary><p>支持图片、PDF、Word、TXT 和 Markdown；每次总计10 MB，最多30题，每份最多8张图片或8页PDF。较长试卷请拆分上传。</p></details>
+     <fieldset class="grading-answer-source"><legend>参考答案来源</legend>
+      <label><input type="radio" name="grading-answer" value="quiz"><span class="choice"><strong>使用系统题组的教师版答案</strong><small>推荐：评分后可按知识点记入学生画像</small></span></label>
+      <label><input type="radio" name="grading-answer" value="file" checked><span class="choice"><strong>上传参考答案文件</strong><small>答案与评分标准可放在同一份文件</small></span></label>
+      <label><input type="radio" name="grading-answer" value="none"><span class="choice"><strong>暂无参考答案，由模型推导</strong><small>评分标记为推导答案，需重点核对</small></span></label>
+     </fieldset>
+     <div id="grading-answer-quiz" hidden><label for="grading-quiz">学生作答对应的题组</label><select id="grading-quiz"><option value="">请选择题组</option></select><p class="helper">使用题组的答案与解析评分，并按题组知识点整理学习证据草稿。</p></div>
+     <div id="grading-answer-file"><label for="grading-reference">参考答案文件</label><input id="grading-reference" type="file" accept=".png,.jpg,.jpeg,.webp,.bmp,.gif,.tif,.tiff,.pdf,.docx,.txt,.md"></div>
+     <label for="grading-requirements">评分要求 <span>选填</span></label>
+     <textarea id="grading-requirements" rows="3" maxlength="2000" placeholder="例如：按步骤给分，等价解法也算正确；第1题满分5分。"></textarea>
+     <button class="primary" id="grading-submit" type="submit">上传并自动阅卷</button>
+     <p class="helper">图片由已配置的视觉模型识读，提取文字交给语言模型批改。结果为建议评分，需教师复核。</p>
+    </form>
+    <p id="grading-status" role="status" aria-live="polite"></p>
+    <p id="grading-error" class="error" role="alert" hidden></p>
+   </section>
+   <div class="grading-main">
+    <section class="panel">
+     <div class="section-heading"><h2>阅卷结果</h2><a id="grading-download" class="secondary" hidden>下载批改结果</a></div>
+     <p id="grading-summary" class="helper">上传材料后，自动识别题目、学生作答和参考答案，逐题展示评分、解析与错因。</p>
+     <div id="grading-results"></div>
+     <details id="grading-extraction" hidden><summary>查看提取原文（需核对）</summary><h3>学生作答材料</h3><pre id="grading-extracted"></pre><h3>另传参考答案</h3><pre id="grading-reference-text"></pre></details>
+    </section>
+    <section class="panel" id="grading-evidence" hidden>
+     <div class="section-heading"><h2>记入学生画像</h2></div>
+     <p class="helper">按知识点整理为学习证据草稿。草稿依据 AI 建议评分，请逐条核对、修改后由教师确认；只有点击「确认记录」才会写入，选择「保留原判断」不改变掌握状态。</p>
+     <div class="grading-evidence-fields">
+      <div><label for="grading-evidence-student">学生</label><select id="grading-evidence-student"><option value="">请选择学生</option></select></div>
+      <div><label for="grading-evidence-topic">备课</label><select id="grading-evidence-topic"></select></div>
+      <div><label for="grading-evidence-date">观察日期</label><input id="grading-evidence-date" type="date"></div>
+      <div><label for="grading-evidence-source">证据来源</label><select id="grading-evidence-source"><option value="quiz">测验</option><option value="homework">作业</option></select></div>
+      <div><label for="grading-evidence-recorder">录入者</label><input id="grading-evidence-recorder" maxlength="80" placeholder="例如：王老师"></div>
+     </div>
+     <p id="grading-evidence-status" class="helper" role="status" aria-live="polite"></p>
+     <div id="grading-evidence-drafts" class="grading-evidence-drafts"></div>
+    </section>
+   </div>
+  </div>
+ </section>
+ <section class="workspace-page" id="page-records" hidden>
+  <div class="record-tabs" role="tablist" aria-label="生成记录类型"><a href="#records/lectures" id="record-tab-lectures" role="tab" aria-selected="true" aria-controls="record-panel-lectures">讲义记录</a><a href="#records/quizzes" id="record-tab-quizzes" role="tab" aria-selected="false" aria-controls="record-panel-quizzes" tabindex="-1">出题记录</a><a href="#records/grading" id="record-tab-grading" role="tab" aria-selected="false" aria-controls="record-panel-grading" tabindex="-1">阅卷记录</a><a href="#records/experiments" id="record-tab-experiments" role="tab" aria-selected="false" aria-controls="record-panel-experiments" tabindex="-1">固定对照</a></div>
+  <div id="record-panel-lectures" role="tabpanel" aria-labelledby="record-tab-lectures">
+  <div class="records-grid"><section class="panel"><div class="section-heading"><h2>最近生成</h2></div><div id="history" class="history"><p class="helper">暂无已保存讲义</p></div></section><section class="panel"><div class="section-heading"><h2>后台任务</h2><button id="refresh-jobs" class="secondary" type="button">刷新任务</button></div><p class="helper">1 个任务处理，最多 3 个等待；仅本机单进程。提交时固定输入，刷新页面后可从任务恢复查看。</p><div id="jobs-list" class="history"></div></section></div>
+<section class="panel"><div class="section-heading"><h2>讲义生成记录</h2><button id="refresh-runs" type="button" class="secondary">刷新</button></div><p class="helper">最近 10 次请求 · 包含失败记录</p><div id="generation-runs" class="history"><p class="helper">正在读取…</p></div></section>
+  </div><div id="record-panel-quizzes" role="tabpanel" aria-labelledby="record-tab-quizzes" hidden><section class="panel"><div class="section-heading"><h2>出题记录</h2><div class="quiz-actions"><a href="#quizzes" class="secondary">前往出题</a><button id="quiz-refresh-history" type="button" class="secondary">刷新记录</button></div></div><p class="helper">保存提交时的备课副本、学生依据和设置；点击记录可返回出题页查看题目与答案解析。</p><p id="quiz-history-error" class="error" role="alert" hidden></p><div id="quiz-history" class="quiz-history"></div></section></div>
+  <div id="record-panel-experiments" role="tabpanel" aria-labelledby="record-tab-experiments" hidden><section class="panel"><div class="section-heading"><h2>当前版本固定对照</h2><button id="prepare-experiment" class="secondary" type="button">冻结新一轮12份输入</button></div><p class="helper">大学概率专题、三类虚拟画像，有／无画像各两次。冻结时不调用模型；开始后顺序执行12次真实调用。成功与失败均保留，已有结果不替换。评审通过讲义的“编辑与审核”逐份记录；助手草稿不计教师批准。</p><div id="experiment-history" class="history"></div><p id="experiment-status" class="helper" role="status"></p><button id="run-experiment" type="button" class="primary" hidden>开始本轮真实生成</button><div id="experiment-detail"></div></section></div>
+  <div id="record-panel-grading" role="tabpanel" aria-labelledby="record-tab-grading" hidden>
+   <section class="panel">
+    <div class="section-heading"><h2>阅卷记录</h2><div class="quiz-actions"><a href="#grading" class="secondary">前往阅卷</a><button type="button" id="grading-refresh" class="secondary">刷新记录</button></div></div>
+    <p class="helper">点击记录可返回阅卷页，查看逐题评分、解析和提取原文，并下载批改结果。</p>
+    <p id="grading-history-error" class="error" role="alert" hidden></p>
+    <div id="grading-history"></div>
+   </section>
+  </div>
+ </section>
+ <section class="workspace-page" id="page-settings" hidden>
+  <div class="page-intro"><span class="intro-icon">⚙</span><div><h2>模型与服务配置</h2><p>为文字生成、图片理解和资料检索分别选择模型。</p></div></div>
+  <form id="model-settings-form">
+   <div class="model-settings-toolbar"><div><strong>模型连接</strong><p class="helper">支持 OpenAI 兼容接口，包括本机 Ollama 的 /v1 地址。</p></div><button id="save-model-settings" class="primary" type="submit" disabled>保存配置</button></div>
+   <p id="model-settings-status" class="model-settings-status helper" role="status" aria-live="polite">正在读取已保存的模型配置…</p>
+   <div id="model-settings-error" class="error" role="alert" hidden></div>
+   {% for key, number, title, description, example in [
+     ('llm', '01', '语言模型', '负责生成讲义与文字回答。', 'qwen3.5:9b'),
+     ('vlm', '02', '视觉模型 · VLM', '识读上传资料中的图片，解析文字可在讲义工作台选用，也用于阅卷。可与语言模型使用同一个多模态模型；连接测试会发送测试图片。', 'qwen3.5:9b'),
+     ('embedding', '03', '嵌入模型 · Embedding', '把资料转成向量，用于语义检索。更换模型后会在下次向量检索时自动更新索引。', 'bge-m3:latest')
+   ] %}
+   <section class="panel model-config-card" data-model-channel="{{ key }}">
+    <div class="section-heading"><div class="model-config-heading"><span class="model-config-number">{{ number }}</span><h2>{{ title }}</h2></div><span class="model-config-badge">{{ '可选' if key == 'vlm' else '独立配置' }}</span></div>
+    <p class="helper">{{ description }}</p>
+    <div class="model-config-fields">
+     <div class="model-config-address"><label for="{{ key }}-base-url">服务地址</label><input id="{{ key }}-base-url" name="{{ key }}-base-url" type="url" maxlength="2048" placeholder="http://127.0.0.1:11434/v1" autocomplete="off" {{ 'required' if key != 'vlm' else '' }} disabled><p class="helper">填写基础地址，通常以 /v1 结尾。</p></div>
+     <div><label for="{{ key }}-model">模型名称</label><input id="{{ key }}-model" name="{{ key }}-model" maxlength="2048" placeholder="{{ example }}" autocomplete="off" {{ 'required' if key != 'vlm' else '' }} disabled></div>
+     <div class="model-config-secret"><label for="{{ key }}-api-key">API 密钥</label><input id="{{ key }}-api-key" name="{{ key }}-api-key" type="password" maxlength="2048" autocomplete="new-password" placeholder="未配置，可填写新密钥" disabled><label class="model-config-clear"><input id="{{ key }}-clear-key" type="checkbox" disabled>清除已保存密钥</label><p class="helper">留空保留原密钥；无鉴权服务可不设置密钥，已有密钥可勾选清除。</p></div>
+    </div>
+    <div class="model-config-test"><button id="test-{{ key }}" class="secondary" type="button" disabled>测试{{ '图片识别' if key == 'vlm' else '向量接口' if key == 'embedding' else '文本生成' }}</button><p id="{{ key }}-test-status" class="helper" role="status" aria-live="polite">尚未测试</p></div>
+   </section>
+   {% endfor %}
+   <p class="helper">配置保存在本地 .env 文件中，保存后重启服务生效。连接测试使用当前表单内容，无需先保存；测试成功不会自动保存配置。</p>
+  </form>
+<section class="panel"><div class="section-heading"><h2>服务连接</h2><button id="check-health" class="secondary" type="button">检测配置</button></div><p id="health-summary" class="helper" role="status">读取配置状态…</p></section>
+  <section class="panel configuration-note"><h2>数据库与运行状态</h2><p>数据库连接继续在本地 .env 文件中维护。上方服务检测反映当前运行配置；表单显示已保存配置，重启前两者可能不同。</p></section>
+ </section>
+ <footer><span>知页 · 让教学更有针对性</span></footer>
+</main>
+<dialog id="upload-preview-dialog" aria-labelledby="upload-preview-title"><div class="editor-top"><div class="editor-heading"><div><h2 id="upload-preview-title">资料预览</h2><p id="upload-preview-meta" class="helper"></p></div><button id="close-upload-preview" class="secondary" type="button">关闭</button></div></div><div class="dialog-body"><pre id="upload-preview-content" class="upload-preview-text"></pre><div id="upload-preview-images"></div></div></dialog>
+<dialog id="lecture-comparison-dialog" aria-labelledby="lecture-comparison-title">
+ <div class="editor-top"><div class="editor-heading"><div><h2 id="lecture-comparison-title">同目标讲义比较</h2><p id="lecture-comparison-status" class="helper" role="status" aria-live="polite"></p></div><button id="close-lecture-comparison" class="secondary" type="button">关闭</button></div><div id="lecture-comparison-error" class="error" role="alert" hidden></div></div>
+ <div class="dialog-body" id="lecture-comparison-content">
+  <p id="lecture-comparison-goal" class="current-summary"></p>
+  <form id="lecture-comparison-form">
+   <div class="lecture-compare-settings"><div><label for="lecture-comparison-left">左侧：当前讲义版本</label><select id="lecture-comparison-left" disabled></select></div><div><label for="lecture-comparison-other">右侧：同任务、同目标讲义</label><select id="lecture-comparison-other" disabled></select></div><div><label for="lecture-comparison-right">右侧版本</label><select id="lecture-comparison-right" disabled></select></div></div>
+   <div class="trace-actions lecture-compare-actions"><button id="apply-lecture-comparison" class="secondary" type="submit" disabled>比较所选版本</button><button id="reload-lecture-comparison" class="secondary" type="button">刷新可选记录</button></div>
+  </form>
+  <p id="lecture-comparison-options-note" class="helper"></p>
+  <div id="lecture-comparison-output" hidden>
+   <p id="lecture-comparison-warning" class="current-summary"></p>
+   <div id="lecture-comparison-controls" class="comparison-badges"></div>
+   <details class="trace-section"><summary>两侧的生成依据与原材料</summary><div id="lecture-comparison-basis" class="comparison-pair"></div></details>
+   <div class="comparison-controls lecture-compare-actions"><label for="lecture-comparison-section">阅读章节</label><select id="lecture-comparison-section"></select><label class="lecture-compare-check"><input id="lecture-comparison-differences" type="checkbox">只看有差异的章节</label></div>
+   <p id="lecture-comparison-summary" class="helper" role="status" aria-live="polite"></p><div id="lecture-comparison-sections"></div>
+   <p class="footnote">文字和行数差异用于定位内容，不代表数学正确、教学效果更好或节省教师用时。材料、版本及参数不同可能影响输出；修订是人工修改，未重新调用模型。原稿、画像、生成输入与审核状态保持原样。</p>
+  </div>
+ </div>
+</dialog>
+<dialog id="profile-comparison-dialog" aria-labelledby="profile-comparison-title">
+ <div class="editor-top">
+  <div class="editor-heading"><div><h2 id="profile-comparison-title">生成时与当前画像</h2><p id="profile-comparison-status" class="helper" role="status" aria-live="polite"></p></div><button id="close-profile-comparison" type="button" class="secondary">关闭</button></div>
+  <div id="profile-comparison-error" class="error" role="alert" hidden></div>
+  <div class="comparison-controls"><button id="reload-profile-comparison" type="button" class="secondary">刷新当前画像</button><label for="profile-comparison-filter">知识点显示</label><select id="profile-comparison-filter"><option value="all">全部知识点</option><option value="changed">只看已记录变化</option></select></div>
+ </div>
+ <div id="profile-comparison-content" class="dialog-body" hidden>
+  <p id="profile-comparison-note" class="current-summary"></p>
+  <section aria-labelledby="profile-comparison-student-title"><h3 id="profile-comparison-student-title">学生说明与学习特点</h3><p id="profile-comparison-student-changes" class="helper"></p><div id="profile-comparison-student" class="comparison-pair"></div></section>
+  <section aria-labelledby="profile-comparison-points-title"><h3 id="profile-comparison-points-title">知识点与讲解策略</h3><p id="profile-comparison-summary" class="helper" role="status" aria-live="polite"></p><div id="profile-comparison-points"></div></section>
+  <p class="footnote">这里比较生成依据的变化，不能据此判断讲义质量或学习效果。未知不代表薄弱；查看或生成讲义不会改变知识状态。旧讲义、修订稿和生成输入均保留原来的画像。</p>
+ </div>
+</dialog>
+<dialog id="profile-dialog" aria-labelledby="profile-editor-title">
+ <div class="editor-top">
+ <div class="editor-heading"><div><h2 id="profile-editor-title">记录诊断证据</h2><p class="helper">按知识点记录作业、测验或课堂观察，由教师确认掌握状态。姓名、说明和学习特点在学生页的「编辑学生画像」中修改。</p></div><button id="close-profile" type="button" class="secondary">关闭</button></div>
+ <div id="profile-error" class="error" role="alert" hidden></div>
+ <p id="profile-status" class="helper" role="status" aria-live="polite"></p>
+ <button id="reload-profile" type="button" class="secondary">保留输入，重新读取当前诊断</button>
+ </div>
+ <div class="dialog-body" id="profile-editor-content" hidden>
+   <section class="editor-section">
+    <h3>知识状态与诊断证据</h3>
+    <p class="helper">答对一次或阅读讲义不会自动变为已掌握。新旧证据冲突时可保留原判断，双方记录仍可查看。</p>
+    <form id="evidence-form" class="editor-form">
+     <label for="evidence-knowledge">知识点</label><select id="evidence-knowledge" name="knowledge_id" required></select>
+     <p id="evidence-current" class="current-summary"></p>
+     <label for="evidence-source">证据来源</label><select id="evidence-source" name="source"><option value="observation">课堂观察</option><option value="homework">作业</option><option value="quiz">测验</option><option value="teacher_review">教师复核</option></select>
+     <label for="evidence-task">任务或观察内容</label><textarea id="evidence-task" name="task_content" rows="2" maxlength="1200" required></textarea>
+     <label for="evidence-performance">学生表现</label><textarea id="evidence-performance" name="performance" rows="3" maxlength="2000" required></textarea>
+     <div class="field-pair"><div><label for="evidence-time">观察时间（本机时区）</label><input id="evidence-time" name="observed_at" type="datetime-local" required></div><div><label for="evidence-recorder">录入者</label><input id="evidence-recorder" name="recorder" maxlength="80" required></div></div>
+     <label for="evidence-decision">本次处理</label><select id="evidence-decision" name="decision"><option value="update">依据新证据确认状态</option><option value="retain">记录新证据，保留原判断并待复核</option></select>
+     <label for="evidence-state">教师确认的状态</label><select id="evidence-state" name="new_state"></select>
+     <p id="state-rule" class="helper"></p>
+     <label for="evidence-reason">确认理由</label><textarea id="evidence-reason" name="reason" rows="2" maxlength="600" required></textarea>
+     <label class="check-row"><input id="evidence-confirmed" name="confirmed" type="checkbox" required>我已核对证据，并确认本次状态判断</label>
+     <button type="submit" class="primary">保存证据与判断</button>
+    </form>
+   </section>
+  <section class="editor-section editor-history"><h3>诊断证据与状态历史</h3><p id="evidence-history-count" class="helper"></p><div id="evidence-history"></div></section>
+ </div>
+</dialog>
+<dialog id="trace-dialog" aria-labelledby="trace-title">
+ <div class="editor-top">
+  <div class="editor-heading"><div><h2 id="trace-title">生成输入与结果记录</h2><p id="trace-status" class="helper" role="status" aria-live="polite"></p></div><button id="close-trace" type="button" class="secondary">关闭</button></div>
+  <div class="trace-actions"><button id="reload-trace" type="button" class="secondary">刷新本条记录</button><a id="download-input" class="secondary" hidden>下载输入 JSON</a><button id="retry-run" class="secondary" type="button" hidden>按原输入重试</button></div>
+ </div>
+ <div class="dialog-body">
+ <div id="trace-dialog-error" class="error" role="alert" hidden></div>
+ <div id="trace-content" hidden>
+  <p id="trace-call-note" class="current-summary"></p>
+  <dl id="trace-metadata" class="trace-metadata"></dl>
+  <section class="trace-section"><h3>本次要求与生成依据</h3><pre id="trace-context-summary" class="trace-text"></pre></section>
+  <section class="trace-section"><h3>系统提示词全文</h3><pre id="trace-system" class="trace-text"></pre></section>
+  <details class="trace-section"><summary>动态用户消息原文</summary><pre id="trace-user" class="trace-text"></pre></details>
+  <details class="trace-section"><summary>模型与请求参数</summary><pre id="trace-parameters" class="trace-text"></pre></details>
+  <details class="trace-section"><summary>完整请求体原文</summary><pre id="trace-body" class="trace-text"></pre></details>
+  <section id="trace-output-section" class="trace-section" hidden><h3 id="trace-output-title"></h3><pre id="trace-output" class="trace-text"></pre></section>
+ </div>
+ </div>
+</dialog>
+<dialog id="lecture-editor" aria-labelledby="lecture-editor-title">
+ <div class="editor-top"><div class="editor-heading"><div><h2 id="lecture-editor-title">编辑与审核讲义</h2><p id="lecture-editor-base" class="helper"></p></div><button id="close-lecture-editor" class="secondary" type="button">关闭</button></div><div id="lecture-editor-error" class="error" role="alert" hidden></div><p id="lecture-editor-status" class="helper" role="status" aria-live="polite"></p><button id="reload-lecture-review" class="secondary" type="button">保留输入，重新读取审核记录</button></div>
+ <div class="dialog-body" id="lecture-editor-content" hidden>
+  <form id="revision-form" class="editor-form">
+   <label for="revision-content">讲义正文（Markdown）</label><textarea id="revision-content" rows="18" maxlength="16000" required></textarea><p class="helper">另存修订版本，原稿保留。最多 16,000 字符；历史生成输入仍对应原稿。</p>
+   <div class="field-pair"><div><label for="revision-status">保存时审核状态</label><select id="revision-status"><option value="draft">草稿</option><option value="needs_revision">待修订</option><option value="reviewed">教师已审核</option></select></div><div><label for="revision-recorder">记录者</label><input id="revision-recorder" maxlength="80" required></div></div>
+   <label for="revision-reason">修改或复核理由</label><textarea id="revision-reason" rows="2" maxlength="1500" required></textarea>
+   <label for="revision-seconds">实际审核/修改用时（秒，记录者填写）</label><input id="revision-seconds" type="number" min="0" max="86400" step="1" value="0" required><p class="helper">0 表示未记录实际用时，不将窗口打开时长当作有效工作量。</p>
+   <fieldset class="review-fieldset"><legend>教师复核项</legend><div id="revision-checklist"></div></fieldset>
+   <fieldset class="review-fieldset"><legend>已记录问题的本次处理</legend><div id="revision-resolutions"></div><p class="helper">勾选已处理并填写理由。标记“教师已审核”须确认全部检查项、说明全部问题处理，并修正无效引用编号。</p></fieldset>
+   <label class="check-row"><input id="revision-confirmed" type="checkbox" required>我已确认本次正文、状态、处理理由与用时记录</label><button id="save-revision" class="primary" type="submit">另存修订版本</button>
+  </form>
+  <section class="editor-history"><h3>记录具体问题与引用判断</h3><p id="issue-base-note" class="helper"></p><form id="issue-form" class="editor-form">
+   <label for="issue-category">问题类型</label><select id="issue-category"><option value="math">数学运算或条件</option><option value="terminology">术语</option><option value="citation_support">引用支持</option><option value="scope">目标或知识范围</option><option value="structure">结构或篇幅</option><option value="other">其他</option></select>
+   <label for="issue-excerpt">准确原文片段（复制所选已保存版本）</label><textarea id="issue-excerpt" rows="2" maxlength="1200" required></textarea>
+   <div id="issue-source-fields" hidden><label for="issue-material">对应材料快照</label><select id="issue-material"></select><p id="issue-material-content" class="current-summary"></p><label for="issue-support">引用支持判断</label><select id="issue-support"><option value="unreviewed">尚未核查</option><option value="supported">支持</option><option value="unsupported">不支持</option><option value="unclear">依据不足或不确定</option></select></div>
+   <label for="issue-detail">问题说明、判断依据与修改建议</label><textarea id="issue-detail" rows="3" maxlength="1500" required></textarea><label for="issue-recorder">问题记录者</label><input id="issue-recorder" maxlength="80" required><label class="check-row"><input id="issue-confirmed" type="checkbox" required>我已核对原文位置及问题依据</label><button id="save-issue" class="primary" type="submit">保存问题记录</button>
+  </form></section>
+  <section class="editor-history"><h3>版本、修改位置与审核记录</h3><div id="revision-history"></div></section>
+ </div>
+</dialog>
+<link rel="stylesheet" href="/static/model-settings.css"><script defer src="/static/model-settings.js"></script>
+<link rel="stylesheet" href="/static/course-manager.css"><link rel="stylesheet" href="/static/knowledge.css"><script defer src="/static/knowledge.js"></script><script defer src="/static/course-manager.js"></script><script defer src="/static/course-page.js"></script><script defer src="/static/class-page.js"></script><script defer src="/static/student-roster.js"></script><link rel="stylesheet" href="/static/roster-import.css"><script defer src="/static/roster-import.js"></script>
+<dialog id="section-editor" aria-labelledby="section-editor-title">
+ <div class="editor-top"><div class="editor-heading"><div><h2 id="section-editor-title">按章节调整</h2><p id="section-base-note" class="helper"></p></div><button id="close-section-editor" type="button" class="secondary">关闭</button></div></div>
+ <div class="dialog-body"><div id="section-error" class="error" role="alert" hidden></div>
+  <form id="section-form"><div class="teaching-grid">
+   <div><label for="section-select">选择章节</label><select id="section-select" required></select></div>
+   <div><label for="section-action">修改方式</label><select id="section-action"><option value="expand">展开讲解</option><option value="simplify">简化本节</option><option value="examples">更换例题 / 练习</option><option value="custom">自定义修改</option></select></div>
+   <div class="teaching-wide"><label for="section-instruction">本节修改要求（选填）</label><textarea id="section-instruction" maxlength="1500" rows="2" placeholder="例如：保留推导，增加学生答错时的追问和引导。"></textarea></div>
+   <div><label for="section-recorder">记录者</label><input id="section-recorder" maxlength="80" required placeholder="填写教师姓名或称呼"></div>
+  </div><p class="helper">依据当前阅读版本与原材料生成候选。预览后另存草稿，其余章节保持原样，审核项重新确认。</p>
+  <button id="generate-section" class="primary" type="submit">生成本节候选</button></form>
+  <p id="section-progress" class="current-summary" role="status" aria-live="polite"></p>
+  <div class="section-comparison"><section><h3>修改前</h3><div id="section-before" class="section-preview"></div></section><section><h3>候选内容</h3><div id="section-after" class="section-preview"><p class="helper">生成后在这里预览。</p></div></section></div>
+  <div class="section-save-actions"><button id="accept-section" type="button" class="primary" disabled>采用并另存草稿</button><button id="section-trace" type="button" class="secondary" hidden>查看本次修改输入</button></div>
+ </div>
+</dialog>
+<link rel="stylesheet" href="/static/teaching.css"><script defer src="/static/teaching.js"></script><script defer src="/static/section-editor.js"></script>
+<link rel="stylesheet" href="/static/quizzes.css"><script defer src="/static/quizzes.js"></script>
+<link rel="stylesheet" href="/static/grading.css"><script defer src="/static/grading.js"></script><script defer src="/static/grading-evidence.js"></script>
+<link rel="stylesheet" href="/static/theme.css">
+<dialog id="source-dialog" aria-labelledby="source-title"><div class="editor-top editor-heading"><h2 id="source-title">核查来源</h2><button id="close-source" type="button" class="secondary">关闭</button></div><div class="dialog-body"><p id="source-status" class="helper"></p><div id="source-content"></div><div class="trace-actions" id="source-review-actions"><button type="button" class="secondary" data-source-support="supported">记录“支持”</button><button type="button" class="secondary" data-source-support="unsupported">记录“不支持”</button><button type="button" class="secondary" data-source-support="unclear">记录“不确定”</button></div><p class="helper">打开对应保存版本的问题表单，核对原文并填写依据、记录者后确认；不会自动保存审核判断。</p></div></dialog>
+<link rel="stylesheet" href="/static/lecture-workflow.css"><script defer src="/static/lecture-workflow.js"></script><script defer src="/static/evaluation.js"></script>
+<dialog id="ppt-dialog" aria-labelledby="ppt-title">
+ <div class="editor-top"><div class="editor-heading"><div><h2 id="ppt-title">授课 PPT</h2><p id="ppt-source" class="helper"></p></div><button id="close-ppt" type="button" class="secondary">关闭</button></div></div>
+ <div class="dialog-body">
+  <form id="ppt-form"><div class="ppt-settings"><label>总页数（含封面）<input id="ppt-count" type="number" min="6" max="20" value="12" required></label><label>课件风格<select id="ppt-template" required><option value="teaching-blue">蓝白教学 · 内容自适应</option></select><span id="ppt-template-hint" class="helper">根据内容安排概念、推导、对比与练习页面。</span></label><label class="ppt-instruction-label">课件要求（选填）<textarea id="ppt-instruction" maxlength="1000" rows="2" placeholder="例如：例题分步展示，课堂练习的答案放在教师讲稿中。"></textarea></label></div>
+   <img id="ppt-template-preview" alt="所选模板原版预览" hidden>
+   <p class="helper">根据已保存的讲义版本改编，按内容安排概念、步骤、对比与练习。教师讲稿和练习答案保存在演讲者备注，课件需单独复核。暂不自动配图或制作动画。</p>
+   <div class="ppt-actions"><button id="ppt-submit" type="submit" class="primary">生成授课 PPT</button><a id="ppt-download" class="secondary" hidden>下载可编辑 PPTX</a><button id="ppt-trace" type="button" class="secondary" hidden>查看生成输入 / 重试</button></div>
+  </form>
+  <p id="ppt-status" class="current-summary" role="status" aria-live="polite"></p>
+  <details><summary>这份讲义的课件记录</summary><div id="ppt-history" class="ppt-history"></div></details>
+  <div id="ppt-workspace" class="ppt-workspace">
+   <div id="ppt-preview"></div>
+   <aside id="ppt-edit-panel" class="ppt-edit-panel" hidden aria-labelledby="ppt-edit-title">
+    <div class="ppt-edit-heading"><span class="ppt-edit-badge">AI 微调</span><h3 id="ppt-edit-title">只修改这一页</h3></div>
+    <p id="ppt-edit-version" class="helper"></p>
+    <form id="ppt-edit-form">
+     <label for="ppt-edit-page">选择页面</label><select id="ppt-edit-page" required></select>
+     <label for="ppt-edit-instruction">希望怎么改？</label>
+     <textarea id="ppt-edit-instruction" rows="5" maxlength="1500" required placeholder="例如：减少文字，改成三个步骤；保留公式，把解释写得更清楚。"></textarea>
+     <p class="helper">仅调整所选页面。先看修改效果，再决定是否采用。</p>
+     <button id="ppt-edit-generate" class="primary" type="submit">生成本页修改稿</button>
+    </form>
+    <p id="ppt-edit-status" class="helper" role="status" aria-live="polite"></p>
+    <div id="ppt-edit-comparison" hidden><section><h4>修改前</h4><div id="ppt-edit-before" class="ppt-edit-preview"></div></section><section><h4>修改后</h4><div id="ppt-edit-after" class="ppt-edit-preview"></div></section></div>
+    <div id="ppt-edit-decisions" class="ppt-edit-decisions" hidden><button id="ppt-edit-accept" class="primary" type="button">采用并保存新版本</button><button id="ppt-edit-discard" class="secondary" type="button">放弃修改</button></div>
+   </aside>
+  </div>
+ </div>
+</dialog>
+<link rel="stylesheet" href="/static/presentations.css"><script defer src="/static/presentations.js"></script>
+<dialog id="package-dialog" class="package-dialog" aria-labelledby="package-title">
+ <div class="editor-top"><div class="editor-heading"><div><h2 id="package-title">导出授课包</h2><p id="package-source" class="helper"></p></div><button id="close-package" type="button" class="secondary">关闭</button></div></div>
+ <div class="dialog-body">
+  <p class="helper">汇总当前阅读的讲义版本、生成时的学生档案与讲解安排、课程材料来源、配套练习和授课课件。只读取已保存记录，不重新调用模型。</p>
+  <form id="package-form" class="package-form">
+   <label for="package-quiz">配套练习</label><select id="package-quiz"><option value="">不包含练习</option></select>
+   <label for="package-deck">授课课件</label><select id="package-deck"><option value="">不包含课件</option></select>
+   <label for="package-format">导出内容</label><select id="package-format"><option value="zip">完整授课包（.zip）</option><option value="docx">仅教师授课手册（Word）</option><option value="md">仅教师授课手册（Markdown）</option></select>
+  </form>
+  <ul class="package-contents"><li><strong>教师授课手册</strong>：授课概览、学生档案与本次讲解安排、讲义正文、配套练习答案解析、材料来源、审核待办</li><li><strong>学生练习</strong>：不含答案和学生信息，可直接打印</li><li><strong>授课课件</strong>与<strong>清单</strong>：可编辑 PPTX，及每个文件的 SHA-256</li></ul>
+  <p id="package-status" class="helper" role="status" aria-live="polite"></p>
+  <div class="package-actions"><a id="package-download" class="primary" href="#">下载授课包</a><button id="package-new-quiz" type="button" class="secondary">先为这份讲义出题</button></div>
+  <p class="helper">讲义、题目与课件为 AI 生成或修订的待审核内容；学生档案仅供教师参考，请勿与学生练习一起分发。</p>
+ </div>
+</dialog>
+<link rel="stylesheet" href="/static/packages.css"><script defer src="/static/packages.js"></script>
+<dialog id="lesson-teaching-dialog" class="lesson-settings-dialog" aria-labelledby="lesson-teaching-title">
+ <div class="lesson-dialog-header"><h2 id="lesson-teaching-title">本次怎么讲</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭本次怎么讲">×</button></div>
+ <div class="dialog-body"><fieldset class="teaching-controls"><legend>本次怎么讲</legend><div class="teaching-grid">
+      <div><label for="lesson-duration">授课时长（分钟）</label><input form="generate-form" id="lesson-duration" type="number" min="5" max="180" step="1" value="45" required></div>
+      <div><label for="lesson-type">授课类型</label><select form="generate-form" id="lesson-type"><option value="new">新授</option><option value="practice">巩固</option><option value="correction">纠错</option><option value="review">复习</option></select></div>
+      <div class="teaching-wide"><label for="lesson-detail">讲解详略</label><select form="generate-form" id="lesson-detail"><option value="brief">简明提纲</option><option value="standard" selected>常规讲解</option><option value="detailed">详细讲解</option></select><p id="lesson-length-note" class="helper" role="status"></p></div>
+      <div class="teaching-wide"><label for="lesson-target">自定目标汉字数（选填）</label><input form="generate-form" id="lesson-target" type="number" min="400" max="6600" step="100" placeholder="留空按时长与详略建议"><p class="helper">400—6600汉字，允许约20%浮动；课堂必讲与补充阅读分开。目标与题量冲突时说明取舍。</p></div>
+      <div><label for="lesson-examples">完整例题数</label><input form="generate-form" id="lesson-examples" type="number" min="0" max="6" step="1" value="2" required></div>
+      <div><label for="lesson-exercises">课堂练习数</label><input form="generate-form" id="lesson-exercises" type="number" min="0" max="10" step="1" value="3" required></div>
+     </div><p class="helper">供教师授课使用，包含讲解步骤、课堂提问、错误引导与参考答案。时间分配为建议。</p></fieldset></div>
+ <div class="lesson-dialog-footer"><span>设置会保留到本次生成</span><button type="button" class="primary" data-close-setting>完成</button></div>
+</dialog>
+<dialog id="lesson-advanced-dialog" class="lesson-settings-dialog" aria-labelledby="lesson-advanced-title">
+ <div class="lesson-dialog-header"><h2 id="lesson-advanced-title">高级设置</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭高级设置">×</button></div>
+ <div class="dialog-body"><p class="lesson-dialog-intro">选择本次讲义的生成依据与材料取用方式。</p>
+  <div class="setup-field"><label for="personalization-mode">生成依据</label><select id="personalization-mode"><option value="profile">使用学生画像</option><option value="none">无画像对照 · 通用讲义</option></select></div>
+  <div class="setup-field"><label for="retrieval-mode">材料取用方式</label><select id="retrieval-mode"><option value="sql">全部关联材料 · 精确 SQL</option><option value="vector">按目标选取片段 · 向量检索</option></select><p id="retrieval-note" class="helper" role="status" aria-live="polite">默认直接读取关联材料。</p></div>
+  <div class="setup-field"><label for="generation-mode">写作方式</label><select id="generation-mode"><option value="sectioned-v1">先列大纲，再分章节写（篇幅更足）</option><option value="single">一次写完整篇</option></select><p class="helper">分章节时每个章节单独调用模型并各有篇幅要求，结构、引用或篇幅不合格的章节会自动重写一次；模型调用次数约为 6 次。</p></div>
+  <div class="setup-field"><label for="lecture-format">公式与图</label><select id="lecture-format"><option value="rich-v1">LaTeX 公式、表格与程序绘制的图</option><option value="plain">纯文本公式（旧版格式）</option></select><p class="helper">图由程序按讲义里写明的数据绘制，并核对概率之和、代回检验等自身一致性；是否与正文对应仍需教师核对。</p></div>
+ </div><div class="lesson-dialog-footer"><span>设置用于本次生成</span><button type="button" class="primary" data-close-setting>完成</button></div>
+</dialog>
+<dialog id="attach-dialog" class="lesson-settings-dialog attach-dialog" aria-labelledby="attach-dialog-title">
+ <div class="lesson-dialog-header"><h2 id="attach-dialog-title">收录到备课</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭收录窗口">×</button></div>
+ <form id="attach-dialog-form" class="dialog-body editor-form"><p class="lesson-dialog-intro" id="attach-dialog-meta"></p>
+  <label for="attach-dialog-topic">备课</label><select id="attach-dialog-topic" required></select>
+  <label for="attach-dialog-knowledge">知识点</label><select id="attach-dialog-knowledge" required></select>
+  <p class="helper" id="attach-dialog-scope"></p>
+  <p id="attach-dialog-status" class="helper" role="status" aria-live="polite"></p>
+ </form><div class="lesson-dialog-footer"><span class="helper">收录后生成讲义时以 [M编号] 引用</span><button type="submit" form="attach-dialog-form" class="primary" id="attach-dialog-submit">收录</button></div>
+</dialog>
+<dialog id="knowledge-dialog" class="lesson-settings-dialog knowledge-dialog" aria-labelledby="knowledge-dialog-title">
+ <div class="lesson-dialog-header"><h2 id="knowledge-dialog-title">确认知识点</h2><button type="button" class="lesson-dialog-close" id="knowledge-dialog-close" aria-label="关闭知识点确认窗口">×</button></div>
+ <form id="knowledge-dialog-form" class="dialog-body editor-form"><p class="lesson-dialog-intro" id="knowledge-dialog-meta"></p>
+  <p class="check-warning" id="knowledge-dialog-notice" hidden></p>
+  <label for="knowledge-dialog-chapter">章节</label><input id="knowledge-dialog-chapter" maxlength="100" list="knowledge-chapters">
+  <p class="helper">逐条核对名称和资料范围（鼠标停在范围上可预览起始页）。「并入上一条」合并范围，「删除」不加入；与知识点库同名的会合并到已有知识点，并补充这段资料。</p>
+  <ol id="knowledge-dialog-items" class="knowledge-items"></ol>
+  <div class="trace-actions"><button type="button" class="secondary" id="knowledge-dialog-add">新增一条</button><button type="button" class="secondary" id="knowledge-dialog-reset">恢复识别结果</button></div>
+  <p id="knowledge-dialog-status" class="helper" role="status" aria-live="polite"></p>
+ </form><div class="lesson-dialog-footer"><span class="helper" id="knowledge-dialog-summary"></span><button type="submit" form="knowledge-dialog-form" class="primary" id="knowledge-dialog-submit">确认加入知识点库</button></div>
+</dialog>
+<dialog id="batch-dialog" class="lesson-settings-dialog batch-dialog" aria-labelledby="batch-title">
+ <div class="lesson-dialog-header"><h2 id="batch-title">为班内学生逐个生成</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭批量生成">×</button></div>
+ <div class="dialog-body"><p class="lesson-dialog-intro" id="batch-note"></p>
+  <p class="helper">使用左侧当前的备课、教学目标、授课设置和高级设置；每名学生按各自画像的默认讲解安排单独生成、单独保存。需要一份面向全班的讲义时，请在「讲义对象」中选择「全班」。「本次讲解安排」里的手动修改只对单个学生生效，批量时不使用。</p>
+  <div class="batch-tools"><button type="button" class="secondary" id="batch-all">全选</button><button type="button" class="secondary" id="batch-none">全不选</button><span id="batch-selected" class="helper"></span></div>
+  <div id="batch-students" class="batch-students"></div>
+  <p id="batch-error" class="check-warning" role="alert" hidden></p>
+  <div id="batch-status" class="batch-status" role="status" aria-live="polite"></div>
+ </div><div class="lesson-dialog-footer"><span id="batch-summary">任务在后台排队，关闭窗口不会中断</span><button type="button" class="primary" id="batch-submit">开始生成</button></div>
+</dialog>
+<dialog id="lesson-visual-dialog" class="lesson-settings-dialog" aria-labelledby="lesson-visual-title">
+ <div class="lesson-dialog-header"><h2 id="lesson-visual-title">图片解析依据</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭图片解析依据">×</button></div>
+ <div class="dialog-body"><p class="lesson-dialog-intro">选择与本次教学目标相关的图片解析，最多 4 条。</p><p class="helper">先在「上传资料」中解析图片，再选择用于本次讲义的解析。原图仅发送给独立视觉模型；语言模型只接收解析文字。</p><button id="refresh-visual-evidence" type="button" class="secondary">刷新图片解析</button><p id="visual-evidence-status" class="helper" role="status" aria-live="polite"></p><div id="visual-evidence-options" class="visual-options"></div></div>
+ <div class="lesson-dialog-footer"><span>选择会保留到本次生成</span><button type="button" class="primary" data-close-setting>完成</button></div>
+</dialog>
+
+<dialog id="lesson-plan-dialog" class="lesson-settings-dialog" aria-labelledby="lesson-plan-title">
+ <div class="lesson-dialog-header"><h2 id="lesson-plan-title">本次讲解安排</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭本次讲解安排">×</button></div>
+ <div class="dialog-body"><p class="lesson-dialog-intro">根据学生已有诊断提供讲法建议，可逐项调整；修改仅用于本次讲义。</p><div id="lecture-plan"></div><div id="input-budget-note" class="helper"></div></div>
+ <div class="lesson-dialog-footer"><span>调整会保留到本次生成</span><button type="button" class="primary" data-close-setting>完成</button></div>
+</dialog>
+<link rel="stylesheet" href="/static/lesson-settings.css"><script defer src="/static/lesson-settings.js"></script>
+<link rel="stylesheet" href="/static/usability.css"><link rel="stylesheet" href="/static/scopes.css">
+<link rel="stylesheet" href="/static/rich.css"><link rel="stylesheet" href="/static/motion.css">
+<link rel="stylesheet" href="/static/topic-nav.css">
+<script defer src="/static/topic-nav.js"></script>
+<script defer src="/static/live.js"></script><script defer src="/static/batch.js"></script><script defer src="/static/pwa.js"></script>
+
+<dialog id="image-lightbox" class="lightbox" aria-label="放大查看">
+  <div class="lightbox-overlay"></div>
+  <div class="lightbox-content" id="lightbox-content"></div>
+  <button id="lightbox-close" class="lightbox-close" type="button" aria-label="关闭放大查看" autofocus>×</button>
+</dialog>
+
+</body>
+</html>

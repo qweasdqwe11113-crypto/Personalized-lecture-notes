@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "templates": [
+    {
+      "id": "simple-clear",
+      "name": "简洁浅色",
+      "author": "fsanchez",
+      "suggested_use": "通用讲课、知识点与例题",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "source_url": "https://github.com/dohliam/libreoffice-impress-templates/tree/7bdfa347c6fbdc784e788f1108f2df848af19d6e/lo5-design-candidates/simple-clear",
+      "source_collection": "lo5-design-candidates",
+      "upstream_commit": "7bdfa347c6fbdc784e788f1108f2df848af19d6e",
+      "acquired_date": "2026-11-01",
+      "format": "otp",
+      "file": "simple-clear/template.otp",
+      "preview": "simple-clear/preview.png",
+      "sha256": "d2c9b5a03d6d870977ee3fe5558e9a1411ffccaae076f5a7bef0a9d3b4374792",
+      "page_size": {
+        "width": "28cm",
+        "height": "21cm"
+      },
+      "master_count": 3,
+      "sample_slide_count": 3,
+      "integration_status": "reserve_requires_conversion_and_mapping"
+    },
+    {
+      "id": "simple-dark",
+      "name": "简洁深色",
+      "author": "fsanchez",
+      "suggested_use": "深色投影、技术分享",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "source_url": "https://github.com/dohliam/libreoffice-impress-templates/tree/7bdfa347c6fbdc784e788f1108f2df848af19d6e/lo5-design-candidates/simple-dark",
+      "source_collection": "lo5-design-candidates",
+      "upstream_commit": "7bdfa347c6fbdc784e788f1108f2df848af19d6e",
+      "acquired_date": "2026-11-01",
+      "format": "otp",
+      "file": "simple-dark/template.otp",
+      "preview": "simple-dark/preview.png",
+      "sha256": "7eec25972c93210524b6a5c6c3c9050f0b051c8cd239ae282132a0b6a57dbcd1",
+      "page_size": {
+        "width": "28cm",
+        "height": "21cm"
+      },
+      "master_count": 3,
+      "sample_slide_count": 3,
+      "integration_status": "reserve_requires_conversion_and_mapping"
+    },
+    {
+      "id": "peter-river",
+      "name": "河流蓝",
+      "author": "Jun NOGATA",
+      "suggested_use": "课程介绍、章节与总结",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "source_url": "https://github.com/dohliam/libreoffice-impress-templates/tree/7bdfa347c6fbdc784e788f1108f2df848af19d6e/lo5-design-candidates/peter-river",
+      "source_collection": "lo5-design-candidates",
+      "upstream_commit": "7bdfa347c6fbdc784e788f1108f2df848af19d6e",
+      "acquired_date": "2026-11-01",
+      "format": "otp",
+      "file": "peter-river/template.otp",
+      "preview": "peter-river/preview.png",
+      "sha256": "3f220f3b3834dce3d57b7230bcbedc6eafce6507dba9cce5c001d9aac057a648",
+      "page_size": {
+        "width": "28cm",
+        "height": "21cm"
+      },
+      "master_count": 5,
+      "sample_slide_count": 5,
+      "integration_status": "reserve_requires_conversion_and_mapping"
+    },
+    {
+      "id": "vivid-blue",
+      "name": "明亮蓝",
+      "author": "fsanchez",
+      "suggested_use": "课堂教学、培训讲解",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "source_url": "https://github.com/dohliam/libreoffice-impress-templates/tree/7bdfa347c6fbdc784e788f1108f2df848af19d6e/lo5-design-candidates/vivid-blue",
+      "source_collection": "lo5-design-candidates",
+      "upstream_commit": "7bdfa347c6fbdc784e788f1108f2df848af19d6e",
+      "acquired_date": "2026-11-01",
+      "format": "otp",
+      "file": "vivid-blue/template.otp",
+      "preview": "vivid-blue/preview.png",
+      "sha256": "1ca0e5e8d39c7e5435d7c1dd5b74d12e20dfa0d440aa7764a11844d39f4261cb",
+      "page_size": {
+        "width": "33.33cm",
+        "height": "21cm"
+      },
+      "master_count": 3,
+      "sample_slide_count": 3,
+      "integration_status": "reserve_requires_conversion_and_mapping"
+    },
+    {
+      "id": "notebook",
+      "name": "笔记本",
+      "author": "kka_libo_design@ashisuto.co.jp",
+      "suggested_use": "学习笔记、练习与复习",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "source_url": "https://github.com/dohliam/libreoffice-impress-templates/tree/7bdfa347c6fbdc784e788f1108f2df848af19d6e/lo5-design-candidates/notebook",
+      "source_collection": "lo5-design-candidates",
+      "upstream_commit": "7bdfa347c6fbdc784e788f1108f2df848af19d6e",
+      "acquired_date": "2026-11-01",
+      "format": "otp",
+      "file": "notebook/template.otp",
+      "preview": "notebook/preview.png",
+      "sha256": "dc041fb01b50011bdcfc94856331d3fc6c609d276844044b691956d66def576f",
+      "page_size": {
+        "width": "28cm",
+        "height": "21cm"
+      },
+      "master_count": 6,
+      "sample_slide_count": 6,
+      "integration_status": "reserve_requires_conversion_and_mapping"
+    },
+    {
+      "id": "pencil",
+      "name": "铅笔",
+      "author": "kka_libo_design@ashisuto.co.jp",
+      "suggested_use": "学校课堂、活动课程",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "source_url": "https://github.com/dohliam/libreoffice-impress-templates/tree/7bdfa347c6fbdc784e788f1108f2df848af19d6e/lo5-design-candidates/pencil",
+      "source_collection": "lo5-design-candidates",
+      "upstream_commit": "7bdfa347c6fbdc784e788f1108f2df848af19d6e",
+      "acquired_date": "2026-11-01",
+      "format": "otp",
+      "file": "pencil/template.otp",
+      "preview": "pencil/preview.png",
+      "sha256": "b2d0d38ee93871bb5e88419bf964f187531f0e1f0372433110acbee0cdfcd903",
+      "page_size": {
+        "width": "28cm",
+        "height": "21cm"
+      },
+      "master_count": 2,
+      "sample_slide_count": 2,
+      "integration_status": "reserve_requires_conversion_and_mapping"
+    },
+    {
+      "id": "technical-office",
+      "name": "技术办公",
+      "author": "Antonio Faccioli",
+      "suggested_use": "理工课程、项目汇报",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "source_url": "https://github.com/dohliam/libreoffice-impress-templates/tree/7bdfa347c6fbdc784e788f1108f2df848af19d6e/lo5-design-candidates/technical-office",
+      "source_collection": "lo5-design-candidates",
+      "upstream_commit": "7bdfa347c6fbdc784e788f1108f2df848af19d6e",
+      "acquired_date": "2026-11-01",
+      "format": "otp",
+      "file": "technical-office/template.otp",
+      "preview": "technical-office/preview.png",
+      "sha256": "40796ffad96381c1ea4816bb6826e869b69a349e0938d2dde843528c9976a319",
+      "page_size": {
+        "width": "28cm",
+        "height": "21cm"
+      },
+      "master_count": 4,
+      "sample_slide_count": 1,
+      "integration_status": "reserve_requires_conversion_and_mapping"
+    },
+    {
+      "id": "cinema",
+      "name": "电影胶片",
+      "author": "artyom.gilvanov",
+      "suggested_use": "影视赏析、媒体课程",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "source_url": "https://github.com/dohliam/libreoffice-impress-templates/tree/7bdfa347c6fbdc784e788f1108f2df848af19d6e/lo4-design-candidates/cinema",
+      "source_collection": "lo4-design-candidates",
+      "upstream_commit": "7bdfa347c6fbdc784e788f1108f2df848af19d6e",
+      "acquired_date": "2026-11-01",
+      "format": "otp",
+      "file": "cinema/template.otp",
+      "preview": "cinema/preview.png",
+      "sha256": "4e1d1cdab9af8aa0f530c103eaf39e20b2baa2d264044ab1c9aa8f68cba0bbf7",
+      "page_size": {
+        "width": "28cm",
+        "height": "15.75cm"
+      },
+      "master_count": 1,
+      "sample_slide_count": 1,
+      "integration_status": "reserve_requires_conversion_and_mapping"
+    }
+  ]
+}
