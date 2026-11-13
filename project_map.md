@@ -1,6 +1,6 @@
 # 项目模块关联图
 
-更新日期：2026-11-13。面向开发者：说明模块职责、调用关系、数据流和存储，修改代码前先确认影响范围。功能行为见 [docs/features.md](docs/features.md)。
+更新日期：2026-11-14。面向开发者：说明模块职责、调用关系、数据流和存储，修改代码前先确认影响范围。功能行为见 [docs/features.md](docs/features.md)。
 
 ## 1. 整体结构
 
@@ -56,6 +56,7 @@ flowchart TD
 | --- | --- | --- |
 | `reviews.js` | `reviews.py` | 版本切换、问题记录、编辑与审核、程序检查面板 |
 | `section-editor.js` | `sections.py` | 按章节生成候选并另存修订 |
+| `design-review.js` | `designed.py` | 确认课堂设计：预览、改时间 / 重点 / 题干答案、按意见重做、确认后开始写详案（`/api/lesson-designs/<记录>` 及其 `check`、`expand`、`revise`） |
 | `traces.js` | `runs.py` | 查看生成输入、失败重试 |
 | `profile-comparison.js`、`lecture-comparison.js` | `profiles.py`、`comparisons.py` | 画像对照、讲义比较 |
 | `quizzes.js`（配套出题） | `quizzes.py` | 以当前讲义版本出题 |
@@ -88,11 +89,14 @@ flowchart TD
 | `prompts.py`、`prompts/` | 组装请求、只序列化一次并计算 SHA-256、标记提示词版本 |
 | `jobs.py`、`runs.py` | 有界任务队列（多工作线程、批量额度）、取消与重试、重启恢复；运行记录与讲义同事务保存 |
 | `gate.py` | 模型并发闸门：全进程共用，`MODEL_CONCURRENCY` 个额度；额度为 1 时等同原来的全局锁 |
-| `sectioned.py` | 分章节生成：大纲 → 各章节单独调用（有空闲额度时并行）→ 校验、重写一次 → 拼接 |
+| `design.py` | 课堂设计（`lesson-design-v1`）：解析模型给出的 JSON（含 LaTeX 反斜杠修复）、校验结构 / 时间 / 数量 / 引用（`hard` 不可用，`soft` 提醒）、题目显示名、各环节篇幅上限；把设计排成教师详案的各部分（要点、课堂流程表、环节、题目块、板书、作业）。题目块 `item_block` 是所有文档共用的唯一出处 |
+| `designed.py` | 默认写作方式（`designed-v1`）：课堂设计 → 校验、重试一次 →（可停下等教师确认）→ 新授 / 例题 / 重点环节各一次调用（并行）→ 程序拼装；确认、检查、按意见重做的接口 |
+| `style.py` | 文本指标：系统话术、免责声明、旁白、套话、排比、汉字数量、重复片段；用于环节重写的依据、程序检查的「表达提醒」和 `scale/quality_baseline.py` |
+| `sectioned.py` | 旧版分章节生成：大纲 → 各章节单独调用（有空闲额度时并行）→ 校验、重写一次 → 拼接 |
 | `repair.py` | 出题与课件的结构化输出未通过校验时，带问题自动重试一次 |
 | `qwen.py`、`model_runtime.py` | OpenAI 兼容调用（含流式 SSE）、错误分类、超时 |
 | `progress.py` | 运行中的实时正文（仅内存、仅显示），供 `/api/jobs/<id>/stream` 推送 |
-| `quality.py` | 章节、篇幅、引用编号、范围与已知问题词语检查；新流程追加算式复算、图与公式标记 |
+| `quality.py` | 章节、篇幅、引用编号、范围与已知问题词语检查；新流程追加算式复算、图与公式标记；按课堂设计生成的讲义改查环节结构，并加入 `design.report` 的时间 / 数量 / 目标 / 讲解安排检查和表达提醒 |
 | `mathcheck.py` | 重算纯数字等式、把写出的解代回方程；不认识的式子跳过 |
 | `figures.py` | 结构化图：校验 JSON 数据并绘制为 SVG / PNG（概率树、数轴、等式变形、函数图像、柱状对比） |
 
@@ -112,7 +116,7 @@ flowchart TD
 | `rendering.py`、`model_settings.py` | 安全渲染与图片附录；模型配置的查看、测试与保存 |
 | `edition.py` | 正式版 / 测试版（`ZHIYE_EDITION`）与数据目录（`ZHIYE_DATA_DIR`，存放 `.env` 和 `.runtime/`，默认项目根目录）；`app.py`、`init_db.py`、`catalog.py`、`presentations.py` 共用 |
 | `richdoc.py` | 导出用：LaTeX 转 Word 原生公式、图转图片、表格；`app.py` 与 `packages.py` 共用 |
-| `scale/` | 可选的扩展语料、合成班级装载（`load.py`）、检索评测（`eval_retrieval.py`）和生成基准（`bench.py`） |
+| `scale/` | 可选的扩展语料、合成班级装载（`load.py`）、检索评测（`eval_retrieval.py`）、生成基准（`bench.py`）、已保存讲义的文本指标（`quality_baseline.py`，只读）和新旧写作方式对照（`design_compare.py`，加 `--real` 才调用模型） |
 
 ## 4. 关键流程
 
@@ -138,6 +142,22 @@ sequenceDiagram
     UI->>API: 轮询 GET /api/jobs/{id}
     API-->>UI: 状态与讲义编号
 ```
+
+默认写作方式（`designed-v1`）在「调用模型」这一步分成两段：
+
+```mermaid
+flowchart LR
+    R["冻结的请求<br/>只要课堂设计"] --> D["design.py 校验<br/>不合格带问题重试一次"]
+    D --> S{"先让教师确认？"}
+    S -->|是| C["设计记为已完成的生成记录<br/>教师查看、修改或要求重做"]
+    C --> E["确认后另建任务<br/>上下文带确认后的设计"]
+    S -->|否（含批量）| W
+    E --> W["新授 / 例题 / 重点环节<br/>各调用一次，并行"]
+    W --> A["程序拼装教师详案<br/>题目、提问、板书取自设计"]
+    A --> Q["程序检查后保存讲义<br/>context.lesson_design 留存设计"]
+```
+
+环节请求由冻结请求、冻结上下文（`context.designed`，含当时的环节提示词）和设计推导，逐次的 SHA-256 记在 `response_metadata.stages`。确认后的任务沿用原请求字节，上下文里的 `designed.confirmed` 记录设计、来源记录和是否被教师改过；「按原输入重试」因此不会重新向模型要设计。
 
 要点：输入先冻结再发送；向量模式在知识点范围内检索并记录命中片段；无画像模式不发送个体诊断；图片只以解析文字进入上下文；生成不修改学生状态；「按原输入重试」复用冻结字节，「重新生成」读取当前数据。
 
@@ -225,7 +245,7 @@ flowchart TD
 | `student_knowledge`、`learning_evidence`、`knowledge_state_history`、`student_profile_history` | 当前掌握状态、证据与历史 |
 | `materials`、`material_chunks` | 课程材料与向量分块 |
 | `lectures`、`lecture_revisions`、`lecture_issues` | 讲义原稿、修订与问题；班级讲义 `student_id` 为空、`class_id` 有值（`generation_runs`、`quiz_jobs` 同理） |
-| `generation_runs`、`generation_jobs` | 冻结输入、运行结果、排队状态（讲义、章节、PPT 共用） |
+| `generation_runs`、`generation_jobs` | 冻结输入、运行结果、排队状态（讲义、章节、PPT 共用）。成功的记录必须关联讲义，唯一的例外是等待教师确认的课堂设计（`response_metadata.operation = 'lesson_design'`，约束 `generation_runs_result_check`） |
 | `quiz_jobs` | 题组任务、冻结输入与结果 |
 | `lecture_experiments`、`lecture_experiment_cells` | 当前版本固定对照 |
 | `material_assets`、`generation_run_assets` | 图片资产辅助表（上传图片实际存在 SQLite） |
@@ -280,7 +300,8 @@ Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中
 | 检索 | `retrieval.py`、`embed.py`、`app.get_context()` | 索引更新、知识点范围、检索快照、无画像模式 |
 | 讲义结构与篇幅 | `lecture_policy.py`、`teaching.py`、`prompts.py` | `quality.py`、字符预算、历史版本 |
 | 队列与重试 | `jobs.py`、`runs.py`、`gate.py`、`jobs.js` | 取消、并发额度的获取与释放、失败状态、重启恢复 |
-| 分章节生成 | `sectioned.py`、`prompts/lecture-sectioned-*.md` | 冻结上下文里的 `sectioned`、章节配额与篇幅检查一致、`test_pipeline_v3.py` |
+| 课堂设计与按环节写作 | `design.py`、`designed.py`、`prompts/lecture-design-*.md`、`lecture-subject-*.md`、`design-review.js` | 设计的字段要同时改校验、排版和提示词里的 JSON 格式；`validate` 对自己的输出再校验结果不变（教师修改后重新提交依赖这一点）；`prompts.designed_view` 决定模型能看到的上下文；`sections.prepare_section` 的调整请求；`test_lesson_design.py`、离线沙盒 `serve_design_fixture.py`（5057 端口） |
+| 分章节生成（旧版） | `sectioned.py`、`prompts/lecture-sectioned-*.md` | 冻结上下文里的 `sectioned`、章节配额与篇幅检查一致、`test_pipeline_v3.py` |
 | 公式与图 | `figures.py`、`richdoc.py`、`app.js` 的 `renderMarkdown` | 网页、HTML、Word、纯文本四种输出，`prompts/lecture-format-rich-v1.md` 里的图格式 |
 | 审核与章节调整 | `reviews.py`、`sections.py` | 版本锁、问题记录、引用检查 |
 | PPT | `presentations.py`、`ppt_story.py`、`pptkit_export.py` | 模板版本、视觉审查、单页微调、`test_presentations.py` |

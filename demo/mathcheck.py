@@ -8,6 +8,7 @@ Anything the small parser does not understand is skipped, never guessed. A findi
 "the written numbers do not agree", which a teacher still has to read in context.
 """
 from fractions import Fraction
+import math
 import re
 
 VERSION = 'arithmetic-v1'
@@ -18,7 +19,8 @@ class MathError(ValueError):
     pass
 
 
-_LATEX = [(r'\\(?:dfrac|tfrac|frac)\s*\{([^{}]*)\}\s*\{([^{}]*)\}', r'((\1)/(\2))'),
+_LATEX = [(r'\\(?:dbinom|tbinom|binom)\s*\{\s*(\d{1,4})\s*\}\s*\{\s*(\d{1,4})\s*\}', lambda m: f'({math.comb(int(m[1]), int(m[2]))})'),
+          (r'\\(?:dfrac|tfrac|frac)\s*\{([^{}]*)\}\s*\{([^{}]*)\}', r'((\1)/(\2))'),
           (r'\\(?:left|right|,|;|!|quad|qquad|displaystyle)', ' '),
           (r'\\times|\\cdot|\\ast', '*'), (r'\\div', '/'), (r'\\%', '%'),
           (r'\\approx', '≈'), (r'\\neq|\\ne', '≠'), (r'\\(?:text|mathrm)\s*\{([^{}]*)\}', r'\1')]

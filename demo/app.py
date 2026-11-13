@@ -21,7 +21,8 @@ from qwen import ModelError, ModelResult, call_qwen, config_flags, stream_to, vi
 from progress import HUB
 import figures
 import sectioned
-from runs import create_run, fail_run, mark_attempt, recent_runs, run_detail, save_success
+import designed
+from runs import create_run, fail_run, mark_attempt, recent_runs, run_detail, save_candidate, save_success
 from quality import assess_scope, check_output
 from reviews import (ReviewError, STATUS_LABELS, add_issue, lecture_row,
                      review_bundle, save_revision, version_row)
@@ -451,7 +452,24 @@ def generate_locked(sid, topic_key, goal, mode='profile', frozen=None, prepared=
             with db() as conn:
                 mark_attempt(conn, run_id)
         stage = 'model'
-        if ctx.get('generation_mode') == sectioned.MODE:
+        if ctx.get('generation_mode') == designed.MODE:
+            HUB.start(run_id, [('design', '课堂设计')])
+            output = designed.generate(lambda request, attempted: call_qwen(request, attempted), GENERATION_LOCK,
+                                       prepared, ctx, goal, on_attempt,
+                                       publish=lambda key, text, state: HUB.write(run_id, key, text, state),
+                                       announce=lambda label: HUB.stage(run_id, label),
+                                       declare=lambda parts: HUB.add(run_id, parts))
+            if output.metadata.get('operation') == 'lesson_design':
+                # A design waiting for the teacher: a finished run, but not a lecture yet.
+                stage = 'storage'
+                with db() as conn:
+                    save_candidate(conn, run_id, output, round(time.monotonic() - start, 2))
+                    if job_id:
+                        conn.execute("UPDATE generation_jobs SET status='succeeded',finished_at=now() WHERE id=%s", (job_id,))
+                return dict(design=output.metadata['design'], generation_run_id=run_id), 200
+            # Saved with the lecture, so every later document is derived from the same design.
+            ctx = {**ctx, 'lesson_design': output.metadata['design']}
+        elif ctx.get('generation_mode') == sectioned.MODE:
             HUB.start(run_id, [(q['title'], q['title']) for q in ctx['sectioned']['quotas']])
             output = sectioned.generate(lambda request, attempted: call_qwen(request, attempted), GENERATION_LOCK,
                                         prepared, ctx, goal, on_attempt,
@@ -541,6 +559,7 @@ def execute_job(job_id, run_id, sid, topic, goal, context, prepared):
 TASKS = JobQueue(lambda: db(), execute_job, capacity=GENERATION_LOCK.limit + 3, workers=GENERATION_LOCK.limit)
 register_sections(app, lambda: db(), lambda: TASKS, lambda: MODEL)
 register_presentations(app, lambda: db(), lambda: TASKS)
+designed.register_designs(app, lambda: db(), lambda: TASKS, lambda: MODEL)
 register_packages(app, lambda: db())
 register_roster_import(app, lambda: db())
 QUIZZES = QuizQueue(lambda: db(), lambda prepared, attempted: call_qwen(prepared, attempted), GENERATION_LOCK)
@@ -620,8 +639,11 @@ def pipeline_options(data):
     mode, layout = data.get('generation_mode'), data.get('lecture_format')
     if mode is None and layout is None:
         return {}
-    if mode not in (None, 'single', sectioned.MODE) or layout not in (None, 'plain', 'rich-v1'):
+    if mode not in (None, 'single', sectioned.MODE, designed.MODE) or layout not in (None, 'plain', 'rich-v1'):
         raise JobError('生成方式或公式格式无效，请刷新页面后重试。')
+    if mode == designed.MODE:
+        # Every document of a designed lesson shares LaTeX formulas and program-drawn figures.
+        return dict(lecture_pipeline='v3', generation_mode=mode, lecture_format='rich-v1')
     return dict(lecture_pipeline='v3', generation_mode=mode or 'single', lecture_format=layout or 'plain')
 
 
@@ -642,6 +664,11 @@ def build_job(data):
     ctx.update(pipeline)
     if ctx.get('generation_mode') == sectioned.MODE:
         ctx['sectioned'] = sectioned.freeze(ctx)
+    if ctx.get('generation_mode') == designed.MODE:
+        if not options:
+            raise JobError('按课堂设计生成需要授课设置（时长、例题和练习数量），请刷新页面后重试。')
+        # The teacher confirms the design before the lesson is written, unless told otherwise.
+        ctx['designed'] = designed.freeze(ctx, stop=data.get('design_review') is not False)
     ctx = finalize_context(ctx, goal, data.get('plan_overrides'))
     ctx['scope_check'] = assess_scope(ctx, goal)
     return sid, topic, goal, ctx, prepare_request(ctx, goal, MODEL)
@@ -668,7 +695,9 @@ def submit_batch():
         try:
             # The per-topic plan is individual, so a batch always uses each student's default plan.
             # A batch is always per student; a class target on the form means "each classmate".
-            each = {**{k: v for k, v in data.items() if k != 'class_id'}, 'student_id': sid, 'plan_overrides': None}
+            # Nobody confirms sixty designs one by one: a batch writes each lesson straight through.
+            each = {**{k: v for k, v in data.items() if k != 'class_id'}, 'student_id': sid, 'plan_overrides': None,
+                    'design_review': False}
             if each.get('personalization_mode') == 'class':
                 each['personalization_mode'] = 'profile'
             _, topic, goal, ctx, prepared = build_job(each)

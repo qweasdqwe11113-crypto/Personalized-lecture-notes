@@ -481,7 +481,28 @@
   <div class="section-save-actions"><button id="accept-section" type="button" class="primary" disabled>采用并另存草稿</button><button id="section-trace" type="button" class="secondary" hidden>查看本次修改输入</button></div>
  </div>
 </dialog>
-<link rel="stylesheet" href="/static/teaching.css"><script defer src="/static/teaching.js"></script><script defer src="/static/section-editor.js"></script>
+<dialog id="design-dialog" aria-labelledby="design-title">
+ <div class="editor-top"><div class="editor-heading"><div><h2 id="design-title">确认课堂设计</h2><p id="design-note" class="helper"></p></div><button id="close-design" type="button" class="secondary">关闭</button></div></div>
+ <div class="dialog-body"><div id="design-error" class="error" role="alert" hidden></div>
+  <ul id="design-reminders" class="design-reminders" hidden></ul>
+  <div class="design-layout">
+   <section><h3>设计内容</h3><div id="design-preview" class="section-preview"></div></section>
+   <section class="design-edit"><h3>调整</h3>
+    <fieldset><legend>各环节时间（分钟）</legend><div id="design-minutes"></div><p id="design-total" class="helper" role="status" aria-live="polite"></p></fieldset>
+    <fieldset><legend>重点与取舍</legend>
+     <label for="design-key">重点（每行一条，最多 2 条）</label><textarea id="design-key" rows="2"></textarea>
+     <label for="design-hard">难点（每行一条，最多 2 条）</label><textarea id="design-hard" rows="2"></textarea>
+     <label for="design-skip">本课不展开（每行一条）</label><textarea id="design-skip" rows="2"></textarea></fieldset>
+    <details><summary>修改题干与答案</summary><div id="design-items"></div></details>
+    <button id="design-check" type="button" class="secondary">应用修改并检查</button>
+    <fieldset><legend>让模型按意见重做</legend><label for="design-feedback">修改意见</label><textarea id="design-feedback" rows="3" maxlength="1500" placeholder="例如：例2 换成教材里的保险题；方差的推导不讲。"></textarea><button id="design-revise" type="button" class="secondary">按意见重做设计</button></fieldset>
+   </section>
+  </div>
+  <p id="design-progress" class="current-summary" role="status" aria-live="polite"></p>
+  <div class="section-save-actions"><button id="design-confirm" type="button" class="primary">确认设计，写教师详案</button></div>
+ </div>
+</dialog>
+<link rel="stylesheet" href="/static/teaching.css"><script defer src="/static/teaching.js"></script><script defer src="/static/section-editor.js"></script><script defer src="/static/design-review.js"></script>
 <link rel="stylesheet" href="/static/quizzes.css"><script defer src="/static/quizzes.js"></script>
 <link rel="stylesheet" href="/static/grading.css"><script defer src="/static/grading.js"></script><script defer src="/static/grading-evidence.js"></script>
 <link rel="stylesheet" href="/static/theme.css">
@@ -550,7 +571,8 @@
  <div class="dialog-body"><p class="lesson-dialog-intro">选择本次讲义的生成依据与材料取用方式。</p>
   <div class="setup-field"><label for="personalization-mode">生成依据</label><select id="personalization-mode"><option value="profile">使用学生画像</option><option value="none">无画像对照 · 通用讲义</option></select></div>
   <div class="setup-field"><label for="retrieval-mode">材料取用方式</label><select id="retrieval-mode"><option value="sql">全部关联材料 · 精确 SQL</option><option value="vector">按目标选取片段 · 向量检索</option></select><p id="retrieval-note" class="helper" role="status" aria-live="polite">默认直接读取关联材料。</p></div>
-  <div class="setup-field"><label for="generation-mode">写作方式</label><select id="generation-mode"><option value="sectioned-v1">先列大纲，再分章节写（篇幅更足）</option><option value="single">一次写完整篇</option></select><p class="helper">分章节时每个章节单独调用模型并各有篇幅要求，结构、引用或篇幅不合格的章节会自动重写一次；模型调用次数约为 6 次。</p></div>
+  <div class="setup-field"><label for="generation-mode">写作方式</label><select id="generation-mode"><option value="designed-v1">先做课堂设计，再按环节写（推荐）</option><option value="sectioned-v1">先列大纲，再分章节写（旧版五章节）</option><option value="single">一次写完整篇</option></select><p class="helper">课堂设计先定重点难点、各环节时间和全课的例题练习，程序核对时间与数量后再按环节写教师详案；题目只写一次，各处引用同一份。旧版分章节约 6 次模型调用，各章节有篇幅下限。</p>
+   <label class="check-row" for="design-review"><input id="design-review" type="checkbox" checked> 写详案前先让我确认课堂设计</label><p class="helper">确认时可以改时间、重点和题目，或让模型按意见重做。批量生成不停下确认。</p></div>
   <div class="setup-field"><label for="lecture-format">公式与图</label><select id="lecture-format"><option value="rich-v1">LaTeX 公式、表格与程序绘制的图</option><option value="plain">纯文本公式（旧版格式）</option></select><p class="helper">图由程序按讲义里写明的数据绘制，并核对概率之和、代回检验等自身一致性；是否与正文对应仍需教师核对。</p></div>
  </div><div class="lesson-dialog-footer"><span>设置用于本次生成</span><button type="button" class="primary" data-close-setting>完成</button></div>
 </dialog>

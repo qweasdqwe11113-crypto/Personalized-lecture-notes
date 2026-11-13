@@ -6,7 +6,36 @@
 
 当前初中模板为 [lecture-math-v3.md](lecture-math-v3.md)，大学模板为 [lecture-probability-v2.md](lecture-probability-v2.md)，新讲义输入结构为 lecture-context-teacher-v2，追加 [lecture-plan-v1.md](lecture-plan-v1.md) 的可编辑教学安排及定位要求；旧结构仍按原字节保存。此前 math v1 / v2、大学 v1 保持已使用正文。运行 #1 是 math v1 / context-v2，#2 是 math v2 / context-v3，大学固定对照 #3—#14 是 probability v1 / context-v4，后续 #15 / #16 使用 probability v2。旧输入不因更新模板而重建。
 
-新页面提交的讲义还会按「高级设置」追加两段，版本标记随之增加：
+## 课堂设计方式（默认）
+
+「先做课堂设计，再按环节写」（`generation_mode=designed-v1`）使用单独的一套提示词，不在上面的模板后面叠加覆盖条款：
+
+| 文件 | 用在哪里 | 内容 |
+| --- | --- | --- |
+| [lecture-design-base-v1.md](lecture-design-base-v1.md) | 设计与环节两个阶段 | 输入各字段的含义、范围与依据、学生情况怎么用、三份配套材料共用一套题目和符号、备课笔记的写法 |
+| [lecture-subject-probability-v1.md](lecture-subject-probability-v1.md)、[lecture-subject-math-v1.md](lecture-subject-math-v1.md) | 同上，按课程类别附加 | 从旧模板里保留下来的学科要求（正分母、互斥完备、归一检查；除数非零、去括号、两步与多步） |
+| [lecture-design-plan-v1.md](lecture-design-plan-v1.md) | 设计阶段（冻结的请求） | 设计的思考顺序、时间与题量规则、JSON 格式与各字段说明、公式与图的写法 |
+| [lecture-design-segment-v1.md](lecture-design-segment-v1.md) | 环节阶段 | 只写设计里没有的内容：怎么讲、哪一步提问、怎么纠错、怎么分层；不重抄题目 |
+
+版本标记为 `lesson-design-v1`（概率、初中方程带 `+probability-v1` / `+math-v1`，按教师意见重做时带 `+revision`），输入结构为 `lesson-design-context-v1`。环节请求为 `lesson-segment-v1`，重写为 `lesson-segment-repair-v1`，设计重试为 `lesson-design-repair-v1`。环节阶段的完整系统提示在提交时写入冻结上下文的 `designed.segment_system`，所以重试不受之后模板改动的影响。
+
+模型看到的上下文由 `prompts.designed_view` 整理：保留课题、授课设置、授课对象、掌握情况、讲解安排、材料和图片解析，去掉范围检查、字符预算、检索记录、录入者和内部编号。实际发送的内容仍可在「查看生成输入」里逐字核对。
+
+针对旧流程输出的几条规则及原因：
+
+| 规则 | 对应的问题 |
+| --- | --- |
+| 讲解安排里的 action、warnings 是内部说明，不得写进输出；没有诊断时安排前测题 | 同一句「暂无诊断数据」在一份讲义里换说法出现 4 处 |
+| 必须写出重点（最多 2 条）、难点和本课不展开的内容，时间跟着重点走 | 一节 45 分钟的新授课做了四个完整推导，其中一个是前置知识 |
+| 各环节分钟数之和等于课时；例题至少 4 分钟、练习至少 3 分钟 | 两道例题加三道练习只给 10 分钟 |
+| 题目只在设计里写一次，环节正文不重抄 | 讲义、课件、题组各有一套题和符号 |
+| 备课笔记口吻、阿拉伯数字、不写旁白和套话；篇幅只设上限 | 只数汉字的篇幅下限换来「四十五分钟」「需要特别说明的是」 |
+
+这些规则只约束写法和结构；内容是否正确、是否适合学生仍由教师判断。
+
+## 旧版写作方式
+
+新页面提交的讲义选择旧版写作方式时，会按「高级设置」追加两段，版本标记随之增加：
 
 - `+rich-v1`：[lecture-format-rich-v1.md](lecture-format-rich-v1.md)，改用 LaTeX 公式、允许 Markdown 表格，并规定 ` ```figure ` 代码块里五种结构化图的 JSON 格式。它明确替代基础模板里「纯文本公式、不输出表格或代码块」的规定。
 - `+sectioned-v1`：[lecture-sectioned-outline-v1.md](lecture-sectioned-outline-v1.md)，冻结的请求只要大纲（JSON 模式）。各章节的请求在运行时由冻结请求推导：去掉大纲段，换上 [lecture-sectioned-section-v1.md](lecture-sectioned-section-v1.md)，并在用户消息中加入 `target_section`、`section_brief`、`section_quota` 和 `outline`。章节提示词和各章节篇幅配额在提交时写入冻结上下文的 `sectioned` 字段（不发给模型），所以重试不受之后模板改动的影响。章节请求的版本标记为 `lecture-sectioned-section-v1`，重写请求为 `lecture-sectioned-section-repair-v1`。

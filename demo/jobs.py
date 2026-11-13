@@ -91,6 +91,7 @@ class JobQueue:
             row = conn.execute('''SELECT j.*,r.lecture_id,r.error_message,r.error_code,r.usage,
                 r.elapsed_seconds,r.topic,r.student_id,r.class_id,r.context ? 'section_edit' AS section_rewrite,
                 r.context ? 'ppt_export' AS ppt_generation,
+                COALESCE((r.context->'designed'->>'stop')::boolean,false) AS design_review,
                 r.response_metadata->'saved_revision' AS saved_revision FROM generation_jobs j
                 JOIN generation_runs r ON r.id=j.run_id WHERE j.id=%s''', (job_id,)).fetchone()
             if not row:
@@ -104,7 +105,8 @@ class JobQueue:
     def recent(self):
         with self.db() as conn:
             return conn.execute('''SELECT j.*,r.lecture_id,r.error_message,r.topic,COALESCE(s.name,c.name||'（全班）') AS name,
-                r.context ? 'section_edit' AS section_rewrite,r.context ? 'ppt_export' AS ppt_generation
+                r.context ? 'section_edit' AS section_rewrite,r.context ? 'ppt_export' AS ppt_generation,
+                COALESCE((r.context->'designed'->>'stop')::boolean,false) AS design_review
                 FROM generation_jobs j JOIN generation_runs r ON r.id=j.run_id
                 LEFT JOIN students s ON s.id=r.student_id LEFT JOIN classes c ON c.id=r.class_id
                 ORDER BY j.created_at DESC LIMIT 12''').fetchall()
