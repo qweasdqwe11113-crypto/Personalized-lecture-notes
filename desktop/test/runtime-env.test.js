@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const net = require('node:net');
-const {cleanEnv} = require('../src/processes');
+const {cleanEnv, shortPath, plainPath} = require('../src/processes');
 const {serviceEnv} = require('../src/backend');
 const {initdbArgs, readSecret, writeSecret, CONF} = require('../src/postgres');
 const {isFree, pickPort} = require('../src/ports');
@@ -64,4 +64,12 @@ test('a busy preferred port gives way to a free one', async () => {
   } finally { server.close(); }
   const free = await pickPort(busy);
   assert.deepEqual(free, {port: busy, preferred: true});
+});
+
+test('only plain ASCII paths are handed to PostgreSQL as they are', () => {
+  assert.equal(plainPath('C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\9A3F~1\\database'), true);
+  assert.equal(plainPath('D:\\Program Files\\知页'), false);
+  assert.equal(plainPath('C:\\Users\\?? ??\\database'), false, 'characters already lost to "?"');
+  assert.equal(plainPath(''), false);
+  if (process.platform !== 'win32') assert.equal(shortPath('/home/林晓/zhiye'), '/home/林晓/zhiye');
 });

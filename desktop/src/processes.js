@@ -1,6 +1,7 @@
 'use strict';
 /* Child processes: run a helper to completion, stop a long-running one with its children, and
    build a clean environment so settings from the user's shell cannot leak into the service. */
+const fs = require('node:fs');
 const {spawn, spawnSync} = require('node:child_process');
 
 const WIN = process.platform === 'win32';
@@ -67,11 +68,21 @@ function killTree(child, grace = 5000) {
  * represent becomes unreadable. The 8.3 short form of an existing path is plain ASCII.
  */
 function shortPath(target) {
-  if (!WIN || /^[\x20-\x7e]*$/.test(target)) return target;
-  const result = spawnSync('cmd.exe', ['/d', '/s', '/c', `for %I in ("${target}") do @echo %~sI`],
-    {encoding: 'utf8', windowsHide: true});
-  const value = (result.stdout || '').trim().split(/\r?\n/).pop();
-  return value && /^[\x20-\x7e]+$/.test(value) ? value : target;
+  if (!WIN || plainPath(target) || /["%^!]/.test(target)) return target;
+  // Arguments go to cmd verbatim: Node would otherwise escape the inner quotes and cmd would
+  // read them as part of the path. /u makes cmd write UTF-16, so the console code page cannot
+  // turn characters into "?".
+  const result = spawnSync('cmd.exe', ['/d', '/u', '/s', '/c', `"for %I in ("${target}") do @echo %~sI"`],
+    {windowsHide: true, windowsVerbatimArguments: true, timeout: 10000});
+  const value = result.stdout ? result.stdout.toString('utf16le').trim().split(/\r?\n/).pop().trim() : '';
+  // Where the volume keeps no 8.3 names the long path comes back unchanged; then there is nothing
+  // better to give PostgreSQL than the original.
+  return plainPath(value) && fs.existsSync(value) ? value : target;
 }
 
-module.exports = {cleanEnv, run, killTree, shortPath, WIN};
+/** Printable ASCII without "?", which is what a lost character turns into. */
+function plainPath(value) {
+  return /^[\x20-\x3e\x40-\x7e]+$/.test(value);
+}
+
+module.exports = {cleanEnv, run, killTree, shortPath, plainPath, WIN};

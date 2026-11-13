@@ -13,6 +13,7 @@ const {Runtime} = require('../src/runtime.js');
 const {stagedResources, developmentResources} = require('../src/paths.js');
 const {get} = require('../src/backend.js');
 const {createBackup, checkBackup} = require('../src/backup.js');
+const {shortPath} = require('../src/processes.js');
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const desktop = path.resolve(here, '..');
@@ -23,6 +24,7 @@ const resources = args.includes('--dev') ? developmentResources(desktop)
   : stagedResources(path.resolve(desktop, option('--resources', 'build/resources')));
 // A folder name outside ASCII, as a Chinese user name would give on Windows.
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), '知页 冒烟-'));
+if (process.platform === 'win32') console.log(`PostgreSQL 使用的路径：${shortPath(dataDir)}`);
 
 async function json(url, init) {
   const response = await fetch(url, init);
