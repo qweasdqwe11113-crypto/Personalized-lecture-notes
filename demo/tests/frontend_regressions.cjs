@@ -27,7 +27,7 @@ function environment(api = () => new Promise(() => {})) {
   const $ = id => { if (!nodes.has(id)) nodes.set(id, new Element()); return nodes.get(id); };
   const el = (tag, text, cls) => { const node = new Element(tag, text); node.className = cls || ''; return node; };
   const document = {getElementById: $, createElement: el, createDocumentFragment: () => new Element('fragment'),
-    createTextNode: text => new Element('text', text), querySelectorAll: () => []};
+    createTextNode: text => new Element('text', text), querySelectorAll: () => [], addEventListener() {}};
   const context = vm.createContext({$, el, document, api, window: {addEventListener() {}, dispatchEvent() {}},
     console, setTimeout, clearTimeout, URLSearchParams, Event, fetch: () => new Promise(() => {}),
     busy: false, current: {}, modelConfigured: true, hasGenerationBasis: () => true,

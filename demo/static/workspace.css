@@ -35,7 +35,7 @@ main { max-width: 1600px; max-inline-size: 100rem; padding: 32px 36px 20px; }
 .workflow-strip strong { font-weight: 500; }
 .workflow-number { color: var(--accent); background: #f0f3ff; border-radius: 6px; padding: 3px 6px; font-size: 10px; }
 .workflow-line { height: 1px; width: 36px; background: #e2e7f2; margin: 0 6px; }
-.workflow-strip a { color: var(--accent); text-decoration: none; margin-left: auto; }
+.workflow-strip a { color: var(--accent); text-decoration: none; margin-left: auto; margin-right: 12px; }
 .workspace { gap: 20px 8px; grid-template-columns: var(--sidebar-width, 330px) 16px minmax(0, 1fr); }
 .workspace > aside { display: grid; }
 .panel, .paper { border-radius: 12px; border-color: var(--line); box-shadow: 0 3px 10px #1a305503; }
