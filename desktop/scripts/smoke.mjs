@@ -12,7 +12,9 @@ const require = createRequire(import.meta.url);
 const {Runtime} = require('../src/runtime.js');
 const {stagedResources, developmentResources} = require('../src/paths.js');
 const {get} = require('../src/backend.js');
-const {createBackup, checkBackup} = require('../src/backup.js');
+const {createBackup, checkBackup, restoreBackup} = require('../src/backup.js');
+const upgrade = require('../src/upgrade.js');
+const {version} = require('../package.json');
 const {shortPath} = require('../src/processes.js');
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -74,8 +76,25 @@ try {
   checkBackup(folder, dataDir, edition);
   fs.rmSync(backups, {recursive: true, force: true});
 
+  // The second start acts as an upgrade: the data was last run by an older client.
+  assert.equal(upgrade.readRecord(dataDir).version, version, 'the first start records its version');
+  upgrade.writeRecord(dataDir, {version: '0.0.1', edition});
   ({runtime} = await startAndCheck('second start'));
   assert.equal((await json(runtime.url + '/api/courses')).body.courses.some(c => c.name === '冒烟测试课程'), true, 'data survives a restart');
+  const before = upgrade.listUpgradeBackups(dataDir);
+  assert.deepEqual(before.map(b => b.version), ['0.0.1'], 'an upgrade backup was made before the upgrade');
+  checkBackup(before[0].path, dataDir, edition);
+  assert.deepEqual(Object.keys(upgrade.readRecord(dataDir)).sort(), ['edition', 'updated_at', 'version']);
+  assert.equal(upgrade.readRecord(dataDir).version, version);
+  await runtime.stop();
+
+  // 「从备份恢复」 with that upgrade backup, then start again: PostgreSQL accepts the restored folder.
+  upgrade.checkRestore(checkBackup(before[0].path, dataDir, edition), version);
+  restoreBackup(before[0].path, dataDir);
+  upgrade.recordRestore(dataDir, {version, edition, from: before[0].path});
+  ({runtime} = await startAndCheck('after restore'));
+  assert.equal((await json(runtime.url + '/api/courses')).body.courses.some(c => c.name === '冒烟测试课程'), true, 'restored data is there');
+  assert.equal(upgrade.listUpgradeBackups(dataDir).length, 1, 'no second upgrade backup after a restore');
   await runtime.stop();
   console.log(`smoke check passed (${edition}, ${process.platform})`);
 } finally {
