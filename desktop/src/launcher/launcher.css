@@ -1,0 +1,111 @@
+/* Start-up screen. Colours follow the workspace page (theme.css) so the hand-over is seamless. */
+:root {
+  --accent: #365bd6;
+  --accent-hover: #294bbd;
+  --accent-soft: #edf2ff;
+  --ink: #1d2b44;
+  --text: #34445f;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --success: #237653;
+  --success-soft: #edf8f1;
+  --danger: #b23e38;
+  --danger-soft: #fff3f2;
+  font-family: Inter, "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
+  color: var(--text);
+  background: #f5f7fa;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(60rem 40rem at 85% -10%, #e4ebff 0%, rgba(228, 235, 255, 0) 60%),
+    radial-gradient(50rem 36rem at -10% 110%, #eaf3ff 0%, rgba(234, 243, 255, 0) 55%),
+    #f5f7fa;
+}
+button { font: inherit; }
+
+.stage { min-height: 100vh; display: grid; place-content: center; gap: 18px; padding: 32px 16px; }
+.card {
+  position: relative; overflow: hidden;
+  inline-size: min(560px, calc(100vw - 32px));
+  padding: 36px 40px 26px;
+  background: #fff; border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(27, 53, 82, .04), 0 18px 48px rgba(27, 53, 82, .08);
+}
+.progress { position: absolute; inset: 0 0 auto; block-size: 3px; background: #eef2f8; }
+.progress i { display: block; block-size: 100%; inline-size: 0; background: linear-gradient(90deg, #6d8ff0, var(--accent)); transition: inline-size .45s ease; }
+body[data-phase=failed] .progress i { background: var(--danger); }
+
+.brand { display: flex; align-items: center; gap: 14px; }
+.mark {
+  inline-size: 48px; block-size: 48px; border-radius: 13px; display: grid; place-items: center;
+  color: #fff; font-size: 25px; font-weight: 700; background: linear-gradient(145deg, #4a6fe3, #2e4fc4);
+  box-shadow: 0 6px 16px rgba(54, 91, 214, .28);
+}
+.brand h1 { margin: 0; font-size: 24px; letter-spacing: 3px; color: var(--ink); line-height: 1.2; }
+.brand p { margin: 3px 0 0; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.edition { font-size: 12px; color: #8a5b15; background: #fff6e6; border: 1px solid #f3dfb8; border-radius: 99px; padding: 0 8px; line-height: 20px; }
+
+.lead { margin: 26px 0 14px; font-size: 15px; font-weight: 600; color: var(--ink); }
+
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.steps:empty { display: none; }
+.step { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 2px 12px; align-items: center; padding: 8px 0; font-size: 14px; }
+.step-icon { inline-size: 18px; block-size: 18px; border-radius: 50%; border: 2px solid #d5dce8; position: relative; }
+.step-label { color: #8a95a8; }
+.step-detail { grid-column: 2; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.step-detail:empty { display: none; }
+.step[data-state=running] .step-label { color: var(--ink); font-weight: 600; }
+.step[data-state=running] .step-icon { border-color: #d7e1fb; border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.step[data-state=done] .step-label { color: var(--text); }
+.step[data-state=done] .step-icon { border-color: var(--success); background: var(--success); }
+.step[data-state=done] .step-icon::after {
+  content: ''; position: absolute; inset-inline-start: 4px; inset-block-start: 1px; inline-size: 4px; block-size: 8px;
+  border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.step[data-state=failed] .step-label { color: var(--danger); font-weight: 600; }
+.step[data-state=failed] .step-icon { border-color: var(--danger); background: var(--danger); }
+.step[data-state=failed] .step-icon::before, .step[data-state=failed] .step-icon::after {
+  content: ''; position: absolute; inset-inline-start: 6px; inset-block-start: 2px; inline-size: 2px; block-size: 10px; background: #fff; border-radius: 1px;
+}
+.step[data-state=failed] .step-icon::before { transform: rotate(45deg); }
+.step[data-state=failed] .step-icon::after { transform: rotate(-45deg); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.problem { margin-block-start: 18px; padding: 16px 18px; border: 1px solid #f2cfcb; border-radius: 12px; background: var(--danger-soft); }
+.problem h2 { margin: 0; font-size: 15px; color: var(--danger); }
+.problem-message { margin: 6px 0 0; font-size: 14px; color: var(--ink); overflow-wrap: anywhere; }
+.problem-hint { margin: 6px 0 0; font-size: 13px; line-height: 1.7; color: var(--muted); }
+.problem-hint:empty { display: none; }
+.problem details { margin-block-start: 10px; }
+.problem summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+.problem pre {
+  margin: 8px 0 0; max-block-size: 180px; overflow: auto; padding: 10px 12px; border-radius: 8px;
+  background: #1f2937; color: #e5e7eb; font: 12px/1.55 ui-monospace, "Cascadia Mono", Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-block-start: 14px; }
+.actions button {
+  min-block-size: 36px; padding: 6px 14px; border-radius: 8px; font-size: 13px; cursor: pointer;
+  color: #475569; background: #fff; border: 1px solid #d7dfe9;
+}
+.actions button:hover { color: var(--accent); border-color: #b6c6e7; background: #f8faff; }
+.actions .primary { color: #fff; background: var(--accent); border-color: var(--accent); font-weight: 600; }
+.actions .primary:hover { color: #fff; background: var(--accent-hover); border-color: var(--accent-hover); }
+.actions button:disabled { opacity: .6; cursor: progress; }
+button:focus-visible { outline: 3px solid #9db5fa; outline-offset: 2px; }
+
+.meta { display: flex; justify-content: space-between; gap: 12px; margin-block-start: 26px; padding-block-start: 14px; border-block-start: 1px solid #eef2f7; font-size: 12px; color: #8a95a8; }
+.data-dir { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: end; max-inline-size: 70%; }
+.note { margin: 0; text-align: center; font-size: 12px; color: #8a95a8; max-inline-size: 560px; justify-self: center; }
+
+@media (max-width: 520px) {
+  .card { padding: 28px 22px 20px; }
+  .meta { flex-direction: column; }
+  .data-dir { max-inline-size: 100%; text-align: start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress i { transition: none; }
+  .step[data-state=running] .step-icon { animation: none; border-color: var(--accent); }
+}

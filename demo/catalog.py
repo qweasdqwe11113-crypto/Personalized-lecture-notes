@@ -5,6 +5,7 @@ from flask import jsonify, request
 from psycopg.types.json import Jsonb
 
 from courses import TOPICS, course_family
+from edition import release
 from classes import library_ids, library_names, name_key
 from uploads import read_upload
 
@@ -29,7 +30,9 @@ def load_catalog(conn):
     enrolled = {}
     for row in conn.execute('SELECT course_id,student_id FROM class_students ORDER BY student_id'):
         enrolled.setdefault(row['course_id'], []).append(row['student_id'])
-    tasks = {key: {**task, 'student_ids': list(task['student_ids'])} for key, task in TOPICS.items()}
+    # The desktop release starts empty: the built-in demonstration lessons are not listed.
+    builtin = {} if release() else TOPICS
+    tasks = {key: {**task, 'student_ids': list(task['student_ids'])} for key, task in builtin.items()}
     for key, task in tasks.items():
         course = by_key.get(task.get('course_key'))
         # Course text stays as written: it selects the preset's prompt family and checks.

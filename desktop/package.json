@@ -1,0 +1,33 @@
+{
+  "name": "zhiye-desktop",
+  "productName": "知页",
+  "version": "0.1.0",
+  "private": true,
+  "description": "知页桌面客户端：在本机启动数据库与服务，打开教学工作空间。",
+  "author": "知页项目组",
+  "license": "UNLICENSED",
+  "homepage": "https://github.com/qweasdqwe11113-crypto/Personalized-lecture-notes",
+  "main": "src/main.js",
+  "zhiye": {
+    "edition": "release"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:test": "node scripts/dev.mjs --edition demo",
+    "test": "node --test \"test/*.test.js\"",
+    "stage": "node scripts/stage.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "dist": "node scripts/dist.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "electron": "38.4.0",
+    "electron-builder": "26.0.12"
+  },
+  "optionalDependencies": {
+    "@embedded-postgres/linux-x64": "17.6.0-beta.15",
+    "@embedded-postgres/windows-x64": "17.6.0-beta.15"
+  }
+}

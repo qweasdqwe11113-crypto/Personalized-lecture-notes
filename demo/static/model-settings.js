@@ -7,6 +7,11 @@
  const save=document.getElementById('save-model-settings');
  const versions={llm:0,vlm:0,embedding:0};
  let testing=0,saving=false;
+ // Inside the desktop client the saved settings can take effect at once: it restarts the service
+ // and reloads this window. In a browser the note above tells how to restart.
+ const desktop=window.zhiyeDesktop,restartRow=document.querySelector('.model-restart-row');
+ const offerRestart=needed=>{if(restartRow)restartRow.hidden=!(needed&&desktop?.restartBackend);};
+ document.getElementById('model-restart')?.addEventListener('click',async event=>{event.target.disabled=true;status.textContent='正在重启服务…';try{await desktop.restartBackend();}catch(e){event.target.disabled=false;failure.textContent=e.message||'重启失败。';failure.hidden=false;}});
  const input=(name,field)=>document.getElementById(name+'-'+field);
  function channel(name){return {base_url:input(name,'base-url').value.trim(),model:input(name,'model').value.trim(),api_key:input(name,'api-key').value,clear_key:input(name,'clear-key').checked};}
  function render(data){
@@ -49,12 +54,12 @@
   const controls=Array.from(form.querySelectorAll('input,button'));
   const previous=controls.map(c=>c.disabled);controls.forEach(c=>c.disabled=true);
   status.textContent='正在保存配置…';
-  try{const data=await request('/api/model-settings',payload);render(data);status.textContent=data.message;}
+  try{const data=await request('/api/model-settings',payload);render(data);status.textContent=desktop?.restartBackend?'已保存。点击「立即重启服务」后生效；正在运行的任务会中断。':data.message;offerRestart(data.restart_required);}
   catch(e){failure.textContent=e.message;failure.hidden=false;status.textContent='保存失败，修改尚未生效。';}
   finally{saving=false;controls.forEach((c,i)=>c.disabled=previous[i]);save.disabled=false;}
  });
  request('/api/model-settings').then(data=>{
   render(data);form.querySelectorAll('input,button').forEach(c=>c.disabled=false);
-  status.textContent=data.restart_required?'检测到已保存配置与运行配置不同，请重启服务后生效。':'配置已加载。可以先测试连接，再保存修改。';
+  status.textContent=data.restart_required?'检测到已保存配置与运行配置不同，请重启服务后生效。':'配置已加载。可以先测试连接，再保存修改。';offerRestart(data.restart_required);
  }).catch(e=>{status.textContent='模型配置读取失败，请刷新页面重试。';failure.textContent=e.message;failure.hidden=false;});
 })();

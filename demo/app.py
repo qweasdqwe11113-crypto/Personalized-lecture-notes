@@ -6,7 +6,6 @@ from io import BytesIO
 import re
 import time
 from urllib.parse import quote
-from pathlib import Path
 
 import psycopg
 from psycopg.rows import dict_row
@@ -42,6 +41,7 @@ from quizzes import QuizQueue, grading_reference, register_quizzes
 from knowledge import KnowledgeQueue, register_knowledge
 from grading import register_grading
 from evaluation import register_evaluation
+from edition import data_dir, release
 from rendering import markdown_html, visual_appendix
 import richdoc
 from uploads import ImportError as UploadError, read_upload, register_uploads
@@ -50,18 +50,20 @@ from retrieval import (MODES as RETRIEVAL_MODES, RetrievalError, adopt_content, 
                        index_knowledge, search as search_chunks, status as retrieval_status,
                        to_materials)
 
-ROOT = Path(__file__).resolve().parents[1]
-load_dotenv(ROOT / '.env')
+# Model settings (.env) and runtime stores (.runtime) live in the data folder: the repository in
+# development, the user's own folder in the desktop release.
+DATA = data_dir()
+load_dotenv(DATA / '.env')
 app = Flask(__name__)
-register_model_settings(app, ROOT / '.env')
+register_model_settings(app, DATA / '.env')
 app.config['MAX_CONTENT_LENGTH'] = 11 * 1024 * 1024
-register_uploads(app, ROOT, lambda course_id, class_id: upload_scope(course_id, class_id))
+register_uploads(app, DATA, lambda course_id, class_id: upload_scope(course_id, class_id))
 DSN = os.environ.get('DATABASE_URL', 'postgresql:///lecture_demo_prototype')
 MODEL = os.environ.get('QWEN_MODEL', 'qwen3.8-27b')
 # One gate for every language-model call; MODEL_CONCURRENCY=1 restores strictly serial calls.
 GENERATION_LOCK = ModelGate(configured_limit())
 # QUIZZES is created below; the lambda resolves it when a grading upload names a quiz.
-recover_grading = register_grading(app, ROOT, lambda prepared, attempt: call_qwen(prepared, attempt), GENERATION_LOCK,
+recover_grading = register_grading(app, DATA, lambda prepared, attempt: call_qwen(prepared, attempt), GENERATION_LOCK,
                                    quiz_reference=lambda job_id: grading_reference(QUIZZES.detail(job_id)))
 EMBEDDER = QwenEmbedder()
 RETRIEVAL_LIMIT = 6
@@ -80,7 +82,7 @@ def upload_scope(course_id, class_id):
             raise UploadError('班级不属于所选课程，请刷新后重试。')
 
 
-register_catalog(app, lambda: db(), ROOT)
+register_catalog(app, lambda: db(), DATA)
 
 
 def topic_catalog():
@@ -220,7 +222,7 @@ def headers(response):
 
 @app.get('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html', release=release())
 
 
 @app.get('/sw.js')
@@ -396,7 +398,7 @@ def generate():
     if retrieval_mode not in RETRIEVAL_MODES:
         return jsonify(error='请选择精确 SQL 或向量检索。'), 400
     goal = goal.strip() or topic_catalog()[topic_key]['goal']
-    evidence = selected_evidence(ROOT, data.get('visual_analysis_ids', []))
+    evidence = selected_evidence(DATA, data.get('visual_analysis_ids', []))
     if not GENERATION_LOCK.acquire(blocking=False):
         return jsonify(error='已有讲义正在生成，请等待完成后再试。'), 429
     result, status = generate_locked(sid, topic_key, goal, mode, retrieval_mode=retrieval_mode,
@@ -525,10 +527,11 @@ register_packages(app, lambda: db())
 register_roster_import(app, lambda: db())
 QUIZZES = QuizQueue(lambda: db(), lambda prepared, attempted: call_qwen(prepared, attempted), GENERATION_LOCK)
 register_quizzes(app, lambda: db(), lambda: QUIZZES, topic_catalog, get_context, lambda: MODEL)
-KNOWLEDGE = KnowledgeQueue(lambda: db(), ROOT, lambda prepared, attempted: call_qwen(prepared, attempted),
+KNOWLEDGE = KnowledgeQueue(lambda: db(), DATA, lambda prepared, attempted: call_qwen(prepared, attempted),
                            GENERATION_LOCK, lambda: MODEL)
-register_knowledge(app, lambda: db(), ROOT, lambda: KNOWLEDGE, topic_catalog)
-recover_evaluation = register_evaluation(
+register_knowledge(app, lambda: db(), DATA, lambda: KNOWLEDGE, topic_catalog)
+# The fixed experiment compares the built-in probability lesson, which the release does not carry.
+recover_evaluation = (lambda: None) if release() else register_evaluation(
     app, lambda: db(), lambda: TASKS, get_context, lambda: MODEL,
     lambda: not GENERATION_LOCK.locked() and QUIZZES.wait_idle(0) and KNOWLEDGE.wait_idle(0)
     and not app.extensions['grading_busy']())
@@ -612,7 +615,7 @@ def build_job(data):
     if not ctx:
         raise JobError('班级不属于这份备课的课程，或班级还没有学生。' if class_id is not None else
                        '学生不存在，或不在这份备课副本的学生范围内。', 404)
-    evidence = selected_evidence(ROOT, data.get('visual_analysis_ids', []))
+    evidence = selected_evidence(DATA, data.get('visual_analysis_ids', []))
     if evidence:
         ctx['visual_evidence'] = evidence
     options = validated_teaching_options(data)
@@ -777,7 +780,7 @@ def adopt_upload():
                 return jsonify(error='知识点不存在。'), 400
     except psycopg.Error:
         return jsonify(error='数据库暂不可用，请检查本机 PostgreSQL。'), 503
-    record = read_upload(ROOT, upload_id)
+    record = read_upload(DATA, upload_id)
     if record is None:
         return jsonify(error='资料不存在。'), 404
     try:
@@ -1121,4 +1124,6 @@ if __name__ == '__main__':
     QUIZZES.recover()
     KNOWLEDGE.recover()
     recover_evaluation()
-    app.run(host='127.0.0.1', port=int(os.environ.get('PORT','5055')), debug=False, threaded=True)
+    # Only the data folder's .env counts: Flask would otherwise load the nearest .env above the
+    # working directory, which in the desktop release may belong to something else.
+    app.run(host='127.0.0.1', port=int(os.environ.get('PORT','5055')), debug=False, threaded=True, load_dotenv=False)

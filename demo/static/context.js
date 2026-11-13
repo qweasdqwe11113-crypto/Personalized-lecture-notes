@@ -10,7 +10,7 @@
   const courseLabel = c => (c.stage ? c.stage + ' · ' : '') + c.name;
   function draw() {
     const option = (value, label) => { const o = el('option', label); o.value = value; return o; };
-    $('ctx-course').replaceChildren(...courses.map(c => option(c.id, courseLabel(c))));
+    $('ctx-course').replaceChildren(...(courses.length ? courses.map(c => option(c.id, courseLabel(c))) : [option('', '尚无课程')]));
     $('ctx-course').value = String(courseId ?? '');
     $('ctx-course').disabled = !courses.length;
     const own = course()?.classes || [];

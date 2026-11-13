@@ -15,7 +15,7 @@
   <a href="#settings" data-page="settings"><span class="nav-icon" aria-hidden="true">⚙</span>系统设置</a>
  </nav>
  <div class="sidebar-note"><span class="status-dot"></span>本地工作空间<p>学生画像驱动的个性化教学</p></div>
- <div class="sidebar-user"><span class="user-avatar">教</span><div><strong>教师工作空间</strong><span>本地演示环境</span></div></div>
+ <div class="sidebar-user"><span class="user-avatar">教</span><div><strong>教师工作空间</strong><span>{{ "本机工作空间" if release else "本地演示环境" }}</span></div></div>
 </aside>
 <main>
  <div class="context-bar" id="context-bar" role="group" aria-label="当前课程与班级">
@@ -27,6 +27,10 @@
  <h1 id="page-title" class="visually-hidden" tabindex="-1">讲义工作台</h1>
  <div id="error" class="error" role="alert" hidden></div>
  <section class="workspace-page" id="page-workbench" aria-labelledby="page-title">
+ <section id="getting-started" class="panel getting-started" aria-labelledby="getting-started-title" hidden>
+  <div class="start-head"><div><span class="scope-kicker">开始使用</span><h2 id="getting-started-title">准备好第一份讲义</h2><p class="helper">按顺序完成下面几步；每一步之后都可以回来修改。全部完成后这里会自动隐藏。</p></div><div class="start-progress"><span id="getting-started-count"></span><span class="start-bar" aria-hidden="true"><i id="getting-started-fill"></i></span><button id="getting-started-toggle" class="start-toggle" type="button" aria-controls="getting-started-steps" aria-expanded="true">收起</button></div></div>
+  <ol id="getting-started-steps" class="start-steps"></ol>
+ </section>
  <div class="workflow-strip" id="workflow-strip">
    <span class="workflow-step" data-step="1"><span class="workflow-number">01</span><strong>选择备课与讲义对象</strong></span><span class="workflow-line"></span>
    <span class="workflow-step" data-step="2"><span class="workflow-number">02</span><strong>设置并生成讲义</strong></span><span class="workflow-line"></span>
@@ -117,7 +121,7 @@
   </div>
  </section>
  <section class="workspace-page" id="page-profiles" hidden>
-  <div id="class-empty" class="panel scope-empty" hidden><span class="intro-icon" aria-hidden="true">◎</span><div><h2 id="class-empty-title">这门课程还没有班级</h2><p id="class-empty-text" class="helper">先在课程中新建班级，再添加学生；班级画像由班内学生的诊断汇总而成。</p><a class="primary" href="#materials/classes">前往新建班级</a></div></div>
+  <div id="class-empty" class="panel scope-empty" hidden><span class="intro-icon" aria-hidden="true">◎</span><div><h2 id="class-empty-title">这门课程还没有班级</h2><p id="class-empty-text" class="helper">先在课程中新建班级，再添加学生；班级画像由班内学生的诊断汇总而成。</p><a id="class-empty-action" class="primary" href="#materials/classes">前往新建班级</a></div></div>
   <div id="class-home-page" hidden>
   <section class="panel scope-header"><div class="scope-header-main"><span class="scope-kicker" id="class-home-course">课程</span><h2 id="class-home-name">班级</h2><p id="class-home-meta" class="helper"></p><p id="class-home-profile" class="current-summary"></p></div>
    <div class="trace-actions"><button id="edit-class" class="secondary" type="button">编辑班级画像</button><button id="class-start-lecture" class="primary" type="button">为全班生成讲义</button></div>
@@ -312,12 +316,12 @@
   </div>
  </section>
  <section class="workspace-page" id="page-records" hidden>
-  <div class="record-tabs" role="tablist" aria-label="生成记录类型"><a href="#records/lectures" id="record-tab-lectures" role="tab" aria-selected="true" aria-controls="record-panel-lectures">讲义记录</a><a href="#records/quizzes" id="record-tab-quizzes" role="tab" aria-selected="false" aria-controls="record-panel-quizzes" tabindex="-1">出题记录</a><a href="#records/grading" id="record-tab-grading" role="tab" aria-selected="false" aria-controls="record-panel-grading" tabindex="-1">阅卷记录</a><a href="#records/experiments" id="record-tab-experiments" role="tab" aria-selected="false" aria-controls="record-panel-experiments" tabindex="-1">固定对照</a></div>
+  <div class="record-tabs" role="tablist" aria-label="生成记录类型"><a href="#records/lectures" id="record-tab-lectures" role="tab" aria-selected="true" aria-controls="record-panel-lectures">讲义记录</a><a href="#records/quizzes" id="record-tab-quizzes" role="tab" aria-selected="false" aria-controls="record-panel-quizzes" tabindex="-1">出题记录</a><a href="#records/grading" id="record-tab-grading" role="tab" aria-selected="false" aria-controls="record-panel-grading" tabindex="-1">阅卷记录</a>{% if not release %}<a href="#records/experiments" id="record-tab-experiments" role="tab" aria-selected="false" aria-controls="record-panel-experiments" tabindex="-1">固定对照</a>{% endif %}</div>
   <div id="record-panel-lectures" role="tabpanel" aria-labelledby="record-tab-lectures">
   <div class="records-grid"><section class="panel"><div class="section-heading"><h2>最近生成</h2></div><div id="history" class="history"><p class="helper">暂无已保存讲义</p></div></section><section class="panel"><div class="section-heading"><h2>后台任务</h2><button id="refresh-jobs" class="secondary" type="button">刷新任务</button></div><p class="helper">1 个任务处理，最多 3 个等待；仅本机单进程。提交时固定输入，刷新页面后可从任务恢复查看。</p><div id="jobs-list" class="history"></div></section></div>
 <section class="panel"><div class="section-heading"><h2>讲义生成记录</h2><button id="refresh-runs" type="button" class="secondary">刷新</button></div><p class="helper">最近 10 次请求 · 包含失败记录</p><div id="generation-runs" class="history"><p class="helper">正在读取…</p></div></section>
   </div><div id="record-panel-quizzes" role="tabpanel" aria-labelledby="record-tab-quizzes" hidden><section class="panel"><div class="section-heading"><h2>出题记录</h2><div class="quiz-actions"><a href="#quizzes" class="secondary">前往出题</a><button id="quiz-refresh-history" type="button" class="secondary">刷新记录</button></div></div><p class="helper">保存提交时的备课副本、学生依据和设置；点击记录可返回出题页查看题目与答案解析。</p><p id="quiz-history-error" class="error" role="alert" hidden></p><div id="quiz-history" class="quiz-history"></div></section></div>
-  <div id="record-panel-experiments" role="tabpanel" aria-labelledby="record-tab-experiments" hidden><section class="panel"><div class="section-heading"><h2>当前版本固定对照</h2><button id="prepare-experiment" class="secondary" type="button">冻结新一轮12份输入</button></div><p class="helper">大学概率专题、三类虚拟画像，有／无画像各两次。冻结时不调用模型；开始后顺序执行12次真实调用。成功与失败均保留，已有结果不替换。评审通过讲义的“编辑与审核”逐份记录；助手草稿不计教师批准。</p><div id="experiment-history" class="history"></div><p id="experiment-status" class="helper" role="status"></p><button id="run-experiment" type="button" class="primary" hidden>开始本轮真实生成</button><div id="experiment-detail"></div></section></div>
+  {% if not release %}<div id="record-panel-experiments" role="tabpanel" aria-labelledby="record-tab-experiments" hidden><section class="panel"><div class="section-heading"><h2>当前版本固定对照</h2><button id="prepare-experiment" class="secondary" type="button">冻结新一轮12份输入</button></div><p class="helper">大学概率专题、三类虚拟画像，有／无画像各两次。冻结时不调用模型；开始后顺序执行12次真实调用。成功与失败均保留，已有结果不替换。评审通过讲义的“编辑与审核”逐份记录；助手草稿不计教师批准。</p><div id="experiment-history" class="history"></div><p id="experiment-status" class="helper" role="status"></p><button id="run-experiment" type="button" class="primary" hidden>开始本轮真实生成</button><div id="experiment-detail"></div></section></div>{% endif %}
   <div id="record-panel-grading" role="tabpanel" aria-labelledby="record-tab-grading" hidden>
    <section class="panel">
     <div class="section-heading"><h2>阅卷记录</h2><div class="quiz-actions"><a href="#grading" class="secondary">前往阅卷</a><button type="button" id="grading-refresh" class="secondary">刷新记录</button></div></div>
@@ -332,6 +336,7 @@
   <form id="model-settings-form">
    <div class="model-settings-toolbar"><div><strong>模型连接</strong><p class="helper">支持 OpenAI 兼容接口，包括本机 Ollama 的 /v1 地址。</p></div><button id="save-model-settings" class="primary" type="submit" disabled>保存配置</button></div>
    <p id="model-settings-status" class="model-settings-status helper" role="status" aria-live="polite">正在读取已保存的模型配置…</p>
+   <p class="model-restart-row" hidden><button id="model-restart" class="secondary" type="button">立即重启服务</button><span class="helper">重启约需几秒，正在运行的生成任务会中断。</span></p>
    <div id="model-settings-error" class="error" role="alert" hidden></div>
    {% for key, number, title, description, example in [
      ('llm', '01', '语言模型', '负责生成讲义与文字回答。', 'qwen3.5:9b'),
@@ -349,10 +354,10 @@
     <div class="model-config-test"><button id="test-{{ key }}" class="secondary" type="button" disabled>测试{{ '图片识别' if key == 'vlm' else '向量接口' if key == 'embedding' else '文本生成' }}</button><p id="{{ key }}-test-status" class="helper" role="status" aria-live="polite">尚未测试</p></div>
    </section>
    {% endfor %}
-   <p class="helper">配置保存在本地 .env 文件中，保存后重启服务生效。连接测试使用当前表单内容，无需先保存；测试成功不会自动保存配置。</p>
+   <p class="helper">{% if release %}配置保存在本机数据目录中，保存后重启服务生效。{% else %}配置保存在本地 .env 文件中，保存后重启服务生效。{% endif %}连接测试使用当前表单内容，无需先保存；测试成功不会自动保存配置。</p>
   </form>
 <section class="panel"><div class="section-heading"><h2>服务连接</h2><button id="check-health" class="secondary" type="button">检测配置</button></div><p id="health-summary" class="helper" role="status">读取配置状态…</p></section>
-  <section class="panel configuration-note"><h2>数据库与运行状态</h2><p>数据库连接继续在本地 .env 文件中维护。上方服务检测反映当前运行配置；表单显示已保存配置，重启前两者可能不同。</p></section>
+  <section class="panel configuration-note"><h2>数据库与运行状态</h2><p>{% if release %}数据库由桌面客户端在本机自动启动和维护，数据保存在本机数据目录中。{% else %}数据库连接继续在本地 .env 文件中维护。{% endif %}上方服务检测反映当前运行配置；表单显示已保存配置，重启前两者可能不同。</p></section>
  </section>
  <footer><span>知页 · 让教学更有针对性</span></footer>
 </main>
@@ -480,7 +485,7 @@
 <link rel="stylesheet" href="/static/grading.css"><script defer src="/static/grading.js"></script><script defer src="/static/grading-evidence.js"></script>
 <link rel="stylesheet" href="/static/theme.css">
 <dialog id="source-dialog" aria-labelledby="source-title"><div class="editor-top editor-heading"><h2 id="source-title">核查来源</h2><button id="close-source" type="button" class="secondary">关闭</button></div><div class="dialog-body"><p id="source-status" class="helper"></p><div id="source-content"></div><div class="trace-actions" id="source-review-actions"><button type="button" class="secondary" data-source-support="supported">记录“支持”</button><button type="button" class="secondary" data-source-support="unsupported">记录“不支持”</button><button type="button" class="secondary" data-source-support="unclear">记录“不确定”</button></div><p class="helper">打开对应保存版本的问题表单，核对原文并填写依据、记录者后确认；不会自动保存审核判断。</p></div></dialog>
-<link rel="stylesheet" href="/static/lecture-workflow.css"><script defer src="/static/lecture-workflow.js"></script><script defer src="/static/evaluation.js"></script>
+<link rel="stylesheet" href="/static/lecture-workflow.css"><script defer src="/static/lecture-workflow.js"></script>{% if not release %}<script defer src="/static/evaluation.js"></script>{% endif %}
 <dialog id="ppt-dialog" aria-labelledby="ppt-title">
  <div class="editor-top"><div class="editor-heading"><div><h2 id="ppt-title">授课 PPT</h2><p id="ppt-source" class="helper"></p></div><button id="close-ppt" type="button" class="secondary">关闭</button></div></div>
  <div class="dialog-body">
@@ -594,6 +599,7 @@
 <link rel="stylesheet" href="/static/rich.css"><link rel="stylesheet" href="/static/motion.css">
 <link rel="stylesheet" href="/static/topic-nav.css">
 <script defer src="/static/topic-nav.js"></script>
+<link rel="stylesheet" href="/static/getting-started.css"><script defer src="/static/getting-started.js"></script>
 <script defer src="/static/live.js"></script><script defer src="/static/batch.js"></script><script defer src="/static/pwa.js"></script>
 
 <dialog id="image-lightbox" class="lightbox" aria-label="放大查看">

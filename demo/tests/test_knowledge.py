@@ -74,7 +74,7 @@ class LibraryTests(ProfileDatabaseFixture):
         self.reader.start()
         self.calls = []
         self.reply = None
-        self.queue = KnowledgeQueue(lambda: module.db(), module.ROOT, self.model, Lock(), lambda: 'fixture-model')
+        self.queue = KnowledgeQueue(lambda: module.db(), module.DATA, self.model, Lock(), lambda: 'fixture-model')
         self.queue_patch = patch.object(module, 'KNOWLEDGE', self.queue)
         self.queue_patch.start()
         self.offline = patch.object(module, 'call_qwen', side_effect=module.ModelError('test', '隔离测试，不调用模型。'))

@@ -3,3 +3,4 @@
 .model-settings-toolbar .primary{width:auto;margin:0;justify-content:center}
 .model-config-fields input:not([type=checkbox]){font:inherit;font-size:14px;border:1px solid #dfe5ef;border-radius:8px;background:#fafbfe;color:#172c45;padding:11px 12px}
 .model-config-fields input:focus-visible{outline:3px solid #bfd0ff;outline-offset:2px}
+.model-restart-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0 0}.model-restart-row[hidden]{display:none}.model-restart-row .secondary{margin:0}.model-restart-row .helper{margin:0;font-size:12px}

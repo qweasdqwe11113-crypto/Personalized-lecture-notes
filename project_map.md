@@ -1,6 +1,6 @@
 # 项目模块关联图
 
-更新日期：2026-11-05。面向开发者：说明模块职责、调用关系、数据流和存储，修改代码前先确认影响范围。功能行为见 [docs/features.md](docs/features.md)。
+更新日期：2026-11-13。面向开发者：说明模块职责、调用关系、数据流和存储，修改代码前先确认影响范围。功能行为见 [docs/features.md](docs/features.md)。
 
 ## 1. 整体结构
 
@@ -47,6 +47,7 @@ flowchart TD
 | 班级与画像 `#profiles`（班级画像）、`#profiles/students`、`#profiles/resources`（班级资料）、`#profiles/new`、`#profiles/import`、`#profiles/<id>` | `class-page.js`、`student-roster.js`、`profiles.js`、`roster-import.js`、`uploads.js` | `/api/classes*`、`/api/students*`、`/api/students/import*` |
 | 生成记录 `#records/...` | `jobs.js`、`traces.js`、`evaluation.js` | `/api/generation-runs*`、`/api/lecture-experiments*` |
 | 系统设置 `#settings` | `model-settings.js` | `/api/health`、`/api/model-settings*` |
+| 开始使用引导（讲义工作台顶部） | `getting-started.js` | `/api/health`、`/api/courses`、`/api/courses/<id>/knowledge` |
 
 讲义工具栏与弹窗：
 
@@ -108,6 +109,7 @@ flowchart TD
 | `grading.py` | 阅卷任务、识读与评分校验、证据草稿 |
 | `evaluation.py`、`experiment.py` | 当前版本固定对照；历史文件式实验 |
 | `rendering.py`、`model_settings.py` | 安全渲染与图片附录；模型配置的查看、测试与保存 |
+| `edition.py` | 正式版 / 测试版（`ZHIYE_EDITION`）与数据目录（`ZHIYE_DATA_DIR`，存放 `.env` 和 `.runtime/`，默认项目根目录）；`app.py`、`init_db.py`、`catalog.py`、`presentations.py` 共用 |
 | `richdoc.py` | 导出用：LaTeX 转 Word 原生公式、图转图片、表格；`app.py` 与 `packages.py` 共用 |
 | `scale/` | 可选的扩展语料、合成班级装载（`load.py`）、检索评测（`eval_retrieval.py`）和生成基准（`bench.py`） |
 
@@ -233,7 +235,34 @@ flowchart TD
 | `uploads.sqlite3` | 上传原件与正文、提取的图片、图片识读记录 |
 | `grading.sqlite3` | 阅卷任务、提取文字、评分结果、所用题组与知识点映射 |
 | `ppt-aesthetics/` | PPT 视觉审查记录、送审副本与渲染图 |
-| `.env`（项目根目录） | 数据库与模型配置，含密钥 |
+| `.env`（项目根目录，设置了 `ZHIYE_DATA_DIR` 时在该目录） | 数据库与模型配置，含密钥 |
+
+**桌面客户端**（`desktop/`，数据目录结构）
+
+| 位置 | 内容 |
+| --- | --- |
+| `database/` | 自带 PostgreSQL 的数据库文件 |
+| `database-secret.json` | 数据库用户 `zhiye` 的随机密码 |
+| `workspace/` | 作为 `ZHIYE_DATA_DIR`：`.env`（模型配置）与 `.runtime/` |
+| `logs/client.log` | 客户端、`pg_ctl` 和服务的输出 |
+
+## 6.1 桌面客户端
+
+Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中打开服务页面。服务代码与网页版完全相同，客户端只通过环境变量传入数据库地址、端口、数据目录和版本。
+
+| 文件 | 职责 |
+| --- | --- |
+| `src/main.js` | 窗口、菜单、启动页状态、IPC（检查发送方）、导航与权限限制、备份 / 恢复 / 更换数据目录、检查更新、安全退出 |
+| `src/runtime.js` | 启动顺序：数据目录 → `Postgres` → `Backend.migrate`（`init_db.py`）→ `Backend.start`（`app.py`）；重启与停止 |
+| `src/postgres.js` | 建库（`initdb`）、追加配置、`pg_ctl` 启停、连接地址 |
+| `src/backend.js` | 服务环境变量（`serviceEnv`）、运行 `init_db.py` 与 `app.py`、等待 `/api/health` |
+| `src/processes.js` | 清理继承的环境变量（`cleanEnv`）、运行子进程、结束进程树、Windows 短路径 |
+| `src/paths.js`、`config.js`、`ports.js`、`logs.js`、`backup.js`、`policy.js` | 程序与数据位置、客户端设置、端口、日志、冷备份、导航与链接规则（均不依赖 Electron，有单元测试） |
+| `src/preload.js` | 页面可用的 `window.zhiyeDesktop`：启动页多几项（状态、重试、更换目录），服务页面只有查看日志、打开数据目录、重启服务 |
+| `src/launcher/` | 启动页 |
+| `scripts/stage.mjs` | 准备 `build/resources`：便携 Python 及依赖、服务代码白名单（正式版不含演示数据文件）、PostgreSQL |
+| `scripts/smoke.mjs`、`dist.mjs`、`dev.mjs` | 无界面冒烟测试、打包、从源码运行 |
+| `electron-builder.config.cjs` | 两个版本的应用名、安装包名和安装选项 |
 
 ## 7. 修改时的关联检查
 
@@ -254,5 +283,7 @@ flowchart TD
 | PPT | `presentations.py`、`ppt_story.py`、`pptkit_export.py` | 模板版本、视觉审查、单页微调、`test_presentations.py` |
 | 出题 / 阅卷 / 授课包 | `quizzes.py`、`grading.py`、`packages.py` | 冻结版本与 JSON 模式、题号映射、学生练习不含答案 |
 | 模型配置 | `model_settings.py`、`qwen.py`、`vision.py`、`embed.py` | 三个通道的区别、密钥遮蔽、重启生效 |
+| 正式版 / 测试版 | `edition.py`、`init_db.py`、`courses.py` 的预置课程、`index.html` 中的 `release` 分支 | 正式版空库可从零建课（`test_edition.py`）、`desktop/scripts/stage.mjs` 的文件白名单 |
+| 桌面客户端 | `desktop/src/`、`desktop/scripts/` | `npm test`、`node scripts/smoke.mjs --dev`；新增服务环境变量要加进 `processes.cleanEnv` 的清理列表 |
 
 测试按功能命名为 `demo/tests/test_<功能>.py`，例如 `test_quizzes.py`、`test_packages.py`、`test_teaching_loop.py`、`test_presentations.py`。

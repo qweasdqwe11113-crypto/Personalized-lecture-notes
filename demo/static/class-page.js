@@ -6,7 +6,7 @@
   const order = ['needs_support', 'partial', 'mastered', 'unknown'];
   const labels = {needs_support: '需要补充', partial: '部分掌握', mastered: '已掌握', unknown: '未诊断'};
   const tabs = {profile: ['class-tab-profile', 'class-panel-profile', 'profiles'], students: ['class-tab-students', 'class-panel-students', 'profiles/students'], resources: ['class-tab-resources', 'class-panel-resources', 'profiles/resources']};
-  let version = 0, loaded = null, recorder = '';
+  let version = 0, loaded = null, recorder = '', scoped = false;
   const status = (message, failed = false) => { $('class-edit-status').textContent = message || ''; $('class-edit-status').dataset.error = String(failed); };
   function view() {
     const hash = location.hash.slice(1);
@@ -18,7 +18,8 @@
     const v = view();
     if (!v) return;
     const cls = scope.klass(), needsClass = v !== 'detail';
-    $('class-empty').hidden = !needsClass || Boolean(cls) || !scope.courses.length;
+    // Until the course list has loaded, an empty list does not yet mean "no course".
+    $('class-empty').hidden = !needsClass || Boolean(cls) || !scoped;
     $('class-home-page').hidden = !tabs[v] || !cls;
     $('student-create-page').hidden = v !== 'new' || !cls;
     $('student-import-page').hidden = v !== 'import' || !cls;
@@ -29,7 +30,11 @@
     }
     if (!cls) {
       const c = scope.course();
-      $('class-empty-title').textContent = c ? `「${c.name}」还没有班级` : '尚未选择课程';
+      $('class-empty-title').textContent = c ? `「${c.name}」还没有班级` : '还没有课程';
+      $('class-empty-text').textContent = c ? '先在课程中新建班级，再添加学生；班级画像由班内学生的诊断汇总而成。'
+        : '班级和学生都属于某门课程。先新建一门课程，再在课程里建班级、添加学生。';
+      $('class-empty-action').textContent = c ? '前往新建班级' : '前往新建课程';
+      $('class-empty-action').href = c ? '#materials/classes' : '#courses';
       return;
     }
     $('student-create-heading').textContent = `新建学生 · 加入${cls.name}`;
@@ -143,6 +148,7 @@
   window.addEventListener('lecture-version-changed', () => { if (scope.klass()) $('class-start-lecture').disabled = busy || !scope.klass().student_ids.length; });
   window.addEventListener('hashchange', route);
   window.addEventListener('scope-changed', event => {
+    scoped = true;
     if (event.detail !== 'refresh') { $('edit-class-form').hidden = true; status(''); $('class-profile-topic').value = ''; }
     route();
   });

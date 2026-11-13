@@ -31,11 +31,16 @@ def field(data, key, label, maximum, optional=False):
     return value.strip()
 
 
-def ensure_course_structure(conn):
-    """Seed the demonstration courses and classes once; attach legacy lesson copies to a course."""
-    for key, preset in PRESET_COURSES.items():
-        conn.execute('''INSERT INTO courses(preset_key,name,stage,description) VALUES (%s,%s,%s,%s)
-            ON CONFLICT DO NOTHING''', (key, preset['name'], preset['stage'], preset['description']))
+def ensure_course_structure(conn, presets=True):
+    """Seed the demonstration courses and classes once; attach legacy lesson copies to a course.
+
+    Without presets (the desktop release) no course or class is created; the migration still
+    runs once, so a later lesson copy without a course is filed the same way.
+    """
+    if presets:
+        for key, preset in PRESET_COURSES.items():
+            conn.execute('''INSERT INTO courses(preset_key,name,stage,description) VALUES (%s,%s,%s,%s)
+                ON CONFLICT DO NOTHING''', (key, preset['name'], preset['stage'], preset['description']))
     if not conn.execute('SELECT 1 FROM schema_migrations WHERE name=%s', (MIGRATION,)).fetchone():
         attach_legacy(conn)
     backfill_library(conn)
