@@ -117,6 +117,8 @@ To try everything without calling a real model, start the offline sandbox. All m
 
 `desktop/` packages the app as an installable program (Electron). It carries its own PostgreSQL 17 and Python 3.12 with every dependency, so a teacher installs one file and needs no command line: on first start it creates a private database in the user's data folder, starts the service on 127.0.0.1 and opens the workspace in its window. Closing the window shuts the service and database down cleanly.
 
+Teachers: see the step-by-step [user guide](docs/user-guide.md) (Chinese), from installation and model setup to daily use. The client's 帮助 → 使用说明 menu opens it.
+
 Two editions are built from the same code and can be installed side by side:
 
 | | 知页 (release) | 知页测试版 (test) |
@@ -223,6 +225,7 @@ The detailed documents are written in Chinese.
 
 | Document | Contents |
 | --- | --- |
+| [docs/user-guide.md](docs/user-guide.md) | **Teacher's guide**: installing the client, connecting a model, setting up courses, classes and students, then lectures, quizzes, slides, grading, backup and common problems |
 | [docs/features.md](docs/features.md) | Behaviour, limits and design details of each page: lectures, profiles, retrieval, quizzes, slides, lesson packages, grading, job queue, experiments |
 | [project_map.md](project_map.md) | Module responsibilities, call relationships, data flow and storage — read before changing code |
 | [docs/image-lecture-workflow.md](docs/image-lecture-workflow.md) | How image reading feeds into lectures, and its limits |

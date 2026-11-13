@@ -338,7 +338,7 @@ function buildMenu() {
       {label: '更换数据目录…', click: chooseDataDir},
     ]},
     {label: '帮助', submenu: [
-      {label: '使用说明', click: () => shell.openExternal(`https://github.com/${REPOSITORY}#readme`)},
+      {label: '使用说明', click: () => shell.openExternal(`https://github.com/${REPOSITORY}/blob/main/docs/user-guide.md`)},
       {label: '问题反馈', click: () => shell.openExternal(`https://github.com/${REPOSITORY}/issues`)},
       {type: 'separator'},
       {label: `关于${productName}`, click: showAbout},

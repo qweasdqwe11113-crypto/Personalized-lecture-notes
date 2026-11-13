@@ -28,7 +28,7 @@
        text: '课程是备课、资料和班级的归属，例如「大学 · 高等数学」。可以建多门课程，在顶部随时切换。',
        action: ['新建课程', '#courses', 'new-course'], done_text: course ? `当前课程：${scope.courseLabel(course)}` : ''},
       {title: '建立知识点库', done: library.length > 0, blocked: needCourse,
-       text: '为课程添加知识点：逐条添加、导入表格，或上传讲义和教材，由模型识别后确认入库。',
+       text: '为课程添加知识点：逐条添加，或上传讲义和教材，由模型识别后确认入库。',
        action: ['添加知识点', '#materials/knowledge'], done_text: `已有 ${library.length} 个知识点`},
       {title: '添加班级和学生', done: Boolean(seated), blocked: needCourse,
        text: '新建班级后逐个添加学生，或下载模板批量导入名单与学习特点。讲义会参考学生的画像和掌握情况。',
