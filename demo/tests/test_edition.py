@@ -66,6 +66,30 @@ class EditionTests(ProfileDatabaseFixture):
         self.assertIn('record-tab-experiments', page)
         self.assertIn('本地演示环境', page)
 
+    def test_release_opens_the_tour_once_per_workspace(self):
+        with patch.object(module, 'release', return_value=True):
+            self.assertEqual(self.client.get('/api/onboarding').get_json()['tour'], {'seen': False, 'auto': True})
+            self.assertIn('id="tour-open"', self.client.get('/').get_data(as_text=True))
+            done = self.client.post('/api/onboarding/tour', json={'outcome': 'skipped', 'step': 3})
+            self.assertEqual(done.status_code, 200, done.get_json())
+            self.assertEqual(self.client.get('/api/onboarding').get_json()['tour'], {'seen': True, 'auto': False})
+            # Watching it again from the sidebar records the new outcome and keeps it closed.
+            self.assertEqual(self.client.post('/api/onboarding/tour', json={'outcome': 'finished', 'step': 8}).status_code, 200)
+        with self.fixture_db() as conn:
+            row = conn.execute("SELECT value FROM workspace_settings WHERE key='workspace_tour'").fetchone()
+        self.assertEqual(row['value'], {'outcome': 'finished', 'step': 8})
+
+    def test_demo_edition_never_opens_the_tour_by_itself(self):
+        self.assertEqual(self.client.get('/api/onboarding').get_json()['tour'], {'seen': False, 'auto': False})
+        self.assertIn('id="tour-open"', self.client.get('/').get_data(as_text=True))
+
+    def test_tour_outcome_is_checked(self):
+        for body in ({}, {'outcome': 'closed', 'step': 1}, {'outcome': 'finished'}, {'outcome': 'finished', 'step': 0},
+                     {'outcome': 'finished', 'step': True}, {'outcome': 'finished', 'step': '2'}):
+            self.assertEqual(self.client.post('/api/onboarding/tour', json=body).status_code, 400, body)
+        with patch.object(module, 'release', return_value=True):
+            self.assertTrue(self.client.get('/api/onboarding').get_json()['tour']['auto'])
+
     def test_data_folder_follows_the_environment(self):
         with patch.dict(os.environ, {'ZHIYE_DATA_DIR': '/tmp/知页 数据'}):
             self.assertEqual(edition.data_dir(), Path('/tmp/知页 数据'))

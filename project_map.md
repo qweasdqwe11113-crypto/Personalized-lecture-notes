@@ -48,6 +48,7 @@ flowchart TD
 | 生成记录 `#records/...` | `jobs.js`、`traces.js`、`evaluation.js` | `/api/generation-runs*`、`/api/lecture-experiments*` |
 | 系统设置 `#settings` | `model-settings.js` | `/api/health`、`/api/model-settings*` |
 | 开始使用引导（讲义工作台顶部） | `getting-started.js` | `/api/health`、`/api/courses`、`/api/courses/<id>/knowledge` |
+| 新手引导（遮罩高亮 + 说明卡片；正式版首次自动出现，左侧「新手引导」或客户端「帮助」菜单重看） | `tour.js`、`tour.css` | `GET /api/onboarding`、`POST /api/onboarding/tour` |
 
 讲义工具栏与弹窗：
 
@@ -220,6 +221,7 @@ flowchart TD
 | --- | --- |
 | `students`、`knowledge_points`、`course_tasks`、`knowledge_aliases` | 学生、知识点、自建备课副本、副本诊断身份映射 |
 | `courses`、`classes`、`class_students`、`class_profile_history`、`schema_migrations` | 课程、班级与班级特点、选课（`UNIQUE(course_id, student_id)`）、班级特点修改历史、一次性迁移记录 |
+| `workspace_settings` | 整个工作空间的小设置（键值，`jsonb`），目前只有 `workspace_tour`：新手引导看完或跳过的记录 |
 | `student_knowledge`、`learning_evidence`、`knowledge_state_history`、`student_profile_history` | 当前掌握状态、证据与历史 |
 | `materials`、`material_chunks` | 课程材料与向量分块 |
 | `lectures`、`lecture_revisions`、`lecture_issues` | 讲义原稿、修订与问题；班级讲义 `student_id` 为空、`class_id` 有值（`generation_runs`、`quiz_jobs` 同理） |
@@ -258,7 +260,7 @@ Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中
 | `src/backend.js` | 服务环境变量（`serviceEnv`）、运行 `init_db.py` 与 `app.py`、等待 `/api/health` |
 | `src/processes.js` | 清理继承的环境变量（`cleanEnv`）、运行子进程、结束进程树、Windows 短路径 |
 | `src/paths.js`、`config.js`、`ports.js`、`logs.js`、`backup.js`、`policy.js` | 程序与数据位置、客户端设置、端口、日志、冷备份、导航与链接规则（均不依赖 Electron，有单元测试） |
-| `src/preload.js` | 页面可用的 `window.zhiyeDesktop`：启动页多几项（状态、重试、更换目录），服务页面只有查看日志、打开数据目录、重启服务 |
+| `src/preload.js` | 页面可用的 `window.zhiyeDesktop`：启动页多几项（状态、重试、更换目录），服务页面只有查看日志、打开数据目录、重启服务，以及接收「帮助 → 新手引导」 |
 | `src/launcher/` | 启动页 |
 | `scripts/stage.mjs`、`prune.mjs` | 准备 `build/resources`：便携 Python 及依赖（`prune.mjs` 删去 Tcl/Tk 与标准库测试，按平台只扫描原生库目录）、服务代码白名单（正式版不含演示数据文件）、PostgreSQL |
 | `scripts/smoke.mjs`、`dist.mjs`、`dev.mjs` | 无界面冒烟测试、打包、从源码运行 |

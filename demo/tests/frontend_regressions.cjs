@@ -274,7 +274,37 @@ async function studentEditKeepsItsBaseRevision() {
   assert.match(e.$('student-edit-status').textContent, /已保存/);
 }
 
-const cases = {knowledgeReviewMergesAndConfirms, studentEditKeepsItsBaseRevision, classTargetFollowsScope, richMarkdown, submissionCarriesPipelineChoices, markdownOrder, markdownFenceContent, automaticLengthRemainsOptional, imagePreviewOrder, uploadPreviewOrder, refreshingImagesKeepsLiveSelection, acceptedJobSurvivesHistoryFailure, backgroundCompletionPreservesPage};
+async function tourCardPlacement() {
+  const e = environment();
+  Object.assign(e.context.document, {querySelector: () => null, body: new Element('body')});
+  e.context.workspaceScope = {ready: new Promise(() => {})};
+  e.load('tour.js');
+  const {place} = e.context.zhiyeTour;
+  const view = {width: 1280, height: 800}, card = {width: 360, height: 200};
+  const box = (left, top, width, height) => ({left, top, width, height, right: left + width, bottom: top + height});
+  // The sidebar: the card goes to its right, level with the middle of the lit area.
+  const nav = place(box(10, 100, 200, 400), card, view);
+  assert.equal(nav.side, 'right');
+  assert.equal(nav.left, 224);
+  assert.equal(nav.top, 200);
+  assert.equal(nav.arrow, 100);
+  // A bar across the top: no room beside it, so the card goes below, under its middle.
+  const bar = place(box(240, 20, 1020, 50), card, view);
+  assert.deepEqual([bar.side, bar.top, bar.left], ['bottom', 84, 570]);
+  // A short item near the bottom: the card stays inside the window and the arrow still points at it.
+  const low = place(box(10, 740, 200, 48), card, view);
+  assert.equal(low.side, 'right');
+  assert.equal(low.top, 588);
+  assert.ok(low.arrow > 150 && low.arrow <= 178, 'the arrow follows the item, not the card centre');
+  // Something filling the window: the card sits over its lower right corner instead of off screen.
+  const full = place(box(6, 6, 1268, 788), card, view);
+  assert.deepEqual([full.side, full.left, full.top], ['inside', 900, 580]);
+  assert.ok(full.top + card.height <= view.height - 12);
+  // Nothing lit (the welcome step): centred.
+  assert.deepEqual({...place(null, card, view)}, {side: 'center', left: 460, top: 300});
+}
+
+const cases = {tourCardPlacement, knowledgeReviewMergesAndConfirms, studentEditKeepsItsBaseRevision, classTargetFollowsScope, richMarkdown, submissionCarriesPipelineChoices, markdownOrder, markdownFenceContent, automaticLengthRemainsOptional, imagePreviewOrder, uploadPreviewOrder, refreshingImagesKeepsLiveSelection, acceptedJobSurvivesHistoryFailure, backgroundCompletionPreservesPage};
 (async () => {
   const name = process.argv[2]; assert.ok(cases[name], 'choose a regression case');
   await cases[name](); console.log(name + ': OK');

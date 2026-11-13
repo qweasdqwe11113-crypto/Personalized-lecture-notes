@@ -9,6 +9,7 @@ from urllib.parse import quote
 
 import psycopg
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 from dotenv import load_dotenv
 from model_settings import register_model_settings
 from flask import Flask, Response, jsonify, render_template, request, g, has_request_context
@@ -808,6 +809,38 @@ def health():
                    model_concurrency=GENERATION_LOCK.limit, embed_model=EMBEDDER.model,
                    embedding_configured=EMBEDDER.configured(),
                    note='本机配置与数据库检查；未调用模型，不能证明密钥有效、服务可达或支持嵌入接口。')
+
+
+TOUR_SETTING = 'workspace_tour'
+TOUR_OUTCOMES = ('finished', 'skipped')
+
+
+@app.get('/api/onboarding')
+def onboarding():
+    """Whether the workspace tour opens by itself: once per data folder, in the desktop release."""
+    try:
+        with db() as conn:
+            seen = conn.execute('SELECT 1 FROM workspace_settings WHERE key=%s', (TOUR_SETTING,)).fetchone() is not None
+    except psycopg.Error:
+        return jsonify(error='数据库暂不可用。'), 503
+    return jsonify(tour={'seen': seen, 'auto': release() and not seen})
+
+
+@app.post('/api/onboarding/tour')
+def record_tour():
+    """The teacher finished or skipped the tour; it no longer opens by itself."""
+    body = request.get_json(silent=True) or {}
+    outcome, step = body.get('outcome'), body.get('step')
+    if outcome not in TOUR_OUTCOMES or type(step) is not int or not 1 <= step <= 50:
+        return jsonify(error='引导状态无效。'), 400
+    try:
+        with db() as conn:
+            conn.execute('INSERT INTO workspace_settings(key,value) VALUES (%s,%s) '
+                         'ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()',
+                         (TOUR_SETTING, Jsonb({'outcome': outcome, 'step': step})))
+    except psycopg.Error:
+        return jsonify(error='数据库暂不可用，引导状态未保存。'), 503
+    return jsonify(tour={'seen': True, 'auto': False})
 
 
 @app.get('/api/generation-runs')

@@ -1,0 +1,84 @@
+/* 新手引导 (tour.js): a dimmed page with one lit area and a card beside it. */
+.tour-layer { position: fixed; inset: 0; z-index: 1000; opacity: 0; transition: opacity .22s ease; }
+.tour-layer.is-open { opacity: 1; }
+
+.tour-hole {
+  position: fixed; border-radius: 12px; pointer-events: none;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 6px rgba(56, 85, 223, .45), 0 0 0 9999px rgba(15, 23, 42, .58);
+  transition: left .34s cubic-bezier(.4, 0, .2, 1), top .34s cubic-bezier(.4, 0, .2, 1),
+              width .34s cubic-bezier(.4, 0, .2, 1), height .34s cubic-bezier(.4, 0, .2, 1), box-shadow .2s;
+}
+.tour-hole::after {
+  content: ''; position: absolute; inset: -6px; border-radius: 16px; border: 2px solid rgba(118, 145, 255, .9);
+  animation: tour-pulse 1.8s ease-out infinite;
+}
+.tour-hole.is-empty { box-shadow: 0 0 0 9999px rgba(15, 23, 42, .58); }
+.tour-hole.is-empty::after { display: none; }
+@keyframes tour-pulse { 0% { opacity: .9; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(1.04); } }
+
+.tour-card {
+  position: fixed; inline-size: min(360px, calc(100vw - 24px)); box-sizing: border-box;
+  padding: 18px 20px 16px; border-radius: 14px; background: #fff; color: #1d2b44;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, .3), 0 2px 6px rgba(15, 23, 42, .08);
+  transition: left .34s cubic-bezier(.4, 0, .2, 1), top .34s cubic-bezier(.4, 0, .2, 1);
+  animation: tour-card-in .26s ease-out;
+}
+@keyframes tour-card-in { from { opacity: 0; transform: translateY(6px) scale(.98); } }
+/* The arrow points from the card's edge at the middle of the lit area. */
+.tour-card::before {
+  content: ''; position: absolute; inline-size: 12px; block-size: 12px; background: #fff; transform: rotate(45deg);
+  border-radius: 2px; display: none;
+}
+.tour-card[data-side="right"]::before { display: block; left: -5px; top: calc(var(--tour-arrow, 24px) - 6px); }
+.tour-card[data-side="left"]::before { display: block; right: -5px; top: calc(var(--tour-arrow, 24px) - 6px); }
+.tour-card[data-side="bottom"]::before { display: block; top: -5px; left: calc(var(--tour-arrow, 24px) - 6px); }
+.tour-card[data-side="top"]::before { display: block; bottom: -5px; left: calc(var(--tour-arrow, 24px) - 6px); }
+
+.tour-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tour-count { font-size: 12px; font-weight: 600; letter-spacing: .5px; color: var(--accent); background: #eef1ff; border-radius: 99px; padding: 2px 10px; }
+.tour-skip { min-block-size: 32px; border: 0; background: none; padding: 4px 2px; color: var(--muted); font-size: 13px; }
+.tour-skip:hover { color: #33435c; text-decoration: underline; text-underline-offset: 3px; }
+
+.tour-badge { display: none; }
+.tour-card.is-welcome { inline-size: min(400px, calc(100vw - 24px)); padding: 22px 24px 18px; text-align: center; }
+.tour-card.is-welcome .tour-head { justify-content: flex-end; }
+.tour-card.is-welcome .tour-count { display: none; }
+.tour-card.is-welcome .tour-badge {
+  display: grid; place-items: center; inline-size: 52px; block-size: 52px; margin: 2px auto 12px; border-radius: 15px;
+  background: var(--accent); color: #fff; font-size: 26px; font-weight: 700; box-shadow: 0 8px 18px rgba(56, 85, 223, .3);
+}
+.tour-card.is-welcome .tour-foot { flex-direction: column; gap: 14px; }
+
+.tour-title { margin: 10px 0 0; font-size: 17px; font-weight: 650; letter-spacing: .2px; color: #18243a; }
+.tour-card.is-welcome .tour-title { margin-top: 0; font-size: 20px; }
+.tour-text { margin: 8px 0 0; font-size: 14px; line-height: 1.75; color: #4b5a70; }
+
+.tour-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-block-start: 16px; }
+.tour-dots { display: flex; gap: 5px; }
+.tour-dots i { inline-size: 6px; block-size: 6px; border-radius: 99px; background: #dbe2ef; transition: inline-size .25s, background-color .25s; }
+.tour-dots i.is-past { background: #aab9e8; }
+.tour-dots i.is-current { inline-size: 18px; background: var(--accent); }
+.tour-actions { display: flex; gap: 8px; margin-inline-start: auto; }
+.tour-card.is-welcome .tour-actions { margin-inline: auto; }
+.tour-actions .primary, .tour-actions .secondary {
+  margin: 0; inline-size: auto; min-block-size: 36px; padding: 7px 16px; font-size: 14px; justify-content: center; white-space: nowrap;
+}
+.tour-card.is-welcome .tour-actions .primary { padding-inline: 28px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-layer, .tour-hole, .tour-card, .tour-dots i { transition: none; animation: none; }
+  .tour-hole::after { animation: none; opacity: 0; }
+}
+
+/* The entry in the sidebar, above the workspace note. */
+.sidebar-tour {
+  display: flex; align-items: center; gap: 10px; margin: auto 8px 12px; padding: 8px 12px; min-block-size: 40px;
+  border: 1px dashed #d4dbea; border-radius: 9px; background: none; color: #68768c; font-size: 13px; text-align: start;
+}
+.sidebar-tour:hover { border-color: #b9c6ea; color: var(--accent); background: #f7f9ff; }
+.sidebar-tour span { display: grid; place-items: center; inline-size: 20px; block-size: 20px; border-radius: 50%; background: #eef1ff; color: var(--accent); font-size: 12px; font-weight: 700; }
+.sidebar-tour + .sidebar-note { margin-block-start: 0; }
+@media (max-width: 760px) { .sidebar-tour { display: none; } }
+/* Short windows: drop the decorative workspace note so the sidebar still fits. */
+@media (max-height: 700px) and (min-width: 761px) { .sidebar-tour + .sidebar-note { display: none; } .sidebar-tour { margin-block-end: 18px; } }
+@media print { .tour-layer, .sidebar-tour { display: none !important; } }

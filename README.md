@@ -123,7 +123,7 @@ Two editions are built from the same code and can be installed side by side:
 
 | | 知页 (release) | 知页测试版 (test) |
 | --- | --- | --- |
-| Starts with | An empty workspace: no courses, classes, students, materials or built-in lessons, and no comparison-experiment page. A getting-started guide on the workbench walks through the first steps | The demonstration courses, classes and fictional students, as in the development setup |
+| Starts with | An empty workspace: no courses, classes, students, materials or built-in lessons, and no comparison-experiment page. On first start a short tour highlights the main areas, and a getting-started guide on the workbench walks through the first steps | The demonstration courses, classes and fictional students, as in the development setup |
 | Data folder | `%LOCALAPPDATA%\Zhiye` · `~/.local/share/zhiye` | `%LOCALAPPDATA%\Zhiye-Test` · `~/.local/share/zhiye-test` |
 | Installer | `zhiye-<version>-win-x64.exe` · `zhiye-<version>-linux-x86_64.AppImage` / `.tar.gz` | `zhiye-test-…` with the same suffixes |
 
@@ -217,7 +217,7 @@ Runtime data is written to `.runtime/` (ignored; below `ZHIYE_DATA_DIR` when set
 .venv/bin/python -m unittest discover -s demo/tests -v
 ```
 
-Tests create a temporary schema in the dedicated database and drop it afterwards; they never touch production data or call a real model. With Node.js installed, frontend behaviour regressions run as well. The desktop client has its own unit tests (`cd desktop && npm test`) and a smoke test of the bundled runtime (see [Desktop Client](#desktop-client-windows--linux)). All 378 Python tests and 32 desktop unit tests pass as of 2026-11-13.
+Tests create a temporary schema in the dedicated database and drop it afterwards; they never touch production data or call a real model. With Node.js installed, frontend behaviour regressions run as well. The desktop client has its own unit tests (`cd desktop && npm test`) and a smoke test of the bundled runtime (see [Desktop Client](#desktop-client-windows--linux)). All 382 Python tests and 32 desktop unit tests pass as of 2026-11-13.
 
 ## Documentation
 

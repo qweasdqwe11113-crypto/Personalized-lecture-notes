@@ -305,6 +305,13 @@ function createWindow() {
   });
 }
 
+/** 帮助 → 新手引导: the workspace page runs the tour; the start-up screen has none. */
+function showTour() {
+  if (win && !win.isDestroyed() && policy.isAppUrl(win.webContents.getURL(), appOrigin())) {
+    win.webContents.send('desktop:show-tour');
+  }
+}
+
 function buildMenu() {
   const reload = () => { if (win && runtime && runtime.url && !busy) win.loadURL(runtime.url + '/'); };
   const template = [
@@ -339,6 +346,7 @@ function buildMenu() {
     ]},
     {label: '帮助', submenu: [
       {label: '使用说明', click: () => shell.openExternal(`https://github.com/${REPOSITORY}/blob/main/docs/user-guide.md`)},
+      {label: '新手引导', click: showTour},
       {label: '问题反馈', click: () => shell.openExternal(`https://github.com/${REPOSITORY}/issues`)},
       {type: 'separator'},
       {label: `关于${productName}`, click: showAbout},

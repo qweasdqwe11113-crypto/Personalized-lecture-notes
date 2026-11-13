@@ -50,3 +50,6 @@ class FrontendTests(unittest.TestCase):
 
     def test_knowledge_review_merges_rows_and_confirms_the_edited_draft(self):
         self.run_case('knowledgeReviewMergesAndConfirms')
+
+    def test_tour_card_stays_beside_the_lit_area_and_inside_the_window(self):
+        self.run_case('tourCardPlacement')
