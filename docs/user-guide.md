@@ -304,6 +304,16 @@ Ubuntu 24.04 起，系统限制了浏览器沙箱。用 AppImage 或 tar.gz 时�
 sudo chown root:root chrome-sandbox && sudo chmod 4755 chrome-sandbox
 ```
 
+**Linux 上界面文字显示成方框**
+
+系统里没有中文字体（常见于精简安装或服务器版系统）。安装中文字体后重新打开知页即可：
+
+```bash
+sudo apt install fonts-noto-cjk
+```
+
+用 .deb 安装时一般会自动装上这个字体。
+
 **Windows 提示「Windows 已保护你的电脑」**
 
 这是因为安装包没有代码签名。点「更多信息」→「仍要运行」即可。

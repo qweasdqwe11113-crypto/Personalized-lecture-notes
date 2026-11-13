@@ -38,6 +38,13 @@ test('both editions build a .deb under their own package name, so they install s
   }
   assert.deepEqual([release.deb.packageName, demo.deb.packageName], ['zhiye', 'zhiye-test']);
   assert.notEqual(release.productName, demo.productName, 'the install folder under /opt comes from the product name');
+  assert.ok(release.deb.recommends.includes('fonts-noto-cjk'), 'the Chinese interface needs CJK fonts');
+});
+
+test('PostgreSQL is packaged once, from build/resources, not again from node_modules', () => {
+  const config = builderConfig('release');
+  assert.ok(config.extraResources.some(entry => entry.from === 'build/resources/postgres'));
+  assert.ok(config.files.includes('!node_modules/@embedded-postgres{,/**/*}'));
 });
 
 test('the after-install script expands cleanly and always makes chrome-sandbox setuid root', {skip: process.platform === 'win32'}, () => {

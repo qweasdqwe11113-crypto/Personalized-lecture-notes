@@ -266,7 +266,7 @@ Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中
 | `scripts/smoke.mjs`、`dist.mjs`、`dev.mjs` | 无界面冒烟测试、打包、从源码运行 |
 | `scripts/linux-sandbox.cjs` | Linux 上判断能否使用 Chromium 沙箱，不能时加 `--no-sandbox`；`dev.mjs` 调用它，打包时 `afterPack` 把程序改名为 `<名称>-bin`，原名换成启动脚本 |
 | `scripts/deb-after-install.tpl` | .deb 的安装后脚本：`/usr/bin` 链接指向启动脚本、`chrome-sandbox` 总是设为 root 所有且 4755、装入 AppArmor 配置；基于 electron-builder 的模板，`${…}` 由它替换，脚本里的 shell 变量不能写花括号 |
-| `electron-builder.config.cjs` | 两个版本的应用名、安装包名（含 .deb 包名 `zhiye` / `zhiye-test`）和安装选项 |
+| `electron-builder.config.cjs` | 两个版本的应用名、安装包名（含 .deb 包名 `zhiye` / `zhiye-test`、依赖和推荐的中文字体）和安装选项；`files` 排除 `node_modules/@embedded-postgres`，安装包里只有 `resources/postgres` 这一份 PostgreSQL |
 
 ## 7. 修改时的关联检查
 
