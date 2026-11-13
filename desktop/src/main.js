@@ -8,6 +8,7 @@ const {pathToFileURL} = require('node:url');
 const config = require('./config');
 const paths = require('./paths');
 const backup = require('./backup');
+const upgrade = require('./upgrade');
 const policy = require('./policy');
 const {Runtime, STEPS} = require('./runtime');
 const pkg = require('../package.json');
@@ -71,15 +72,15 @@ async function showLauncher(next) {
 const HINTS = {
   prepare: '数据目录无法写入。可以更换到有写入权限的文件夹。',
   database: '常见原因：数据目录所在磁盘已满、被安全软件拦截，或数据目录路径中含有系统无法识别的字符。可以重试，或更换数据目录。',
-  migrate: '数据库已启动，但数据表没有准备好。请查看日志；若是升级后出现，请保留数据目录并反馈问题。',
+  migrate: '数据库已启动，但数据表没有准备好。请查看日志；若是升级后出现，升级前的数据在数据目录的「升级前备份-…」文件夹中，可以用「服务 → 从备份恢复」找回。请保留数据目录并反馈问题。',
   service: '教学服务没有启动成功。请查看日志中的最后几行。',
 };
 
 function failure(error, title = '启动没有完成') {
   return {
-    title,
+    title: error.title || title,
     message: error.message,
-    hint: HINTS[error.step] || '',
+    hint: error.hint || HINTS[error.step] || '',
     step: error.step || null,
     log: runtime ? runtime.log.tail(40) : [],
   };
@@ -94,6 +95,8 @@ function makeRuntime() {
     if (!state || !state.steps) return;
     publish({steps: state.steps.map(s => (s.id === step.id ? {...s, state: step.state, detail: step.detail || ''} : s))});
   });
+  // A long part of a step, such as the backup before an upgrade, gets the line under the title.
+  next.on('progress', text => publish({lead: text || '正在启动本机服务…'}));
   next.on('service-exit', () => {
     if (quitting || busy) return;
     showLauncher({...freshState('failed', '教学服务意外停止'),
@@ -200,7 +203,9 @@ async function backupData() {
   if (response !== 0) return;
   let folder = null, failed = null;
   await withServiceStopped('正在备份数据…', async () => {
-    try { folder = backup.createBackup(dataDir(), filePaths[0], {version: app.getVersion(), edition}); } catch (error) { failed = error; }
+    // The version the data belongs to: still the older one while an upgrade has not finished.
+    const version = upgrade.dataVersion(dataDir()) || app.getVersion();
+    try { folder = backup.createBackup(dataDir(), filePaths[0], {version, edition}); } catch (error) { failed = error; }
   });
   if (failed) return dialog.showErrorBox('备份失败', failed.message);
   const done = await dialog.showMessageBox(win, {type: 'info', buttons: ['打开备份文件夹', '完成'], defaultId: 1, title: '备份完成', message: '备份已保存。', detail: folder});
@@ -208,13 +213,18 @@ async function backupData() {
 }
 
 async function restoreData() {
+  // Backups made before an upgrade sit in the data folder; start there when there are any.
+  const nearby = upgrade.listUpgradeBackups(dataDir()).length > 0;
   const {canceled, filePaths} = await dialog.showOpenDialog(win, {
-    title: '选择要恢复的备份文件夹（知页备份-…）', defaultPath: app.getPath('documents'), buttonLabel: '恢复此备份',
-    properties: ['openDirectory'],
+    title: '选择要恢复的备份文件夹（知页备份-… 或 升级前备份-…）', defaultPath: nearby ? dataDir() : app.getPath('documents'),
+    buttonLabel: '恢复此备份', properties: ['openDirectory'],
   });
   if (canceled || !filePaths[0]) return;
   let manifest;
-  try { manifest = backup.checkBackup(filePaths[0], dataDir(), edition); } catch (error) { return dialog.showErrorBox('无法恢复', error.message); }
+  try {
+    manifest = backup.checkBackup(filePaths[0], dataDir(), edition);
+    upgrade.checkRestore(manifest, pkg.version);
+  } catch (error) { return dialog.showErrorBox('无法恢复', error.message); }
   const {response} = await dialog.showMessageBox(win, {
     type: 'warning', buttons: ['恢复', '取消'], defaultId: 1, cancelId: 1, title: '从备份恢复',
     message: `用 ${new Date(manifest.created_at).toLocaleString('zh-CN')} 的备份替换当前数据？`,
@@ -224,6 +234,10 @@ async function restoreData() {
   let aside = null, failed = null;
   await withServiceStopped('正在从备份恢复…', async () => {
     try { aside = backup.restoreBackup(filePaths[0], dataDir()); } catch (error) { failed = error; }
+    if (failed) return;
+    try { upgrade.recordRestore(dataDir(), {version: pkg.version, edition, from: filePaths[0]}); } catch (error) {
+      if (runtime) runtime.log.line('client', `恢复后记录客户端版本失败：${error.message}`);
+    }
   });
   if (failed) return dialog.showErrorBox('恢复失败', failed.message);
   dialog.showMessageBox(win, {type: 'info', title: '恢复完成', message: '已从备份恢复。', detail: `原数据保存在：${aside}`});

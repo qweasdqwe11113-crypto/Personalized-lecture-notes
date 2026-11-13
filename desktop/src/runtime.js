@@ -9,6 +9,8 @@ const {Postgres} = require('./postgres');
 const {Backend} = require('./backend');
 const {pickPort} = require('./ports');
 const {layout} = require('./paths');
+const upgrade = require('./upgrade');
+const pkg = require('../package.json');
 
 const STEPS = [
   {id: 'prepare', label: '检查数据目录'},
@@ -20,12 +22,15 @@ const STEPS = [
 class Runtime extends EventEmitter {
   /**
    * @param {{resources: {python: string, backend: string, postgres: string}, dataDir: string,
-   *          edition: 'release'|'demo', packaged: boolean, preferredPort?: number}} options
+   *          edition: 'release'|'demo', packaged: boolean, preferredPort?: number, version?: string}} options
+   *        version: the client version, package.json "version" unless a test says otherwise.
    */
-  constructor({resources, dataDir, edition, packaged, preferredPort}) {
+  constructor({resources, dataDir, edition, packaged, preferredPort, version = pkg.version}) {
     super();
     this.resources = resources;
     this.edition = edition;
+    this.version = version;
+    this.upgrade = null;
     this.preferredPort = preferredPort;
     this.dirs = layout(dataDir);
     this.log = new LogSink(path.join(this.dirs.logs, 'client.log'));
@@ -66,7 +71,7 @@ class Runtime extends EventEmitter {
       await this.step('prepare', async () => {
         for (const dir of [this.dirs.root, this.dirs.workspace, this.dirs.logs]) fs.mkdirSync(dir, {recursive: true});
         fs.accessSync(this.dirs.root, fs.constants.W_OK);
-        return this.dirs.root;
+        return this.checkVersion();
       });
       await this.step('database', async () => {
         const created = await this.postgres.ensureCluster();
@@ -76,12 +81,59 @@ class Runtime extends EventEmitter {
       await this.step('migrate', () => this.backend.migrate(this.postgres.url()));
       await this.step('service', () => this.startService());
       this.state = 'running';
+      this.recordVersion();
       return this.url;
     } catch (error) {
       this.state = 'failed';
       await this.stop().catch(() => {});
       throw error;
     }
+  }
+
+  /**
+   * Before PostgreSQL starts: data last run by an older client is copied to 升级前备份-… first;
+   * data from a newer client is refused. A failed backup stops the start (see upgrade.js).
+   */
+  async checkVersion() {
+    let copying = false;
+    this.upgrade = await upgrade.prepare({
+      dataDir: this.dirs.root, version: this.version, edition: this.edition,
+      ensureStopped: () => this.ensureDatabaseStopped(),
+      log: text => this.log.line('client', text),
+      onBackup: () => {
+        copying = true;
+        this.progress('prepare', '正在备份升级前的数据…');
+      },
+    });
+    if (copying) this.emit('progress', null);
+    const {kind, previous, reused} = this.upgrade;
+    if (kind !== 'upgrade') return this.dirs.root;
+    return reused ? '沿用本次升级已做的备份' : `已备份 ${previous || '旧版本'} 的数据`;
+  }
+
+  /** A server left behind by a crashed client still has the files open: stop it before they are copied. */
+  async ensureDatabaseStopped() {
+    if (!fs.existsSync(path.join(this.dirs.database, 'postmaster.pid'))) return;
+    if (await this.postgres.running()) await this.postgres.stop();
+    if (await this.postgres.running()) throw new Error('上次没有正常关闭的数据库仍在运行，无法安全复制');
+  }
+
+  /** Remember that this version has opened the data; the next start compares against it. */
+  recordVersion() {
+    const {kind, previous, backup} = this.upgrade || {};
+    try {
+      upgrade.recordStart(this.dirs.root, {version: this.version, edition: this.edition});
+      if (kind === 'upgrade') this.log.line('client', `已从 ${previous || '未记录的版本'} 升级到 ${this.version}；升级前的数据在 ${backup}`);
+    } catch (error) {
+      this.log.line('client', `记录客户端版本失败：${error.message}`);
+    }
+  }
+
+  /** One line on the start-up screen while a long part of a step runs; null when it is over. */
+  progress(id, text) {
+    const {label} = STEPS.find(s => s.id === id);
+    this.emit('step', {id, label, state: 'running', detail: text});
+    this.emit('progress', text);
   }
 
   async startService() {

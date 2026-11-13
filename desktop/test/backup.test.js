@@ -66,3 +66,26 @@ test('copies keep nested folders and files whose names are not ASCII', () => {
     assert.ok(fs.statSync(path.join(target, '第一章', '空目录')).isDirectory());
   } finally { fs.rmSync(temp, {recursive: true, force: true}); }
 });
+
+test('folder permissions survive a backup and a restore, so PostgreSQL accepts the restored database', {skip: process.platform === 'win32'}, () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'zhiye-mode-'));
+  try {
+    const data = dataFolder(path.join(temp, 'Zhiye'), 'before');
+    fs.chmodSync(path.join(data, 'database'), 0o700);
+    fs.mkdirSync(path.join(data, 'workspace', '只读'));
+    fs.writeFileSync(path.join(data, 'workspace', '只读', 'a.txt'), 'a');
+    fs.chmodSync(path.join(data, 'workspace', '只读'), 0o555);
+    const folder = backup.createBackup(data, temp, {version: '0.1.0', edition: 'release', now: new Date(2026, 0, 1)});
+    const mode = p => fs.statSync(p).mode & 0o777;
+    assert.equal(mode(path.join(folder, 'database')), 0o700);
+    assert.equal(mode(path.join(folder, 'workspace', '只读')), 0o555, 'a read-only folder is copied and stays read-only');
+    assert.equal(fs.readFileSync(path.join(folder, 'workspace', '只读', 'a.txt'), 'utf8'), 'a');
+
+    // A backup from before permissions were kept: its database folder is open to others.
+    fs.chmodSync(path.join(folder, 'database'), 0o775);
+    backup.restoreBackup(folder, data, {now: new Date(2026, 0, 2)});
+    assert.equal(mode(path.join(data, 'database')), 0o700);
+    for (const dir of [folder, data]) fs.chmodSync(path.join(dir, 'workspace', '只读'), 0o755);
+    fs.chmodSync(path.join(data, '恢复前-20260102-000000', 'workspace', '只读'), 0o755);
+  } finally { fs.rmSync(temp, {recursive: true, force: true}); }
+});

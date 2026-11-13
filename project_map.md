@@ -247,6 +247,9 @@ flowchart TD
 | `database-secret.json` | 数据库用户 `zhiye` 的随机密码 |
 | `workspace/` | 作为 `ZHIYE_DATA_DIR`：`.env`（模型配置）与 `.runtime/` |
 | `logs/client.log` | 客户端、`pg_ctl` 和服务的输出 |
+| `last-version.json` | 上次成功启动的客户端版本；升级未完成时还记着本次的升级前备份（`pending`） |
+| `升级前备份-<旧版本>-<时间>/` | 升级前自动备份，格式同手动备份，最多保留 3 份 |
+| `恢复前-<时间>/` | 「从备份恢复」时移开的原数据 |
 
 ## 6.1 桌面客户端
 
@@ -255,11 +258,12 @@ Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中
 | 文件 | 职责 |
 | --- | --- |
 | `src/main.js` | 窗口、菜单、启动页状态、IPC（检查发送方）、导航与权限限制、备份 / 恢复 / 更换数据目录、检查更新、安全退出 |
-| `src/runtime.js` | 启动顺序：数据目录 → `Postgres` → `Backend.migrate`（`init_db.py`）→ `Backend.start`（`app.py`）；重启与停止 |
+| `src/runtime.js` | 启动顺序：数据目录与版本检查（`upgrade.prepare`）→ `Postgres` → `Backend.migrate`（`init_db.py`）→ `Backend.start`（`app.py`）→ 记录版本；重启与停止 |
+| `src/upgrade.js` | `last-version.json`、版本比较、升级前备份（停库、复制、只留 3 份、失败即停）、拒绝降级、恢复前的版本检查 |
 | `src/postgres.js` | 建库（`initdb`）、追加配置、`pg_ctl` 启停、连接地址 |
 | `src/backend.js` | 服务环境变量（`serviceEnv`）、运行 `init_db.py` 与 `app.py`、等待 `/api/health` |
 | `src/processes.js` | 清理继承的环境变量（`cleanEnv`）、运行子进程、结束进程树、Windows 短路径 |
-| `src/paths.js`、`config.js`、`ports.js`、`logs.js`、`backup.js`、`policy.js` | 程序与数据位置、客户端设置、端口、日志、冷备份、导航与链接规则（均不依赖 Electron，有单元测试） |
+| `src/paths.js`、`config.js`、`ports.js`、`logs.js`、`backup.js`、`policy.js` | 程序与数据位置、客户端设置、端口、日志、冷备份（逐个文件复制与删除）、导航与链接规则（均不依赖 Electron，有单元测试） |
 | `src/preload.js` | 页面可用的 `window.zhiyeDesktop`：启动页多几项（状态、重试、更换目录），服务页面只有查看日志、打开数据目录、重启服务，以及接收「帮助 → 新手引导」 |
 | `src/launcher/` | 启动页 |
 | `scripts/stage.mjs`、`prune.mjs` | 准备 `build/resources`：便携 Python 及依赖（`prune.mjs` 删去 Tcl/Tk 与标准库测试，按平台只扫描原生库目录）、服务代码白名单（正式版不含演示数据文件）、PostgreSQL |

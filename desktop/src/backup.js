@@ -23,6 +23,9 @@ function copyTree(source, target) {
   if (stat.isDirectory()) {
     fs.mkdirSync(target, {recursive: true});
     for (const name of fs.readdirSync(source)) copyTree(path.join(source, name), path.join(target, name));
+    // Keep the folder's permissions: PostgreSQL refuses a data folder that others may read. Set
+    // last, so that a read-only folder can still be filled. (Files keep theirs in copyFileSync.)
+    if (process.platform !== 'win32') fs.chmodSync(target, stat.mode & 0o777);
   } else if (stat.isSymbolicLink()) {
     fs.symlinkSync(fs.readlinkSync(source), target);
   } else {
@@ -30,13 +33,32 @@ function copyTree(source, target) {
   }
 }
 
+/** Recursive delete with the basic file calls, for the same reason as copyTree. */
+function removeTree(target) {
+  let stat;
+  try { stat = fs.lstatSync(target); } catch (error) { if (error.code === 'ENOENT') return; throw error; }
+  if (stat.isDirectory()) {
+    for (const name of fs.readdirSync(target)) removeTree(path.join(target, name));
+    fs.rmdirSync(target);
+    return;
+  }
+  try {
+    fs.unlinkSync(target);
+  } catch (error) {
+    // Windows refuses to delete read-only files.
+    if (error.code !== 'EPERM' || stat.isSymbolicLink()) throw error;
+    fs.chmodSync(target, 0o666);
+    fs.unlinkSync(target);
+  }
+}
+
 function postgresMajor(dataDir) {
   try { return fs.readFileSync(path.join(dataDir, 'database', 'PG_VERSION'), 'utf8').trim(); } catch { return null; }
 }
 
-/** Copy the stopped data folder into parent/知页备份-<time>; returns the new folder. */
-function createBackup(dataDir, parent, {version, edition, now = new Date()} = {}) {
-  const target = path.join(parent, `知页备份-${stamp(now)}`);
+/** Copy the stopped data folder into parent/<name>, by default 知页备份-<time>; returns the new folder. */
+function createBackup(dataDir, parent, {version, edition, now = new Date(), name = `知页备份-${stamp(now)}`} = {}) {
+  const target = path.join(parent, name);
   if (fs.existsSync(target)) throw new Error('同名备份已存在，请稍后再试。');
   fs.mkdirSync(target, {recursive: true});
   for (const part of PARTS) {
@@ -87,7 +109,10 @@ function restoreBackup(folder, dataDir, {now = new Date()} = {}) {
     const source = path.join(folder, part);
     if (fs.existsSync(source)) copyTree(source, path.join(dataDir, part));
   }
+  // Backups made before copyTree kept folder permissions hold a database folder others may read.
+  const database = path.join(dataDir, 'database');
+  if (process.platform !== 'win32' && fs.existsSync(database)) fs.chmodSync(database, 0o700);
   return aside;
 }
 
-module.exports = {createBackup, checkBackup, restoreBackup, readManifest, stamp, copyTree, MANIFEST};
+module.exports = {createBackup, checkBackup, restoreBackup, readManifest, stamp, copyTree, removeTree, MANIFEST};
