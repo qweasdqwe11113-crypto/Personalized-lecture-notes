@@ -147,8 +147,7 @@
   <section class="panel"><form id="new-student-form" class="editor-form"><div class="course-fields"><div><label for="new-student-name">姓名</label><input id="new-student-name" maxlength="80" required></div><div><label for="new-student-subtitle">年级 / 学生说明</label><input id="new-student-subtitle" maxlength="80" required placeholder="例如：高一 · 物理基础巩固"></div></div><label for="new-student-profile">学生信息与学习特点</label><textarea id="new-student-profile" rows="4" maxlength="600" required placeholder="记录学习特点、已掌握的内容、长期薄弱点等。"></textarea><div class="trace-actions"><button id="create-student" class="primary" type="submit">保存学生档案</button><a href="#profiles/students" class="student-page-link">取消并返回</a></div></form></section></div>
   <div id="student-import-page" hidden><div class="section-heading"><h2 id="student-import-heading">批量导入学生资料</h2><a href="#profiles/students" class="student-page-link">返回学生名单</a></div>
   <section class="panel"><form id="roster-import-form" class="editor-form">
-   <div class="course-fields"><div><label for="roster-import-kind">导入内容</label><select id="roster-import-kind"><option value="students">学生名单 · 姓名、年级或说明、学习特点</option><option value="evidence">学习证据 · 作业、测验、课堂观察、教师复核</option></select></div>
-   <div id="roster-import-topic-field" hidden><label for="roster-import-topic">对应课程任务</label><select id="roster-import-topic"></select></div></div>
+   <div class="course-fields"><div><label for="roster-import-kind">导入内容</label><select id="roster-import-kind"><option value="students">学生名单 · 姓名、年级或说明、学习特点</option><option value="evidence">学习证据 · 作业、测验、课堂观察、教师复核</option></select></div></div>
    <p id="roster-import-help" class="helper"></p>
    <p><a id="roster-import-template" class="secondary" href="/api/students/import/template?kind=students">下载 CSV 模板</a></p>
    <label for="roster-import-file">CSV 文件 <span class="helper">UTF-8 或 Excel 默认的 GBK 编码，最多 300 行</span></label><input id="roster-import-file" type="file" accept=".csv,text/csv" required>

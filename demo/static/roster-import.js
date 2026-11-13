@@ -1,7 +1,7 @@
 // Batch import: the server re-plans and re-checks the same file at confirmation; nothing is inferred here.
 (() => {
   const help={students:'每行一名学生。已有同名学生会跳过，不覆盖原档案；导入后可在学生档案中补充诊断证据。',
-    evidence:'每行一条学习证据，写明来源、观察日期、判断与理由。「更新状态」改变该知识点的掌握状态，「保留原判断」只记录证据；同一知识点的多行按文件顺序依次生效。未知不等于薄弱，请勿据单次表现下结论。'};
+    evidence:'每行一条学习证据，写明来源、观察日期、判断与理由。知识点按名称对应本课程的知识点库（「课程 → 知识点库」中可查看全部名称），不必先建备课；全角半角括号、空格和大小写不影响对应。「更新状态」改变该知识点的掌握状态，「保留原判断」只记录证据；同一知识点的多行按文件顺序依次生效。未知不等于薄弱，请勿据单次表现下结论。'};
   const columns={students:[['line','行'],['姓名','姓名'],['年级或说明','年级或说明'],['学习特点','学习特点'],['result','处理']],
     evidence:[['line','行'],['学生姓名','学生'],['知识点','知识点'],['证据来源','来源'],['观察日期','观察日期'],['学生表现','学生表现'],['change','掌握状态'],['result','处理']]};
   let preview=null,token=0;
@@ -9,20 +9,16 @@
   function reset(){preview=null;$('roster-import-result').hidden=true;$('roster-import-confirmed').checked=false;$('roster-import-submit').disabled=true;}
   function syncKind(){
     const kind=$('roster-import-kind').value;
-    $('roster-import-topic-field').hidden=$('roster-import-recorder-field').hidden=kind!=='evidence';
+    $('roster-import-recorder-field').hidden=kind!=='evidence';
     $('roster-import-help').textContent=help[kind];$('roster-import-template').href='/api/students/import/template?kind='+kind;reset();
   }
   // Imports go into the current class: names are matched within it and new students join it.
+  // Evidence names points of the course knowledge library, so no lesson has to be chosen.
   const scope=window.workspaceScope;
-  async function loadTopics(){
-    const data=await api('/api/course-tasks'),select=$('roster-import-topic'),selected=select.value,course=scope?.courseId();
-    const own=Object.entries(data.topics).filter(([,t])=>course==null||t.course_id===course);
-    select.replaceChildren(...own.map(([key,t])=>{const o=el('option',(t.custom?'':'示例 · ')+(t.title||'未命名备课'));o.value=key;return o;}));
-    if(own.some(([key])=>key===selected))select.value=selected;
-  }
   function form(extra={}){
-    const data=new FormData();data.append('kind',$('roster-import-kind').value);data.append('topic',$('roster-import-topic').value);
+    const data=new FormData();data.append('kind',$('roster-import-kind').value);
     if(scope?.classId()!=null)data.append('class_id',String(scope.classId()));
+    if(scope?.courseId()!=null)data.append('course_id',String(scope.courseId()));
     data.append('file',$('roster-import-file').files[0]);for(const [k,v] of Object.entries(extra))data.append(k,v);return data;
   }
   function draw(data,kind){
@@ -42,7 +38,7 @@
     $('roster-import-result').hidden=false;$('roster-import-submit').textContent=`确认导入 ${s.ready} 行`;
     $('roster-import-submit').disabled=!$('roster-import-confirmed').checked||Boolean(s.errors)||!s.ready;
   }
-  $('roster-import-kind').onchange=syncKind;$('roster-import-file').onchange=reset;$('roster-import-topic').onchange=reset;
+  $('roster-import-kind').onchange=syncKind;$('roster-import-file').onchange=reset;
   $('roster-import-confirmed').onchange=()=>{$('roster-import-submit').disabled=!preview||!$('roster-import-confirmed').checked||Boolean(preview.summary.errors)||!preview.summary.ready;};
   $('roster-import-form').onsubmit=async event=>{
     event.preventDefault();if(!$('roster-import-file').files[0]){status('请选择 CSV 文件。');return;}
@@ -63,8 +59,7 @@
       if(scope)await scope.refresh();await refreshStudentRoster();
     }catch(e){status(e.message+(e.status===409?'':' 本次未写入任何记录。'));button.disabled=false;}
   };
-  window.addEventListener('hashchange',()=>{if(location.hash==='#profiles/import')loadTopics().catch(e=>status(e.message));});
   // Another class or course invalidates a preview made for the previous one.
-  window.addEventListener('scope-changed',event=>{if(event.detail==='refresh')return;reset();status('');loadTopics().catch(()=>{});});
-  syncKind();(scope?scope.ready.catch(()=>{}):Promise.resolve()).then(loadTopics).catch(()=>{});
+  window.addEventListener('scope-changed',event=>{if(event.detail==='refresh')return;reset();status('');});
+  syncKind();
 })();

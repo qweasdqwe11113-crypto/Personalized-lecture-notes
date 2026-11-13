@@ -73,7 +73,7 @@ flowchart TD
 | `catalog.py` | 合并预置与自建备课（每份属于一门课程，`course_id`）；课程备课从知识点库勾选（`knowledge_ids`），新名称加入知识点库；复制；把课程或班级资料收录为知识点材料（班级资料带 `class_id`） |
 | `knowledge.py` | 课程知识点库与知识点识别：按页或标题切片、去页眉页脚、找编号标题（规则），模型细分（`prompts/knowledge-recognition-v1.md`），草稿 `knowledge_drafts`，教师确认后写入知识点与资料片段；后台队列 `KnowledgeQueue` 与其他模型调用共用并发闸门 |
 | `profiles.py` | 学习证据、掌握状态、修改历史与画像对照；证据写入须教师确认 |
-| `roster_import.py` | 学生名单与学习证据 CSV 的预览、指纹校验和整批事务导入 |
+| `roster_import.py` | 学生名单与学习证据 CSV 的预览、指纹校验和整批事务导入；证据按名称对应课程知识点库（`classes.library_ids`），指纹只覆盖文件涉及的学生与知识点 |
 | `uploads.py`、`assets.py`、`vision.py` | 文件与网址导入、正文与图片提取、图片规范化与指纹、视觉模型识读 |
 
 **检索与讲义生成**

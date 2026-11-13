@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 
 from test_profiles import ProfileDatabaseFixture
+from classes import ensure_course_structure
 
 HEADER_E = '学生姓名,知识点,证据来源,任务或观察内容,学生表现,观察日期,判断,新掌握状态,确认理由'
 
@@ -80,6 +81,38 @@ class RosterImportTests(ProfileDatabaseFixture):
         lin = next(s for s in self.profile(1)['states'] if s['id'] == 2)
         self.assertEqual(lin['state'], 'partial')
 
+    def test_evidence_names_any_point_of_the_course_library_without_a_lesson(self):
+        with self.fixture_db() as conn:
+            ensure_course_structure(conn)
+            course = conn.execute("SELECT id FROM courses WHERE preset_key='junior-math'").fetchone()['id']
+            klass = conn.execute('SELECT id FROM classes WHERE course_id=%s', (course,)).fetchone()['id']
+            # A confirmed library point that no lesson ticks, and an archived one.
+            conn.execute('''INSERT INTO knowledge_points(id,name,course_id,chapter,position,archived)
+                VALUES (50,'泊松分布（Poisson）',%s,'第二章',50,false),(51,'旧的知识点',%s,'',51,true)''', (course, course))
+        rows = ['小周,泊松分布 (poisson),作业,作业第1题,会用公式但参数取错,2026-10-20,更新状态,部分掌握,参数含义不清',
+                '小周,等式的加减性质,测验,测验第2题,依据完整,2026-10-21,保留原判断,,单次表现',
+                '小周,旧的知识点,作业,任务,表现,2026-10-20,更新状态,已掌握,理由',
+                '小周,泊松分步,作业,任务,表现,2026-10-20,更新状态,已掌握,理由',
+                '小周,完全无关,作业,任务,表现,2026-10-20,更新状态,已掌握,理由']
+        preview = self.preview('evidence', HEADER_E + '\n' + '\n'.join(rows) + '\n', class_id=str(klass)).json
+        found = preview['rows']
+        self.assertEqual([r['action'] for r in found], ['record', 'record', 'error', 'error', 'error'], found)
+        self.assertEqual(found[0]['knowledge_id'], 50)  # full- / half-width brackets, spaces and case do not matter
+        self.assertIn('已归档', found[2]['errors'][0])
+        self.assertIn('是否指「泊松分布（Poisson）」', found[3]['errors'][0])
+        self.assertIn('知识点库', found[4]['errors'][0])
+        # Without a class, the course's students and library are used.
+        good = HEADER_E + '\n' + '\n'.join(rows[:2]) + '\n'
+        self.assertEqual(self.preview('evidence', good, course_id=str(course)).json['summary']['ready'], 2)
+        preview = self.preview('evidence', good, class_id=str(klass)).json
+        # A diagnosis this file does not touch, recorded after the preview, does not void it.
+        self.assertEqual(self.save_evidence(sid=1).status_code, 201)
+        response = self.confirm('evidence', good, preview['token'], class_id=str(klass), recorder='测试教师')
+        self.assertEqual(response.status_code, 201, response.json)
+        with self.fixture_db() as conn:
+            state = conn.execute('SELECT state FROM student_knowledge WHERE student_id=2 AND knowledge_id=50').fetchone()
+        self.assertEqual(state['state'], 'partial')
+
     def test_invalid_evidence_rows_are_reported_and_nothing_is_written(self):
         with self.fixture_db() as conn:
             conn.execute("INSERT INTO students VALUES (4,'小赵','外校','不在示例课程名单中')")
@@ -99,7 +132,7 @@ class RosterImportTests(ProfileDatabaseFixture):
         self.assertEqual(preview['summary']['errors'], len(rows))
         self.assertTrue(all(r['errors'] for r in preview['rows']))
         self.assertEqual(self.confirm('evidence', text, preview['token'], topic='linear', recorder='测试').status_code, 400)
-        self.assertEqual(self.preview('evidence', text).status_code, 400)  # course task is required
+        self.assertEqual(self.preview('evidence', text).status_code, 400)  # needs a lesson, course or class
         self.assertEqual(self.evidence_count(), count)
 
     def test_changes_after_preview_reject_the_batch(self):

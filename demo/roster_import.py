@@ -7,14 +7,17 @@ to the roster or the affected states since the preview, rejects the whole batch.
 """
 import csv
 from datetime import datetime, timedelta, timezone
+from difflib import get_close_matches
 from hashlib import sha256
 import io
 import json
 import re
+import unicodedata
 
 from flask import Response, jsonify, request
 
 from catalog import load_catalog
+from classes import library_ids
 from profiles import SOURCE_LABELS, STATE_LABELS, ProfileError, record_evidence
 
 MAX_BYTES = 120_000
@@ -113,34 +116,94 @@ def plan_students(conn, text, class_id=None):
     return rows, dict(names=sorted(existing), class_id=class_id)
 
 
-def plan_evidence(conn, text, topic, class_id=None):
-    allowed = topic['student_ids']
+def name_key(name):
+    """Point names match regardless of full- or half-width forms, spaces and letter case."""
+    return re.sub(r'\s+', '', unicodedata.normalize('NFKC', name)).casefold()
+
+
+def evidence_scope(conn, topic, class_id, course_id):
+    """(course, students, knowledge ids) an evidence file may name.
+
+    Points are the course knowledge library, so any confirmed point can take evidence without a
+    lesson that ticks it. A chosen lesson adds its own points (copies, lessons saved before courses).
+    """
     if class_id is not None:
-        members = {row['student_id'] for row in conn.execute('SELECT student_id FROM class_students WHERE class_id=%s', (class_id,))}
-        allowed = [sid for sid in allowed if sid in members]
-    roster = conn.execute('SELECT id,name FROM students WHERE id=ANY(%s)', (allowed,)).fetchall()
-    by_name = {}
-    for student in roster:
-        by_name.setdefault(student['name'], []).append(student['id'])
-    points = {row['name']: row['id'] for row in conn.execute(
-        'SELECT id,name FROM knowledge_points WHERE id=ANY(%s)', (topic['knowledge_ids'],))}
+        row = conn.execute('SELECT course_id FROM classes WHERE id=%s', (class_id,)).fetchone()
+        if not row:
+            raise ProfileError('班级不存在，请刷新后重试。', 404)
+        course_id = row['course_id']
+    elif course_id is None and topic:
+        course_id = topic.get('course_id')
+    if course_id is not None and not conn.execute('SELECT 1 FROM courses WHERE id=%s', (course_id,)).fetchone():
+        raise ProfileError('课程不存在，请刷新后重试。', 404)
+    if topic and topic.get('course_id') not in (None, course_id):
+        raise ProfileError('所选备课不属于当前课程，请重新选择。')
+    if course_id is None and not topic:
+        raise ProfileError('导入学习证据前，请先选择课程或班级。')
+    if class_id is not None:
+        students = {r['student_id'] for r in conn.execute('SELECT student_id FROM class_students WHERE class_id=%s', (class_id,))}
+    else:
+        students = set(topic['student_ids']) if topic else set()
+        if course_id is not None:
+            students |= {r['student_id'] for r in conn.execute(
+                'SELECT student_id FROM class_students WHERE course_id=%s', (course_id,))}
+    ids = library_ids(conn, course_id) if course_id is not None else []
+    ids += [k for k in (topic or {}).get('knowledge_ids', []) if k not in ids]
+    return course_id, sorted(students), ids
+
+
+ARCHIVED = '''SELECT name FROM knowledge_points k WHERE k.course_id=%s AND k.archived
+    AND NOT EXISTS (SELECT 1 FROM knowledge_aliases a WHERE a.knowledge_id=k.id)'''
+
+
+def point_finder(conn, course_id, ids):
+    """name -> (knowledge id, error): exact names after name_key, archived points and near misses."""
     aliases = {row['knowledge_id']: row['canonical_id'] for row in conn.execute(
-        'SELECT knowledge_id,canonical_id FROM knowledge_aliases WHERE knowledge_id=ANY(%s)', (topic['knowledge_ids'],))}
-    canonical = sorted({aliases.get(k, k) for k in topic['knowledge_ids']})
-    current = {(row['student_id'], row['knowledge_id']): row for row in conn.execute(
-        '''SELECT student_id,knowledge_id,state,revision FROM student_knowledge
-           WHERE student_id=ANY(%s) AND knowledge_id=ANY(%s)''', (topic['student_ids'], canonical))}
-    pending, rows = {}, []
+        'SELECT knowledge_id,canonical_id FROM knowledge_aliases WHERE knowledge_id=ANY(%s)', (ids,))}
+    names = {row['id']: row['name'] for row in conn.execute('SELECT id,name FROM knowledge_points WHERE id=ANY(%s)', (ids,))}
+    points = {}
+    for kid in ids:  # library order first: a lesson's copy of a library point resolves to the library point
+        points.setdefault(name_key(names[kid]), []).append(kid)
+    archived = {name_key(row['name']) for row in conn.execute(ARCHIVED, (course_id,))} if course_id is not None else set()
+    # Near misses are compared with and without a bracketed gloss such as 「（Poisson）」.
+    variants = {}
+    for name in names.values():
+        for variant in (name_key(name), name_key(re.sub(r'[（(][^）)]*[）)]', '', name))):
+            variants.setdefault(variant, name)
+    where = '本课程知识点库' if course_id is not None else '所选备课'
+
+    def find(name):
+        key = name_key(name)
+        matches = points.get(key, [])
+        if len({aliases.get(k, k) for k in matches}) > 1:
+            return None, '有多个同名知识点，无法确定对应哪一个；请在知识点库中改名后重试'
+        if matches:
+            return matches[0], None
+        if key in archived:
+            return None, '这个知识点已归档；如需记录，请先在知识点库中恢复'
+        near = get_close_matches(key, variants, n=1, cutoff=0.6)
+        return None, (f'{where}中没有这个知识点' + (f'，是否指「{variants[near[0]]}」？' if near else '')
+                      + ('；名称须与「课程 → 知识点库」中的一致' if course_id is not None and not near else ''))
+    return find, aliases
+
+
+def plan_evidence(conn, text, topic, class_id=None, course_id=None):
+    course_id, allowed, ids = evidence_scope(conn, topic, class_id, course_id)
+    by_name = {}
+    for student in conn.execute('SELECT id,name FROM students WHERE id=ANY(%s)', (allowed,)):
+        by_name.setdefault(student['name'], []).append(student['id'])
+    find, aliases = point_finder(conn, course_id, ids)
+    rows = []
     for line, values in read_rows(text, COLUMNS['evidence']):
         errors = length_errors(values, ['任务或观察内容', '学生表现', '确认理由'])
-        ids = by_name.get(values['学生姓名'], [])
-        if not ids:
+        sids = by_name.get(values['学生姓名'], [])
+        if not sids:
             errors.append('所选班级中没有这名学生' if class_id is not None else '所选课程中没有这名学生')
-        elif len(ids) > 1:
+        elif len(sids) > 1:
             errors.append('课程中有同名学生，无法确定对应档案')
-        kid = points.get(values['知识点'])
-        if kid is None:
-            errors.append('所选课程中没有这个知识点')
+        kid, problem = find(values['知识点'])
+        if problem:
+            errors.append(problem)
         source = SOURCES.get(values['证据来源'])
         if source is None:
             errors.append('证据来源须为作业、测验、课堂观察或教师复核')
@@ -155,25 +218,43 @@ def plan_evidence(conn, text, topic, class_id=None):
             errors.append('更新状态时须填写需要补充、部分掌握、已掌握或未知')
         row = dict(line=line, values=values, errors=errors, action='error' if errors else 'record')
         if not errors:
-            sid, key = ids[0], (ids[0], aliases.get(kid, kid))
-            state = pending.get(key, (current[key]['state'], current[key]['revision']) if key in current else ('unknown', 0))
-            confirmed = new_state if decision == 'update' else state[0]
-            row.update(student_id=sid, knowledge_id=kid, source=source, observed_at=observed.isoformat(),
-                       decision=decision, new_state=new_state, expected_revision=state[1],
-                       previous_label=STATE_LABELS[state[0]], confirmed_label=STATE_LABELS[confirmed])
-            # Several rows for one point apply in file order, each against the version the previous one leaves.
-            pending[key] = (confirmed, state[1] + 1)
+            row.update(student_id=sids[0], knowledge_id=kid, source=source, observed_at=observed.isoformat(),
+                       decision=decision, new_state=new_state)
         rows.append(row)
-    return rows, {f'{s}:{k}': [r['state'], r['revision']] for (s, k), r in sorted(current.items())}
+    # Only the states this file touches are read and fingerprinted: other diagnoses in the class may
+    # change between preview and import without voiding the batch.
+    keys = {(r['student_id'], aliases.get(r['knowledge_id'], r['knowledge_id'])) for r in rows if not r['errors']}
+    current = {(row['student_id'], row['knowledge_id']): row for row in conn.execute(
+        '''SELECT student_id,knowledge_id,state,revision FROM student_knowledge
+           WHERE student_id=ANY(%s) AND knowledge_id=ANY(%s)''',
+        (sorted({s for s, _ in keys}), sorted({k for _, k in keys})))
+        if (row['student_id'], row['knowledge_id']) in keys}
+    pending = {}
+    for row in rows:
+        if row['errors']:
+            continue
+        key = (row['student_id'], aliases.get(row['knowledge_id'], row['knowledge_id']))
+        state = pending.get(key, (current[key]['state'], current[key]['revision']) if key in current else ('unknown', 0))
+        confirmed = row['new_state'] if row['decision'] == 'update' else state[0]
+        row.update(expected_revision=state[1], previous_label=STATE_LABELS[state[0]], confirmed_label=STATE_LABELS[confirmed])
+        # Several rows for one point apply in file order, each against the version the previous one leaves.
+        pending[key] = (confirmed, state[1] + 1)
+    # A row now naming another student or point (a rename, a roster change) also voids the preview.
+    snapshot = dict(course=course_id, rows=[[r['line'], r.get('student_id'), r.get('knowledge_id')] for r in rows],
+                    states={f'{s}:{k}': [r['state'], r['revision']] for (s, k), r in sorted(current.items())})
+    return rows, snapshot
 
 
-def plan(conn, kind, text, topic_key, class_id=None):
+def plan(conn, kind, text, topic_key, class_id=None, course_id=None):
     if kind == 'students':
         return plan_students(conn, text, class_id)
-    topics = load_catalog(conn)
-    if topic_key not in topics:
-        raise ProfileError('导入学习证据前，请选择对应的课程任务或备课副本。')
-    return plan_evidence(conn, text, topics[topic_key], class_id)
+    topic = None
+    if topic_key:
+        topics = load_catalog(conn)
+        if topic_key not in topics:
+            raise ProfileError('所选备课不存在，请刷新后重试。', 404)
+        topic = topics[topic_key]
+    return plan_evidence(conn, text, topic, class_id, course_id)
 
 
 def fingerprint(kind, text, topic_key, snapshot, class_id=None):
@@ -199,10 +280,14 @@ def register_roster_import(app, db):
             raise ProfileError('请选择导入学生名单或学习证据。')
         upload = request.files.get('file')
         text = decode(upload.read(MAX_BYTES + 1) if upload else b'')
-        raw = request.form.get('class_id', '')
-        if raw and not raw.isdigit():
-            raise ProfileError('班级编号无效，请刷新后重试。')
-        return kind, text, request.form.get('topic', ''), int(raw) if raw else None
+        ids = {}
+        for field, label in (('class_id', '班级'), ('course_id', '课程')):
+            raw = request.form.get(field, '')
+            if raw and not raw.isdigit():
+                raise ProfileError(f'{label}编号无效，请刷新后重试。')
+            ids[field] = int(raw) if raw else None
+        # Evidence points come from the class's course (or the course given); students go into the class.
+        return kind, text, request.form.get('topic', ''), ids['class_id'], ids['course_id']
 
     @app.get('/api/students/import/template')
     def roster_template():
@@ -220,15 +305,15 @@ def register_roster_import(app, db):
 
     @app.post('/api/students/import/preview')
     def roster_preview():
-        kind, text, topic, class_id = form()
+        kind, text, topic, class_id, course_id = form()
         with db() as conn:
             conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
-            rows, snapshot = plan(conn, kind, text, topic, class_id)
+            rows, snapshot = plan(conn, kind, text, topic, class_id, course_id)
         return jsonify(rows=rows, summary=summary(kind, rows), token=fingerprint(kind, text, topic, snapshot, class_id))
 
     @app.post('/api/students/import')
     def roster_import():
-        kind, text, topic, class_id = form()
+        kind, text, topic, class_id, course_id = form()
         recorder = request.form.get('recorder', '').strip()
         if request.form.get('confirmed') != 'true':
             raise ProfileError('请由教师确认已核对预览内容。')
@@ -238,7 +323,7 @@ def register_roster_import(app, db):
             # Serialize roster writers, then re-plan inside the same transaction that writes.
             conn.execute('LOCK TABLE students IN EXCLUSIVE MODE')
             conn.execute('LOCK TABLE class_students IN EXCLUSIVE MODE')
-            rows, snapshot = plan(conn, kind, text, topic, class_id)
+            rows, snapshot = plan(conn, kind, text, topic, class_id, course_id)
             if fingerprint(kind, text, topic, snapshot, class_id) != request.form.get('token'):
                 raise ProfileError('预览之后学生名单或画像已变化，本次未导入。请重新预览并核对。', 409)
             failed = [row['line'] for row in rows if row['errors']]
