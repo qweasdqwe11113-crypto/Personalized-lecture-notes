@@ -262,6 +262,7 @@ Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中
 | `src/launcher/` | 启动页 |
 | `scripts/stage.mjs`、`prune.mjs` | 准备 `build/resources`：便携 Python 及依赖（`prune.mjs` 删去 Tcl/Tk 与标准库测试，按平台只扫描原生库目录）、服务代码白名单（正式版不含演示数据文件）、PostgreSQL |
 | `scripts/smoke.mjs`、`dist.mjs`、`dev.mjs` | 无界面冒烟测试、打包、从源码运行 |
+| `scripts/linux-sandbox.cjs` | Linux 上判断能否使用 Chromium 沙箱，不能时加 `--no-sandbox`；`dev.mjs` 调用它，打包时 `afterPack` 把程序改名为 `<名称>-bin`，原名换成启动脚本 |
 | `electron-builder.config.cjs` | 两个版本的应用名、安装包名和安装选项 |
 
 ## 7. 修改时的关联检查

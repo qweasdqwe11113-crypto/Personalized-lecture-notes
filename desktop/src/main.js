@@ -33,6 +33,7 @@ let state = null;
 let quitting = false;
 let stopped = false;
 let busy = false;
+let noSandbox = false;
 
 const configFile = () => path.join(app.getPath('userData'), 'desktop.json');
 const dataDir = () => settings.dataDir || paths.defaultDataDir(paths.dataFolderName(edition, !packaged));
@@ -88,6 +89,7 @@ function failure(error, title = '启动没有完成') {
 
 function makeRuntime() {
   const next = new Runtime({resources: resources(), dataDir: dataDir(), edition, packaged, preferredPort: PREFERRED_PORT});
+  if (noSandbox) next.log.line('client', '本系统限制了 Chromium 沙箱（Ubuntu 24.04 起的 AppArmor 规则），本次不使用沙箱运行。');
   next.on('step', step => {
     if (!state || !state.steps) return;
     publish({steps: state.steps.map(s => (s.id === step.id ? {...s, state: step.state, detail: step.detail || ''} : s))});
@@ -413,6 +415,8 @@ if (!app.requestSingleInstanceLock()) {
     registerIpc();
     buildMenu();
     await forgetOldPages();
+    // Set by the Linux start script or scripts/dev.mjs where the system blocks Chromium's sandbox.
+    noSandbox = app.commandLine.hasSwitch('no-sandbox');
     state = freshState('starting', '正在启动本机服务…');
     createWindow();
     await win.loadFile(LAUNCHER);

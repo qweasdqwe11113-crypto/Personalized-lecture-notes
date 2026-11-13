@@ -125,7 +125,7 @@ Two editions are built from the same code and can be installed side by side:
 | Data folder | `%LOCALAPPDATA%\Zhiye` · `~/.local/share/zhiye` | `%LOCALAPPDATA%\Zhiye-Test` · `~/.local/share/zhiye-test` |
 | Installer | `zhiye-<version>-win-x64.exe` · `zhiye-<version>-linux-x86_64.AppImage` / `.tar.gz` | `zhiye-test-…` with the same suffixes |
 
-Model keys are entered in Settings (系统设置) and saved in the data folder; a button there restarts the service. The 服务 menu restarts the service, opens the page in a browser, makes and restores backups (a copy of the stopped database and workspace; restoring moves the current data aside rather than deleting it), and opens the data folder or the log. Uninstalling or upgrading keeps the data folder. The installers are not code-signed, and there is no automatic update; 知页 → 检查更新 looks up the latest GitHub release.
+Model keys are entered in Settings (系统设置) and saved in the data folder; a button there restarts the service. The 服务 menu restarts the service, opens the page in a browser, makes and restores backups (a copy of the stopped database and workspace; restoring moves the current data aside rather than deleting it), and opens the data folder or the log. Uninstalling or upgrading keeps the data folder. The installers are not code-signed, and there is no automatic update; 知页 → 检查更新 looks up the latest GitHub release. On Ubuntu 24.04 and later, AppArmor blocks Chromium's sandbox for programs without a profile (AppImage, tar.gz, a development checkout), so the client starts without it there instead of failing; for the tar.gz, `sudo chown root:root chrome-sandbox && sudo chmod 4755 chrome-sandbox` in its folder brings the sandbox back.
 
 **Releases** are built by GitHub Actions ([.github/workflows/desktop.yml](.github/workflows/desktop.yml)). Push a tag `vX.Y.Z` that matches the version in `desktop/package.json`: for each system and edition the workflow runs the unit tests, stages the runtime, runs a smoke test (start the database and service, restart, back up, start again) and builds the installers, then drafts a GitHub Release with all six files. Publish the draft by hand once it looks right. Pull requests that touch the client or the service build and test the same packages and attach them as artifacts, without a release; once the workflow is on `main`, *Run workflow* on the Actions page does the same.
 
@@ -215,7 +215,7 @@ Runtime data is written to `.runtime/` (ignored; below `ZHIYE_DATA_DIR` when set
 .venv/bin/python -m unittest discover -s demo/tests -v
 ```
 
-Tests create a temporary schema in the dedicated database and drop it afterwards; they never touch production data or call a real model. With Node.js installed, frontend behaviour regressions run as well. The desktop client has its own unit tests (`cd desktop && npm test`) and a smoke test of the bundled runtime (see [Desktop Client](#desktop-client-windows--linux)). All 378 Python tests and 28 desktop unit tests pass as of 2026-11-13.
+Tests create a temporary schema in the dedicated database and drop it afterwards; they never touch production data or call a real model. With Node.js installed, frontend behaviour regressions run as well. The desktop client has its own unit tests (`cd desktop && npm test`) and a smoke test of the bundled runtime (see [Desktop Client](#desktop-client-windows--linux)). All 378 Python tests and 32 desktop unit tests pass as of 2026-11-13.
 
 ## Documentation
 

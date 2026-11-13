@@ -1,5 +1,9 @@
 // Installer settings. ZHIYE_FLAVOR=release builds 知页 (empty database); ZHIYE_FLAVOR=demo builds
 // 知页测试版 (with the demonstration courses), which installs beside it with its own data.
+const fs = require('node:fs');
+const path = require('node:path');
+const {launcher} = require('./scripts/linux-sandbox.cjs');
+
 const test = process.env.ZHIYE_FLAVOR === 'demo';
 const productName = test ? '知页测试版' : '知页';
 const slug = test ? 'zhiye-test' : 'zhiye';
@@ -46,4 +50,12 @@ module.exports = {
     deleteAppDataOnUninstall: false,
   },
   publish: null,
+  // Linux: the program becomes <name>-bin and a start script takes its name, so the AppImage, the
+  // tar.gz and their menu entries all start through it (scripts/linux-sandbox.cjs explains why).
+  afterPack(context) {
+    if (context.electronPlatformName !== 'linux') return;
+    const program = path.join(context.appOutDir, slug);
+    fs.renameSync(program, `${program}-bin`);
+    fs.writeFileSync(program, launcher(`${slug}-bin`), {mode: 0o755});
+  },
 };
