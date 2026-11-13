@@ -258,7 +258,7 @@
 
 ## 桌面客户端与两个版本
 
-- **安装即用**：`desktop/` 把服务打包成 Windows 安装程序（`.exe`）和 Linux 的 AppImage / tar.gz。安装包自带 PostgreSQL 17、Python 3.12 和全部依赖，教师电脑上不需要另装数据库或 Python，也不用命令行。
+- **安装即用**：`desktop/` 把服务打包成 Windows 安装程序（`.exe`）和 Linux 的 .deb / AppImage / tar.gz。安装包自带 PostgreSQL 17、Python 3.12 和全部依赖，教师电脑上不需要另装数据库或 Python，也不用命令行。
 - **正式版与测试版**：同一份代码打两种包，可以同时安装，数据互不影响。
 
   | | 知页（正式版） | 知页测试版 |
@@ -285,6 +285,7 @@
   - Windows 版只在 GitHub Actions 上构建并通过冒烟测试，还没有在真实的 Windows 电脑上试用。
   - PPT 视觉审查需要 PowerPoint 和 Ollama，客户端不附带。
   - Ubuntu 24.04 起，AppArmor 不允许没有配置文件的程序使用 Chromium 沙箱（AppImage、tar.gz 和从源码运行都属于这种情况）。这时客户端不用沙箱启动，而不是直接报错退出，并在日志里记一行说明；窗口里只会打开启动页和本机服务的页面。tar.gz 版可以在程序目录里执行 `sudo chown root:root chrome-sandbox && sudo chmod 4755 chrome-sandbox`，之后重新启用沙箱。
+  - .deb 安装包（正式版包名 `zhiye`，装在 `/opt/知页`；测试版 `zhiye-test`，装在 `/opt/知页测试版`，两者可同时安装）不受上一条影响：安装脚本 `desktop/scripts/deb-after-install.tpl` 把 `chrome-sandbox` 设为 root 所有、权限 4755，并装入 electron-builder 提供的 AppArmor 配置（`/etc/apparmor.d/zhiye`，允许 `userns`，挂在启动脚本上，启动脚本再启动的程序沿用它）。普通用户能创建用户命名空间时（配置已加载的 Ubuntu 24.04+，或本来就不限制的系统）Chromium 用命名空间沙箱；不能时（配置没有加载，或系统禁止普通用户使用用户命名空间）改用 setuid 沙箱。两种情况都不会加 `--no-sandbox`。electron-builder 自带的安装脚本只在 root 无法创建用户命名空间时才设 setuid，而安装脚本以 root 运行，Ubuntu 的限制只针对普通用户，所以这里改为总是设置。`/usr/bin/zhiye` 和菜单项都指向启动脚本。
 
 ## 规模数据与评测基线
 
