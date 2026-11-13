@@ -19,13 +19,18 @@
     return [280, maximum];
   }
 
-  // 按钮位置唯一计算入口：workspace 已从 224px 处开始，按钮相对 workspace 偏移即可。
+  // The collapse handle sits on the settings column's right edge, or at the left edge once
+  // collapsed; its label and state follow. It is shown in the two-column layout only (CSS).
   function placeToggle(actualWidth) {
     if (!sidebarToggle) return;
     const collapsed = workspace.classList.contains('settings-collapsed');
-    const offset = collapsed ? 0 : actualWidth;
-    sidebarToggle.style.left = offset + 'px';
+    const label = collapsed ? '展开讲义设置' : '收起讲义设置';
+    sidebarToggle.style.left = (collapsed ? 0 : actualWidth) + 'px';
     sidebarToggle.style.transform = 'none';
+    sidebarToggle.textContent = collapsed ? '»' : '«';
+    sidebarToggle.title = label;
+    sidebarToggle.setAttribute('aria-label', label);
+    sidebarToggle.setAttribute('aria-expanded', String(!collapsed));
   }
 
   function apply(width, remember = false) {
@@ -88,14 +93,14 @@
 
   // 折叠 / 展开：统一在这里处理，避免 app.js 与 layout.js 双重监听。
   sidebarToggle?.addEventListener('click', () => {
-    const collapsed = workspace.classList.toggle('settings-collapsed');
-    sidebarToggle.innerHTML = collapsed ? '»' : '«';
-    sidebarToggle.title = collapsed ? '展开设置' : '收起设置';
+    workspace.classList.toggle('settings-collapsed');
     placeToggle(Number(separator.getAttribute('aria-valuenow')) || preferred);
   });
 
   function resize() {
     if (drag) finish(null, false);
+    // The stacked layout has no handle, so the settings must not stay hidden there.
+    if (!desktop.matches) workspace.classList.remove('settings-collapsed');
     apply(preferred);
   }
   let observedWidth = workspace.clientWidth;
@@ -110,6 +115,7 @@
 
   for (const dialog of document.querySelectorAll('dialog')) {
     const body = dialog.querySelector('.dialog-body');
+    if (!body) continue;  // e.g. the zoom view, which has no scrolling body
     const content = dialog.querySelector('#trace-content') || body;
     const resetScroll = () => {
       if (dialog.open && !content.hidden) {
@@ -118,6 +124,8 @@
         body.scrollTop = 0;
       }
     };
+    // A hidden dialog has no scroll box. Reset only after opening / loading,
+    // rather than on close; resizing an already open editor keeps its position.
     const observer = new MutationObserver(() => {
       resetScroll();
       requestAnimationFrame(resetScroll);
@@ -126,6 +134,5 @@
     observer.observe(content, {attributes: true, attributeFilter: ['hidden']});
   }
 
-  // 初始化时强制应用一次位置
   apply(preferred);
 })();

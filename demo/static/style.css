@@ -13,13 +13,24 @@
 @media print{.paper-actions{display:none!important}}
 
 /* ==== 一键放大 Lightbox (无限画板模式) ==== */
-.lightbox {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
+/* A modal <dialog> covering the viewport; the overlay below paints the background. */
+dialog.lightbox {
+  inline-size: 100vw;
+  block-size: 100dvh;
+  max-inline-size: none;
+  max-block-size: none;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  overflow: hidden;
+}
+dialog.lightbox[open] {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+dialog.lightbox::backdrop {
+  background: transparent;
 }
 
 .lightbox-overlay {
@@ -62,9 +73,11 @@
 .lightbox-content .math-display {
   font-size: 2em; 
 }
-.lightbox-content svg {
-  max-width: 80vw;
-  max-height: 80vh;
+/* Figures are SVG drawn into an <img>: fit them to the screen, vectors stay sharp. */
+.lightbox-content img {
+  inline-size: 90vw;
+  block-size: 80vh;
+  object-fit: contain;
 }
 
 /* 右上角关闭按钮 */
@@ -106,3 +119,7 @@
   font-size: 12px;
   pointer-events: none; /* 不挡住鼠标拖拽 */
 }
+
+/* Display formulas and figures that open in the zoom view. */
+.zoomable { cursor: zoom-in; }
+.zoomable:focus-visible { outline: 3px solid #bfd0ff; outline-offset: 4px; border-radius: 4px; }

@@ -84,15 +84,15 @@ function mathNode(tex, display){
      node.className+=' math-failed';
    }
  }
- 
- // 新增：将公式设为可放大（通常是块级公式需要放大，行内公式可选）
- if (display) {
-   node.classList.add('zoomable');
-   node.title = '点击放大公式';
-   node.onclick = () => openLightbox(node.cloneNode(true));
- }
- 
+ if (display) zoomable(node, '点击放大公式');
  return node;
+}
+// Display formulas and drawn figures open in the zoom view by click, Enter or Space.
+function zoomable(node, hint){
+ node.classList.add('zoomable');node.title=hint;node.tabIndex=0;node.setAttribute('role','button');
+ const open=()=>{const copy=node.cloneNode(true);copy.classList.remove('zoomable');for(const name of ['tabindex','role','title'])copy.removeAttribute(name);openLightbox(copy);};
+ node.onclick=open;
+ node.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();open();}};
 }
 function inlinePlain(node,text,lineNumber,interactive){const parts=text.split(/(\*\*[^*]+\*\*|\[[MVK]\d+\])/g);for(const p of parts){if(p.startsWith('**')&&p.endsWith('**'))node.append(el('strong',p.slice(2,-2)));else if(/^\[[MV]\d+\]$/.test(p)){if(!interactive){node.append(el('span',p,'citation'));continue;}const b=el('button',p,'citation');b.type='button';b.setAttribute('aria-label','查看来源 '+p);b.onclick=()=>{if(typeof openCitationSource==='function')openCitationSource(p.slice(1,-1),lineNumber);};node.append(b);}else if(/^\[K\d+\]$/.test(p)){const mark=el('span',p,'plan-marker');mark.dataset.planId=p.slice(2,-1);mark.title='讲解安排定位，需教师核对是否落实';node.append(mark);}else node.append(document.createTextNode(p));}}
 function inline(node,text,lineNumber,interactive=false){
@@ -117,12 +117,7 @@ function drawFigure(node,result){
  image.alt=result.title+'：'+result.alt;
  image.width=result.width;
  image.height=result.height;
- 
- // 新增：给图片本身加上放大功能
- image.classList.add('zoomable');
- image.title = '点击放大查看图表';
- image.onclick = () => openLightbox(image.cloneNode(true));
-
+ zoomable(image, '点击放大查看图表');
  node.append(image,el('p',result.title+'（由程序按讲义中的数据绘制）','figure-caption'));
  for(const warning of result.warnings)node.append(el('p','图中数据需核对：'+warning,'check-warning'));
 }
@@ -238,7 +233,7 @@ let lightboxState = {
 function updateLightboxTransform() {
   const target = document.querySelector('.lightbox-scale-target');
   if (target) {
-    lightboxState.scale = Math.max(0.2, Math.min(10, lightboxState.scale)); // 扩大了缩放上限
+    lightboxState.scale = Math.max(0.2, Math.min(10, lightboxState.scale)); // 0.2× to 10×
     target.style.transform = `translate(${lightboxState.translateX}px, ${lightboxState.translateY}px) scale(${lightboxState.scale})`;
   }
 }
@@ -267,45 +262,40 @@ function openLightbox(contentNode) {
   toolbar.textContent = '滚轮缩放 · 按住拖拽平移 · 按 Esc 关闭';
   lightbox.appendChild(toolbar); // 直接添加到 lightbox 层，固定位置
 
-  lightbox.hidden = false;
+  // A modal <dialog> sits in the top layer, so the zoom view also opens above an open dialog
+  // (lecture comparison, section editor); Esc closes only the zoom view.
+  if (!lightbox.open) lightbox.showModal();
   document.body.style.overflow = 'hidden';
 }
 
 function closeLightbox() {
   const lightbox = document.getElementById('image-lightbox');
-  const container = document.getElementById('lightbox-content');
-  if (!lightbox || !container) return;
-  
-  lightbox.hidden = true;
-  container.replaceChildren();
-  
-  const toolbar = lightbox.querySelector('.lightbox-toolbar');
-  if (toolbar) toolbar.remove();
-  
+  if (lightbox?.open) lightbox.close();
+}
+
+// The close button, the backdrop and Esc all end in the dialog's close event.
+function clearLightbox() {
+  const lightbox = document.getElementById('image-lightbox');
+  document.getElementById('lightbox-content')?.replaceChildren();
+  lightbox?.querySelector('.lightbox-toolbar')?.remove();
   document.body.style.overflow = '';
 }
 
-// 绑定事件部分保持不变...
 document.addEventListener('DOMContentLoaded', () => {
   const lightbox = document.getElementById('image-lightbox');
   const closeBtn = document.getElementById('lightbox-close');
   const container = document.getElementById('lightbox-content');
-  
+
   if (closeBtn) closeBtn.addEventListener('click', closeLightbox);
   if (lightbox) {
     lightbox.querySelector('.lightbox-overlay').addEventListener('click', closeLightbox);
+    lightbox.addEventListener('close', clearLightbox);
   }
-
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && lightbox && !lightbox.hidden) {
-      closeLightbox();
-    }
-  });
 
   if (container) {
     // 滚轮
     container.addEventListener('wheel', (e) => {
-      if (lightbox.hidden) return;
+      if (!lightbox.open) return;
       e.preventDefault();
       const delta = e.deltaY > 0 ? -0.15 : 0.15;
       lightboxState.scale += delta;
@@ -314,7 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 拖拽
     container.addEventListener('pointerdown', (e) => {
-      if (lightbox.hidden) return;
+      if (!lightbox.open) return;
       // 避免点到关闭按钮时触发拖拽
       if (e.target.closest('.lightbox-close')) return;
       

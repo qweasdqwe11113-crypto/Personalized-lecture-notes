@@ -188,7 +188,7 @@ footer { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--line);
   border-radius: 8px 0 0 8px;
   box-shadow: -2px 0 8px rgba(0,0,0,0.06);
   cursor: pointer;
-  z-index: 9999;
+  z-index: 10;  /* above the columns, below the fixed navigation (20) */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -227,3 +227,9 @@ footer { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--line);
   border-right: 1px solid #e8ecf3;
   box-shadow: 2px 0 8px rgba(0,0,0,0.06);
 }
+
+/* The handle belongs to the two-column layout (layout.js: min-width 68.75rem). */
+@media (max-width: 68.7rem) {
+  .sidebar-toggle { display: none; }
+}
+.sidebar-toggle:focus-visible { outline: 3px solid #bfd0ff; outline-offset: 2px; }

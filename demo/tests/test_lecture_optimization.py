@@ -139,6 +139,19 @@ class LecturePolicyTests(unittest.TestCase):
         parser=Ids();parser.feed((Path(__file__).parents[1]/'templates'/'index.html').read_text())
         self.assertEqual(len(parser.ids),len(set(parser.ids)))
 
+    def test_workspace_markup_has_no_inline_styles_and_the_zoom_view_is_a_dialog(self):
+        class Tags(HTMLParser):
+            def __init__(self):super().__init__();self.styled=[];self.tags={}
+            def handle_starttag(self,tag,attrs):
+                attrs=dict(attrs)
+                if 'style' in attrs:self.styled.append((tag,attrs.get('id') or attrs.get('class')))
+                if attrs.get('id'):self.tags[attrs['id']]=tag
+        parser=Tags();parser.feed((Path(__file__).parents[1]/'templates'/'index.html').read_text())
+        # The page's CSP is style-src 'self': a style attribute in markup is blocked and logs an error.
+        self.assertEqual(parser.styled,[])
+        # A modal dialog opens in the top layer, so the zoom view also shows above other open dialogs.
+        self.assertEqual(parser.tags['image-lightbox'],'dialog')
+
     def test_long_materials_are_bounded_and_source_ranges_are_exact(self):
         ctx={'student':{},'topic':{'knowledge_ids':[1,2]},'states':[], 'materials':[
             dict(id=1,knowledge_id=1,content='条件概率的定义与正分母。'*14000),dict(id=2,knowledge_id=2,content='贝叶斯。'*5000)]}
