@@ -5,11 +5,16 @@ import json
 from psycopg.types.json import Jsonb
 
 
+def target_class(context):
+    """Class lectures and everything derived from them (sections, slides) carry their class."""
+    return (context.get('class_target') or {}).get('id')
+
+
 def create_run(conn, student_id, topic_key, goal, context, prepared):
     return conn.execute('''INSERT INTO generation_runs
-        (student_id,topic_key,topic,goal,context,prompt_version,input_version,request_body,request_sha256,retrieval)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id''',
-        (student_id, topic_key, context['topic']['title'], goal, Jsonb(context),
+        (student_id,class_id,topic_key,topic,goal,context,prompt_version,input_version,request_body,request_sha256,retrieval)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id''',
+        (student_id, target_class(context), topic_key, context['topic']['title'], goal, Jsonb(context),
          prepared.prompt_version, prepared.input_version, prepared.body, prepared.sha256,
          Jsonb(context.get('retrieval', {})))).fetchone()['id']
 
@@ -35,9 +40,9 @@ def fail_run(conn, run_id, error, elapsed, check=None):
 def save_success(conn, run_id, student_id, goal, context, prepared, output, elapsed, check):
     model = json.loads(prepared.body)['model']
     lecture = conn.execute('''INSERT INTO lectures
-        (student_id,topic,goal,context,content,model,elapsed_seconds,usage,citation_check)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id,created_at''',
-        (student_id, context['topic']['title'], goal, Jsonb(context), output.content, model,
+        (student_id,class_id,topic,goal,context,content,model,elapsed_seconds,usage,citation_check)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id,created_at''',
+        (student_id, target_class(context), context['topic']['title'], goal, Jsonb(context), output.content, model,
          elapsed, Jsonb(output.usage), Jsonb(check))).fetchone()
     updated = conn.execute('''UPDATE generation_runs SET status='succeeded',finished_at=now(),
         elapsed_seconds=%s,content=%s,usage=%s,response_metadata=%s,citation_check=%s,lecture_id=%s
@@ -51,9 +56,10 @@ def save_success(conn, run_id, student_id, goal, context, prepared, output, elap
 
 def recent_runs(conn):
     return conn.execute('''SELECT r.id,r.status,r.topic,r.created_at,r.finished_at,r.elapsed_seconds,
-        r.lecture_id,r.prompt_version,r.error_message,s.name,
+        r.lecture_id,r.prompt_version,r.error_message,COALESCE(s.name,c.name||'（全班）') AS name,
         r.context ? 'section_edit' AS section_rewrite,r.context ? 'ppt_export' AS ppt_generation FROM generation_runs r
-        JOIN students s ON s.id=r.student_id ORDER BY r.id DESC LIMIT 10''').fetchall()
+        LEFT JOIN students s ON s.id=r.student_id LEFT JOIN classes c ON c.id=r.class_id
+        ORDER BY r.id DESC LIMIT 10''').fetchall()
 
 
 def run_detail(conn, run_id):

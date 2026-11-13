@@ -28,6 +28,7 @@ import sectioned
 from grading import register_grading
 from quizzes import QuizQueue
 from uploads import read_upload, register_uploads
+from classes import ensure_course_structure
 
 
 def main():
@@ -38,6 +39,8 @@ def main():
     fixture = CourseJobTests()
     try:
         fixture.setUp()
+        with fixture.fixture_db() as conn:
+            ensure_course_structure(conn)
         with tempfile.TemporaryDirectory(prefix='lecture-ui-') as directory, ExitStack() as stack:
             root = Path(directory)
             settings = {'QWEN_BASE_URL': 'https://fixture.invalid/v1', 'QWEN_MODEL': 'fixture-offline',
@@ -160,7 +163,7 @@ def main():
             stack.enter_context(patch('model_settings.probe', return_value={
                 'message': '隔离连接测试通过（固定响应，未连接真实服务）。', 'vision_verified': True}))
             services = Flask('isolated-workspace-services')
-            register_uploads(services, root)
+            register_uploads(services, root, module.upload_scope)
             register_grading(services, root, model, module.GENERATION_LOCK,
                              quiz_reference=lambda job_id: module.grading_reference(quizzes.detail(job_id)))
             stack.enter_context(patch.dict(module.app.extensions, services.extensions))

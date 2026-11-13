@@ -188,6 +188,16 @@ class ProfileIntegrationTests(ProfileDatabaseFixture):
         self.assertEqual(self.client.post('/api/students/2/profile', json=data).status_code, 409)
         self.assertEqual(result, self.profile())
 
+    def test_rename_alone_is_an_edit_kept_in_history(self):
+        student = self.profile()['student']
+        data = {'expected_revision': 0, 'name': '更正后的姓名', 'subtitle': student['subtitle'], 'profile': student['profile'],
+                'recorder': '测试教师', 'reason': '更正录入错误的姓名。', 'confirmed': True}
+        result = self.client.post('/api/students/2/profile', json=data).get_json()
+        self.assertEqual(result['student']['name'], '更正后的姓名')
+        self.assertEqual(result['profile_history'][0]['previous_snapshot']['name'], student['name'])
+        listed = {s['id']: s['name'] for s in self.client.get('/api/students').get_json()['students']}
+        self.assertEqual(listed[2], '更正后的姓名')
+
     def test_no_change_and_unconfirmed_profile_are_not_saved(self):
         original = self.profile()
         student = original['student']

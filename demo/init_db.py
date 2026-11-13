@@ -9,6 +9,7 @@ from psycopg.rows import dict_row
 from dotenv import load_dotenv
 from profiles import retain_initial_evidence
 from reviews import retain_feedback_issues
+from classes import ensure_course_structure
 
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / '.env')
@@ -51,6 +52,8 @@ with psycopg.connect(dsn, row_factory=dict_row) as conn:
                      tuple(r[k] for k in ('id','knowledge_id','title','content','source_title','source_url','section')))
     retain_initial_evidence(conn)
     retain_feedback_issues(conn)
+    # Demo courses and classes, and legacy lesson copies filed under a course (once).
+    ensure_course_structure(conn)
     counts = {t: conn.execute(sql.SQL('SELECT count(*) AS n FROM {}').format(sql.Identifier(t))).fetchone()['n']
-              for t in ('students','student_knowledge','materials','lectures','learning_evidence','generation_runs','lecture_issues','lecture_revisions')}
+              for t in ('courses','classes','class_students','students','student_knowledge','materials','lectures','learning_evidence','generation_runs','lecture_issues','lecture_revisions')}
 print(json.dumps(counts, ensure_ascii=False))

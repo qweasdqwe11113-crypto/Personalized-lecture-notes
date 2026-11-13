@@ -8,14 +8,15 @@ A VLM + RAG prototype for lesson preparation. It generates editable, teacher-fac
 
 | Page | What it does |
 | --- | --- |
-| Lecture Workbench (讲义工作台) | Pick a lesson-prep copy and a student, set duration, detail level, number of examples and exercises, and adjust the per-topic teaching plan; generate a personalized lecture; read, revise, rewrite single sections, compare and export |
+| Lecture Workbench (讲义工作台) | Pick a lesson of the current course and a target — the whole class (class profile) or one student — set duration, detail level, number of examples and exercises, and adjust the per-topic teaching plan; generate a personalized lecture; read, revise, rewrite single sections, compare and export |
 | Writing mode and format (高级设置) | **Outline first, then one model call per section** with its own length quota and one automatic rewrite on failed checks; **LaTeX formulas, tables and program-drawn figures** (probability tree, number line, equation steps, function plot, bar chart); a live preview while the model writes |
 | Class batch (批量生成) | Queue the same lesson for up to 60 students; each gets a separately frozen input, run and lecture |
 | Lesson prep (授课准备, lecture toolbar) | **Matching quiz** (配套出题, questions follow the lecture's methods and notation), **classroom slides** (生成授课 PPT, editable PPTX with per-slide edits), **lesson package** (导出授课包, teacher handbook + student worksheet + slides) |
 | Quizzes (出题) | Generate exercises by course, student level, difficulty and question type; export student and teacher versions |
 | Grading (阅卷) | Upload student answers (images / PDF / Word); suggested per-question scores against a generated quiz or an uploaded answer key; record results into the student profile by knowledge point |
-| Student profiles (学生画像) | Manage student records and learning evidence, batch-import CSV, start lesson prep for a student in one click |
-| Course materials / Uploads (课程材料 / 上传资料) | Create lesson-prep copies (goals, lesson plan, knowledge points); upload documents and attach them to knowledge points; images are read by a vision model |
+| Course / class switcher (课程 › 班级) | Every working page follows the course and class chosen at the top; students are shared across courses, one class per course |
+| Courses (课程) | Per course: lesson prep (goals, lesson plan, knowledge points ticked from the course library), course resources shared by all its classes, a **knowledge library** (知识点库), and its classes; uploads are recognized into knowledge points automatically (section headings by rule, fine-grained points by the model), reviewed and confirmed by the teacher, and each point keeps its source pages; images are read by a vision model |
+| Classes & profiles (班级与画像) | Class profile (per-point mastery distribution, students to watch, class notes with history), one-click class lecture, class roster and CSV import, class-only resources, and each student's record and learning evidence |
 | Records (生成记录) | Lecture, quiz and grading history, background jobs, fixed-input comparison experiments |
 | Settings (系统设置) | Configure and test the language, vision and embedding models |
 
@@ -96,6 +97,8 @@ sudo -u postgres createdb --owner="$USER" lecture_demo_prototype
 
 Restart the service after editing `.env`. In Settings (系统设置), use each model's test button to confirm it can actually be called.
 
+**After `git pull`**, stop the service and start it again the same way. Startup adds new tables and columns and migrates existing records in place, so nothing needs resetting. For example, the course and class structure and each course's knowledge library (知识点库) are built from your existing lessons. Check `requirements.txt` and `.env.example` for new entries. The database, `.runtime/` uploads and `.env` stay on each machine and are never pushed: a fresh setup starts from the seed data (two preset courses, each with a demo class of three fictional students), and records you add stay on your machine.
+
 ### 4. Five-minute tour
 
 1. **Lecture Workbench**: choose 「大学概率：贝叶斯推导与先验敏感性（进阶任务）」 and student 「小唐」, then click 「生成个性化讲义」. It takes about a minute.
@@ -144,6 +147,8 @@ All settings live in the local `.env` (ignored by git); see [.env.example](.env.
 │   ├── grading.py           # Grading and evidence drafts
 │   ├── profiles.py          # Student profiles and evidence; roster_import.py for CSV import
 │   ├── catalog.py           # Lesson-prep copies; uploads.py / vision.py for uploads and image reading
+│   ├── courses.py, classes.py # Courses, their classes and rosters, class profiles; legacy data migration
+│   ├── knowledge.py         # Course knowledge library; recognizes points in uploads → teacher review → library
 │   ├── retrieval.py         # SQL and vector material selection; embed.py embedding client
 │   ├── reviews.py           # Revisions and review; quality.py automated checks
 │   ├── sectioned.py         # Outline → per-section calls → checks and one rewrite → assembly

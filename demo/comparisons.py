@@ -21,7 +21,7 @@ def same_task(left, right):
 def identity(row):
     context = row['context']
     mode = context.get('personalization_mode', 'profile')
-    return {'id': row['id'], 'student_id': row['student_id'],
+    return {'id': row['id'], 'student_id': row['student_id'], 'class_id': row.get('class_id'),
             'name': context.get('student', {}).get('name', '旧记录未提供姓名'),
             'mode': mode, 'topic': row['topic'], 'goal': row['goal'],
             'created_at': row['created_at'].isoformat(), 'model': row['model']}
@@ -31,7 +31,7 @@ def comparison_options(conn, lecture_id):
     base = lecture_row(conn, lecture_id)
     if not base['goal'].strip():
         raise ReviewError('这份记录没有明确的教学目标，无法建立同目标比较。')
-    rows = conn.execute('''SELECT id,student_id,topic,goal,context,created_at,model
+    rows = conn.execute('''SELECT id,student_id,class_id,topic,goal,context,created_at,model
         FROM lectures WHERE topic=%s AND goal=%s ORDER BY id DESC LIMIT 101''',
         (base['topic'], base['goal'])).fetchall()
     truncated = len(rows) > 100
@@ -156,7 +156,7 @@ def compare_lectures(conn, lecture_id, other_id, left_revision=0, right_revision
         status = 'unavailable' if before is None or after is None else 'same' if before == after else 'different'
         controls.append({'code': code, 'label': label, 'status': status})
     sections, order_changed = align_sections(a['content'], b['content'])
-    kind = 'revision' if lecture_id == other_id and left_revision != right_revision else 'between_students' if left['student_id'] != right['student_id'] else 'repeated'
+    kind = 'revision' if lecture_id == other_id and left_revision != right_revision else 'between_students' if (left['student_id'], left.get('class_id')) != (right['student_id'], right.get('class_id')) else 'repeated'
     return {'left': a, 'right': b, 'goal': left['goal'], 'topic': left['topic'],
             'kind': kind, 'controls': controls, 'sections': sections,
             'section_order_changed': order_changed,

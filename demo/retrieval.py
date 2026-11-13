@@ -71,6 +71,10 @@ def cosine(left, right):
     return dot / (norm_left * norm_right)
 
 
+# Course-wide material always; class-only material only for its own class.
+SCOPE = '''material_id IN (SELECT id FROM materials WHERE class_id IS NULL OR class_id = %s)'''
+
+
 class ArrayBackend:
     """Scan float8[] and score in Python. Exact at this size; it is not an index."""
 
@@ -79,11 +83,11 @@ class ArrayBackend:
     def available(self, conn):
         return True
 
-    def search(self, conn, vector, knowledge_ids, limit):
-        rows = conn.execute('''SELECT id, material_id, knowledge_id, chunk_index, title, source_title,
+    def search(self, conn, vector, knowledge_ids, limit, class_id=None):
+        rows = conn.execute(f'''SELECT id, material_id, knowledge_id, chunk_index, title, source_title,
             source_url, section, content, char_length, embed_model, embedding
-            FROM material_chunks WHERE knowledge_id = ANY(%s)
-            ORDER BY material_id, chunk_index''', (list(knowledge_ids),)).fetchall()
+            FROM material_chunks WHERE knowledge_id = ANY(%s) AND {SCOPE}
+            ORDER BY material_id, chunk_index''', (list(knowledge_ids), class_id)).fetchall()
         scored = [(cosine(vector, row['embedding']), row) for row in rows]
         # Score first, then stable identifiers: equal scores keep one fixed order.
         scored.sort(key=lambda item: (-item[0], item[1]['material_id'], item[1]['chunk_index']))
@@ -109,12 +113,12 @@ class PgVectorBackend:
         except Exception:
             return False
 
-    def search(self, conn, vector, knowledge_ids, limit):
+    def search(self, conn, vector, knowledge_ids, limit, class_id=None):
         literal = '[' + ','.join(repr(round(value, 6)) for value in vector) + ']'
         rows = conn.execute(f'''SELECT {self.COLUMNS}, 1 - (embedding <=> %s::vector) AS score
-            FROM material_chunks WHERE knowledge_id = ANY(%s)
+            FROM material_chunks WHERE knowledge_id = ANY(%s) AND {SCOPE}
             ORDER BY embedding <=> %s::vector, material_id, chunk_index LIMIT %s''',
-                            (literal, list(knowledge_ids), literal, limit)).fetchall()
+                            (literal, list(knowledge_ids), class_id, literal, limit)).fetchall()
         return [dict(row) for row in rows]
 
 
@@ -135,9 +139,9 @@ def build_query(goal, states=None):
     return '；'.join(part for part in parts if part)
 
 
-def search(conn, embedder, query, knowledge_ids, limit=6, engine=None):
+def search(conn, embedder, query, knowledge_ids, limit=6, engine=None, class_id=None):
     engine = engine or select_backend(conn)
-    items = engine.search(conn, embedder.embed([query])[0], knowledge_ids, limit)
+    items = engine.search(conn, embedder.embed([query])[0], knowledge_ids, limit, class_id=class_id)
     if not items:
         raise RetrievalError('no_chunks', '所选知识点还没有建立向量索引，请先建立索引或改用精确 SQL 取材料。')
     models = {item['embed_model'] for item in items}

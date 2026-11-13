@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from flask import Flask
-from uploads import ImportError, WebText, extract, public_target, register_uploads
+from uploads import ImportError, WebText, clean_text, extract, public_target, register_uploads
 
 
 class UploadTests(unittest.TestCase):
@@ -59,6 +59,30 @@ class UploadTests(unittest.TestCase):
         self.assertEqual(extract(buffer.getvalue(), 'paper.docx').splitlines(), [
             '第1题：计算 2+3。', '第1题学生作答：6',
             '第2题：计算 4+5。', '第2题学生作答：9'])
+
+    def test_pdf_text_drops_controls_and_restores_founder_letters(self):
+        # 方正 fonts: 狓 is x, 犃 is A; U+E011 is the figure dash, U+E5C5 an arrow shaft.
+        self.assertEqual(clean_text('如果｜狓｜＝２\x00，点犃\x01\r\n图１1', pdf=True),
+                         '如果｜x｜＝２，点A\n图１-1')
+        # Outside PDF text the rare characters stay; controls still go.
+        self.assertEqual(clean_text('狓\x00\x0b表\t格'), '狓表\t格')
+
+    def test_pdf_with_unmapped_glyphs_imports(self):
+        class Page:
+            def extract_text(self):
+                return '第一章 有理数\n点犃\x00 与点犅\x00 的距离'
+        reader = type('Reader', (), {'is_encrypted': False, 'pages': [Page()]})()
+        with patch('pypdf.PdfReader', return_value=reader), patch('uploads.prepare_images', return_value=[]):
+            response = self.client.post('/api/uploads', data={'file': (BytesIO(b'%PDF-1.7'), '教材.pdf')})
+        self.assertEqual(response.status_code, 201, response.json)
+        content = self.client.get('/api/uploads/' + response.json['upload']['id']).json['upload']['content']
+        self.assertEqual(content, '第一章 有理数\n点A 与点B 的距离')
+
+    def test_binary_text_file_is_named_as_such(self):
+        response = self.client.post('/api/uploads', data={'file': (BytesIO('Lesson 1 教案'.encode('utf-16-le')), '教案.txt')})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('二进制', response.json['error'])
+        self.assertNotIn('扫描版', response.json['error'])
 
     def test_url_import_extracts_text_without_script(self):
         body = '<title>课程文章</title><p>等式性质</p><script>danger()</script><p>课堂例题</p>'.encode()

@@ -29,7 +29,7 @@ function openCitationSource(id,lineNumber){
  $('source-status').textContent=`讲义 #${lastResult.id} / ${lastResult.revision_number?'R'+lastResult.revision_number:'原稿'} 的材料快照；编号有效不代表支持对应结论。`;
  if(material){$('source-content').append(el('h3',material.title),el('p',material.content,'source-excerpt'),el('p',material.source_title+' · '+material.section,'helper'));
   if(material.selection)$('source-content').append(el('p',`本次为原文节选；原文 ${material.selection.original_characters} 字符，原文位置（从0开始，不含末位）：${JSON.stringify(material.selection.ranges)}；SHA-256 ${material.selection.content_sha256}`,'helper'));
-  const url=material.source_url.startsWith('upload:')?'/api/uploads/'+encodeURIComponent(material.source_url.slice(7))+'/download':material.source_url;
+  const url=sourceHref(material.source_url);
   if(/^https?:\/\//i.test(url)||url.startsWith('/api/uploads/')){const link=el('a','打开原始资料');link.href=url;link.target='_blank';link.rel='noopener noreferrer';$('source-content').append(link);}
  }else if(visual){const image=el('img');image.src='/api/vision/images/'+encodeURIComponent(visual.image_id);image.alt=visual.label;image.className='source-image';$('source-content').append(image,el('p',visual.content,'source-excerpt'),el('p','识读模型：'+visual.model+'；原图指纹：'+visual.normalized_sha256,'helper'));
  }else $('source-content').append(el('p','此编号不在本份讲义的来源快照中，请更正正文。','check-warning'));

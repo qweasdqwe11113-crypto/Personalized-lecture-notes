@@ -51,6 +51,9 @@ def prepare_request(context, goal, model):
         system += '\n' + (Path(__file__).with_name('prompts') / 'lecture-plan-v1.md').read_text(encoding='utf-8').strip()
     if context.get('lecture_workflow') == 'teacher-v2':
         system += '\n本次材料可能是带原文位置的节选，仅使用提供的内容，不声称阅读了完整原文；不足时明确说明。'
+    whole_class = context.get('personalization_mode') == 'class'
+    if whole_class:
+        system += '\n' + (Path(__file__).with_name('prompts') / 'lecture-class-v1.md').read_text(encoding='utf-8').strip()
     prompts = Path(__file__).with_name('prompts')
     rich = context.get('lecture_format') == 'rich-v1'
     sectioned = context.get('generation_mode') == 'sectioned-v1'
@@ -81,7 +84,7 @@ def prepare_request(context, goal, model):
     body = json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
     return PreparedRequest(body, hashlib.sha256(body.encode('utf-8')).hexdigest(),
                            version + ('+teaching-v2' if policy_v2 else '+teaching-v1' if options else '') + ('+expanded-v1' if expanded else '') + ('+plan-v1' if context.get('lecture_workflow') == 'teacher-v2' else '')
-                           + ('+rich-v1' if rich else '') + ('+sectioned-v1' if sectioned else ''),
+                           + ('+rich-v1' if rich else '') + ('+sectioned-v1' if sectioned else '') + ('+class-v1' if whole_class else ''),
                            'lecture-context-teacher-v2' if context.get('lecture_workflow') == 'teacher-v2' else
                            'lecture-context-teaching-v1' if options else
                            'lecture-context-vision-v1' if context.get('visual_evidence') else

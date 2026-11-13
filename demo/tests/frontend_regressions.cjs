@@ -19,6 +19,7 @@ class Element {
   showModal() { this.open = true; }
   close() { this.open = false; this.listeners.close?.(); }
   click() { return this.onclick?.(); }
+  focus() {}
 }
 
 function environment(api = () => new Promise(() => {})) {
@@ -183,7 +184,97 @@ async function submissionCarriesPipelineChoices() {
   assert.deepEqual([e.context.generationPayload().generation_mode, e.context.generationPayload().lecture_format], ['sectioned-v1', 'rich-v1']);
 }
 
-const cases = {richMarkdown, submissionCarriesPipelineChoices, markdownOrder, markdownFenceContent, automaticLengthRemainsOptional, imagePreviewOrder, uploadPreviewOrder, refreshingImagesKeepsLiveSelection, acceptedJobSurvivesHistoryFailure, backgroundCompletionPreservesPage};
+async function classTargetFollowsScope() {
+  const calls = [];
+  const e = environment(async (url, options) => { calls.push([url, options]); return new Promise(() => {}); });
+  e.context.workspaceScope = {courseId: () => 1, klass: () => ({id: 5, name: '一班', student_ids: [1, 2]}), classOf: () => 5, set() {}, ready: Promise.resolve()};
+  e.load('app.js');
+  vm.runInContext("topics={a:{title:'A',course_id:1,student_ids:[1,2,3]},b:{title:'B',course_id:2,student_ids:[1]}};" +
+    "students=[{id:1,name:'甲',subtitle:''},{id:2,name:'乙',subtitle:''},{id:3,name:'丙',subtitle:''}]; current={materials:[{}]}; drawTopics(); filterStudents()", e.context);
+  assert.deepEqual(e.$('topic').children.map(o => o.value), ['a'], 'only lessons of the current course are offered');
+  assert.deepEqual(e.$('student').children.map(o => String(o.value)), ['class:5', '1', '2'], 'the whole class comes first, then only its students');
+  e.$('student').value = 'class:5';
+  e.context.api = async (url, options) => { calls.push([url, options]); return new Promise(() => {}); };
+  e.load('jobs.js');
+  e.$('generate-form').onsubmit({preventDefault() {}});
+  await flush();
+  const sent = JSON.parse(calls.find(([url, options]) => url === '/api/jobs' && options)[1].body);
+  assert.equal(sent.class_id, 5);
+  assert.equal('student_id' in sent, false, 'a class lecture has no student target');
+}
+
+async function knowledgeReviewMergesAndConfirms() {
+  const posts = [];
+  const draft = {draft: {status: 'ready', method: 'rules+model', notice: '', version: 'v1', items: [
+      {name: '随机变量', chapter: '第二章', section: '2.1', summary: '定义', units: [1, 2]},
+      {name: '离散型', chapter: '第二章', section: '2.1', summary: '分类', units: [3, 4]},
+      {name: '泊松分布', chapter: '第二章', section: '2.2', summary: '', units: [5, 5]}]},
+    units: [1, 2, 3, 4, 5].map(n => ({n, label: `第 ${n} 页`, preview: '页' + n})), library: ['泊松分布'], upload: {title: '第二章'}};
+  const e = environment((url, options) => {
+    if (url === '/api/courses/2/knowledge') return Promise.resolve({points: [], drafts: []});
+    if (url === '/api/knowledge/drafts/u1') return Promise.resolve(draft);
+    if (url === '/api/knowledge/drafts/u1/confirm') { posts.push(JSON.parse(options.body)); return Promise.resolve({created: 1, reused: 1}); }
+    return new Promise(() => {});
+  });
+  e.context.location = {hash: '#materials/resources'};
+  e.context.workspaceScope = {courseId: () => 2, course: () => ({id: 2}), ready: Promise.resolve()};
+  e.context.sourceHref = url => url;
+  e.load('knowledge.js'); await flush();
+  await e.context.courseKnowledge.review('u1');
+  assert.equal(e.$('knowledge-dialog').open, true);
+  assert.equal(e.$('knowledge-dialog-summary').textContent, '共 3 条：新增 2，合并到已有 1');
+  // Row 2 joins row 1: ranges combine and the summaries are kept together.
+  e.$('knowledge-dialog-items').children[1].children[2].children[1].click();
+  assert.equal(e.$('knowledge-dialog-items').children.length, 2);
+  e.$('knowledge-dialog-chapter').value = '第二章 随机变量与分布';
+  await e.$('knowledge-dialog-form').onsubmit({preventDefault() {}}); await flush();
+  assert.deepEqual(posts, [{version: 'v1', items: [
+    {name: '随机变量', section: '2.1', summary: '定义；分类', units: [1, 4], chapter: '第二章 随机变量与分布'},
+    {name: '泊松分布', section: '2.2', summary: '', units: [5, 5], chapter: '第二章 随机变量与分布'}]}]);
+  assert.equal(e.$('knowledge-dialog').open, false);
+  assert.match(e.$('upload-status').textContent, /新增 1 个，合并到已有 1 个/);
+}
+
+async function studentEditKeepsItsBaseRevision() {
+  let revision = 3; const posts = [];
+  const record = () => ({student: {id: 7, name: '王一', subtitle: '七年级', profile: '计算稳', profile_revision: revision},
+    classes: [], states: [], profile_history: []});
+  const e = environment(async (url, options) => {
+    if (options?.method === 'POST') { posts.push([url, JSON.parse(options.body)]); revision++; }
+    return record();
+  });
+  const listeners = {};
+  e.context.addEventListener = (name, callback) => { (listeners[name] ||= []).push(callback); };
+  e.context.location = {hash: '#profiles/students'};
+  e.context.students = [{id: 7, name: '王一', subtitle: '七年级', profile: '计算稳'}];
+  e.context.workspaceScope = {courseId: () => 1, classId: () => 5, classOf: () => 5, refresh: async () => {},
+    course: () => ({name: '七年级数学', classes: [{id: 5, name: '一班'}]}), klass: () => ({id: 5, name: '一班', student_ids: [7]})};
+  e.load('student-roster.js');
+  const edit = e.$('student-roster').children[0].children[1].children[0];
+  assert.equal(edit.textContent, '编辑', 'each roster card offers editing beside leaving the class');
+  edit.click();
+  assert.equal(e.context.location.hash, 'profiles/7');
+  e.context.location.hash = '#profiles/7';
+  listeners.hashchange.forEach(callback => callback());
+  await flush();
+  assert.equal(e.$('edit-student-form').hidden, false, 'the card opens the record with the form open');
+  assert.equal(e.$('edit-student-name').value, '王一');
+  revision = 4;  // someone else saves meanwhile; re-reading must not move the form's base
+  e.$('view-current-profile').click();
+  await flush();
+  assert.equal(e.$('edit-student-form').hidden, false, 're-reading the same student keeps the draft');
+  e.$('edit-student-name').value = '王小一'; e.$('edit-student-recorder').value = '王老师'; e.$('edit-student-reason').value = '更正姓名';
+  await e.$('edit-student-form').onsubmit({preventDefault() {}});
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0][0], '/api/students/7/profile?course_id=1');
+  assert.equal(posts[0][1].expected_revision, 3, 'a concurrent change is refused by the server, not overwritten');
+  assert.equal(posts[0][1].name, '王小一');
+  assert.equal(posts[0][1].confirmed, true);
+  assert.equal(e.$('edit-student-form').hidden, true);
+  assert.match(e.$('student-edit-status').textContent, /已保存/);
+}
+
+const cases = {knowledgeReviewMergesAndConfirms, studentEditKeepsItsBaseRevision, classTargetFollowsScope, richMarkdown, submissionCarriesPipelineChoices, markdownOrder, markdownFenceContent, automaticLengthRemainsOptional, imagePreviewOrder, uploadPreviewOrder, refreshingImagesKeepsLiveSelection, acceptedJobSurvivesHistoryFailure, backgroundCompletionPreservesPage};
 (async () => {
   const name = process.argv[2]; assert.ok(cases[name], 'choose a regression case');
   await cases[name](); console.log(name + ': OK');

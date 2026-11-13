@@ -86,8 +86,17 @@ def length_errors(values, keys):
     return [f'{key}须为 1—{LIMITS[key]} 字' for key in keys if not values[key] or len(values[key]) > LIMITS[key]]
 
 
-def plan_students(conn, text):
-    existing = {row['name'] for row in conn.execute('SELECT name FROM students')}
+def plan_students(conn, text, class_id=None):
+    """Into a class, a name already in that class is skipped; same names elsewhere are other people."""
+    if class_id is None:
+        existing = {row['name'] for row in conn.execute('SELECT name FROM students')}
+        elsewhere = set()
+    else:
+        if not conn.execute('SELECT 1 FROM classes WHERE id=%s', (class_id,)).fetchone():
+            raise ProfileError('班级不存在，请刷新后重试。', 404)
+        existing = {row['name'] for row in conn.execute('''SELECT s.name FROM students s
+            JOIN class_students m ON m.student_id=s.id WHERE m.class_id=%s''', (class_id,))}
+        elsewhere = {row['name'] for row in conn.execute('SELECT name FROM students')} - existing
     seen, rows = set(), []
     for line, values in read_rows(text, COLUMNS['students']):
         errors = length_errors(values, COLUMNS['students'])
@@ -95,14 +104,21 @@ def plan_students(conn, text):
             errors.append('文件内姓名重复')
         seen.add(values['姓名'])
         skip = not errors and values['姓名'] in existing
+        note = ('本班已有同名学生，跳过；如需修改请在学生档案中维护。' if class_id is not None else
+                '已有同名学生，跳过；如需修改请在学生档案中维护。') if skip else (
+                '其他班级有同名学生，将新建档案；如是同一人，请改用「添加已有学生」。'
+                if not errors and values['姓名'] in elsewhere else '')
         rows.append(dict(line=line, values=values, errors=errors,
-                         action='error' if errors else 'skip' if skip else 'create',
-                         note='已有同名学生，跳过；如需修改请在学生档案中维护。' if skip else ''))
-    return rows, dict(names=sorted(existing))
+                         action='error' if errors else 'skip' if skip else 'create', note=note))
+    return rows, dict(names=sorted(existing), class_id=class_id)
 
 
-def plan_evidence(conn, text, topic):
-    roster = conn.execute('SELECT id,name FROM students WHERE id=ANY(%s)', (topic['student_ids'],)).fetchall()
+def plan_evidence(conn, text, topic, class_id=None):
+    allowed = topic['student_ids']
+    if class_id is not None:
+        members = {row['student_id'] for row in conn.execute('SELECT student_id FROM class_students WHERE class_id=%s', (class_id,))}
+        allowed = [sid for sid in allowed if sid in members]
+    roster = conn.execute('SELECT id,name FROM students WHERE id=ANY(%s)', (allowed,)).fetchall()
     by_name = {}
     for student in roster:
         by_name.setdefault(student['name'], []).append(student['id'])
@@ -119,7 +135,7 @@ def plan_evidence(conn, text, topic):
         errors = length_errors(values, ['任务或观察内容', '学生表现', '确认理由'])
         ids = by_name.get(values['学生姓名'], [])
         if not ids:
-            errors.append('所选课程中没有这名学生')
+            errors.append('所选班级中没有这名学生' if class_id is not None else '所选课程中没有这名学生')
         elif len(ids) > 1:
             errors.append('课程中有同名学生，无法确定对应档案')
         kid = points.get(values['知识点'])
@@ -151,18 +167,20 @@ def plan_evidence(conn, text, topic):
     return rows, {f'{s}:{k}': [r['state'], r['revision']] for (s, k), r in sorted(current.items())}
 
 
-def plan(conn, kind, text, topic_key):
+def plan(conn, kind, text, topic_key, class_id=None):
     if kind == 'students':
-        return plan_students(conn, text)
+        return plan_students(conn, text, class_id)
     topics = load_catalog(conn)
     if topic_key not in topics:
         raise ProfileError('导入学习证据前，请选择对应的课程任务或备课副本。')
-    return plan_evidence(conn, text, topics[topic_key])
+    return plan_evidence(conn, text, topics[topic_key], class_id)
 
 
-def fingerprint(kind, text, topic_key, snapshot):
-    payload = json.dumps(dict(kind=kind, topic=topic_key, text=sha256(text.encode()).hexdigest(), snapshot=snapshot),
-                         ensure_ascii=False, sort_keys=True)
+def fingerprint(kind, text, topic_key, snapshot, class_id=None):
+    fields = dict(kind=kind, topic=topic_key, text=sha256(text.encode()).hexdigest(), snapshot=snapshot)
+    if class_id is not None:
+        fields['class_id'] = class_id
+    payload = json.dumps(fields, ensure_ascii=False, sort_keys=True)
     return sha256(payload.encode()).hexdigest()
 
 
@@ -181,7 +199,10 @@ def register_roster_import(app, db):
             raise ProfileError('请选择导入学生名单或学习证据。')
         upload = request.files.get('file')
         text = decode(upload.read(MAX_BYTES + 1) if upload else b'')
-        return kind, text, request.form.get('topic', '')
+        raw = request.form.get('class_id', '')
+        if raw and not raw.isdigit():
+            raise ProfileError('班级编号无效，请刷新后重试。')
+        return kind, text, request.form.get('topic', ''), int(raw) if raw else None
 
     @app.get('/api/students/import/template')
     def roster_template():
@@ -199,15 +220,15 @@ def register_roster_import(app, db):
 
     @app.post('/api/students/import/preview')
     def roster_preview():
-        kind, text, topic = form()
+        kind, text, topic, class_id = form()
         with db() as conn:
             conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
-            rows, snapshot = plan(conn, kind, text, topic)
-        return jsonify(rows=rows, summary=summary(kind, rows), token=fingerprint(kind, text, topic, snapshot))
+            rows, snapshot = plan(conn, kind, text, topic, class_id)
+        return jsonify(rows=rows, summary=summary(kind, rows), token=fingerprint(kind, text, topic, snapshot, class_id))
 
     @app.post('/api/students/import')
     def roster_import():
-        kind, text, topic = form()
+        kind, text, topic, class_id = form()
         recorder = request.form.get('recorder', '').strip()
         if request.form.get('confirmed') != 'true':
             raise ProfileError('请由教师确认已核对预览内容。')
@@ -216,8 +237,9 @@ def register_roster_import(app, db):
         with db() as conn:
             # Serialize roster writers, then re-plan inside the same transaction that writes.
             conn.execute('LOCK TABLE students IN EXCLUSIVE MODE')
-            rows, snapshot = plan(conn, kind, text, topic)
-            if fingerprint(kind, text, topic, snapshot) != request.form.get('token'):
+            conn.execute('LOCK TABLE class_students IN EXCLUSIVE MODE')
+            rows, snapshot = plan(conn, kind, text, topic, class_id)
+            if fingerprint(kind, text, topic, snapshot, class_id) != request.form.get('token'):
                 raise ProfileError('预览之后学生名单或画像已变化，本次未导入。请重新预览并核对。', 409)
             failed = [row['line'] for row in rows if row['errors']]
             if failed:
@@ -228,6 +250,9 @@ def register_roster_import(app, db):
                     created.append(conn.execute('''INSERT INTO students(id,name,subtitle,profile)
                         VALUES ((SELECT COALESCE(max(id),0)+1 FROM students),%s,%s,%s) RETURNING id''',
                         (row['values']['姓名'], row['values']['年级或说明'], row['values']['学习特点'])).fetchone()['id'])
+                    if class_id is not None:
+                        conn.execute('''INSERT INTO class_students(class_id,course_id,student_id)
+                            SELECT id,course_id,%s FROM classes WHERE id=%s''', (created[-1], class_id))
                 elif row['action'] == 'record':
                     record_evidence(conn, row['student_id'], dict(
                         knowledge_id=row['knowledge_id'], expected_revision=row['expected_revision'], source=row['source'],

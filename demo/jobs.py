@@ -89,7 +89,7 @@ class JobQueue:
     def detail(self, job_id):
         with self.db() as conn:
             row = conn.execute('''SELECT j.*,r.lecture_id,r.error_message,r.error_code,r.usage,
-                r.elapsed_seconds,r.topic,r.student_id,r.context ? 'section_edit' AS section_rewrite,
+                r.elapsed_seconds,r.topic,r.student_id,r.class_id,r.context ? 'section_edit' AS section_rewrite,
                 r.context ? 'ppt_export' AS ppt_generation,
                 r.response_metadata->'saved_revision' AS saved_revision FROM generation_jobs j
                 JOIN generation_runs r ON r.id=j.run_id WHERE j.id=%s''', (job_id,)).fetchone()
@@ -103,10 +103,11 @@ class JobQueue:
 
     def recent(self):
         with self.db() as conn:
-            return conn.execute('''SELECT j.*,r.lecture_id,r.error_message,r.topic,s.name,
+            return conn.execute('''SELECT j.*,r.lecture_id,r.error_message,r.topic,COALESCE(s.name,c.name||'（全班）') AS name,
                 r.context ? 'section_edit' AS section_rewrite,r.context ? 'ppt_export' AS ppt_generation
                 FROM generation_jobs j JOIN generation_runs r ON r.id=j.run_id
-                JOIN students s ON s.id=r.student_id ORDER BY j.created_at DESC LIMIT 12''').fetchall()
+                LEFT JOIN students s ON s.id=r.student_id LEFT JOIN classes c ON c.id=r.class_id
+                ORDER BY j.created_at DESC LIMIT 12''').fetchall()
 
     def _work(self):
         while True:

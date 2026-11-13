@@ -140,6 +140,9 @@
   };
   window.showProfileComparison = result => {
     if (lectureId !== result.id) window.clearProfileComparison();
+    // A class lecture has no single student profile to compare against.
+    if (result.student_id == null && result.class_id != null) { $('compare-profile').title = '班级讲义没有单个学生的画像可对照'; return; }
+    $('compare-profile').title = '';
     lectureId = result.id;
     $('compare-profile').disabled = busy;
   };

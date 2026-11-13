@@ -29,18 +29,30 @@
     const [data] = await Promise.all([api(`/api/grading/${row.id}/evidence-drafts`), ensureCatalog()]);
     if (current !== token) return;
     drafts = data;
-    const topicSelect = $('grading-evidence-topic'), studentSelect = $('grading-evidence-student');
-    topicSelect.replaceChildren(...Object.entries(catalog.topics).map(([key, t]) =>
-      option(key, (t.custom ? '' : '示例 · ') + [t.stage, t.course, t.title].filter(Boolean).join(' / '))));
-    if (data.quiz && catalog.topics[data.quiz.topic_key]) topicSelect.value = data.quiz.topic_key;
-    topicSelect.disabled = Boolean(data.quiz);
-    const previous = studentSelect.value;
-    studentSelect.replaceChildren(option('', '请选择学生'), ...catalog.students.map(s => option(s.id, `${s.name} · ${s.subtitle}`)));
-    if (catalog.students.some(s => String(s.id) === previous)) studentSelect.value = previous;
+    drawScope();
     $('grading-evidence-date').value = data.observed_on || localDate(new Date());
     $('grading-evidence-date').max = localDate(new Date());
     await draw();
   }
+  // Lessons of the current course and students of the current class come first; a quiz's own
+  // lesson and the previously chosen student stay selectable.
+  function drawScope() {
+    if (!catalog) return;
+    const scope = window.workspaceScope, course = scope?.courseId(), quizKey = drafts?.quiz?.topic_key;
+    const topicSelect = $('grading-evidence-topic'), studentSelect = $('grading-evidence-student');
+    const keepTopic = topicSelect.value, previous = studentSelect.value;
+    const own = Object.entries(catalog.topics).filter(([key, t]) => course == null || t.course_id === course || key === quizKey);
+    topicSelect.replaceChildren(...own.map(([key, t]) => option(key, (t.custom ? '' : '示例 · ') + (t.title || '未命名备课'))));
+    if (quizKey && catalog.topics[quizKey]) topicSelect.value = quizKey;
+    else if (own.some(([key]) => key === keepTopic)) topicSelect.value = keepTopic;
+    topicSelect.disabled = Boolean(drafts?.quiz);
+    const members = new Set(scope?.classStudents() || []), cls = scope?.klass();
+    const inClass = catalog.students.filter(s => members.has(s.id)), others = catalog.students.filter(s => !members.has(s.id));
+    const group = (label, list) => { const g = el('optgroup'); g.label = label; g.append(...list.map(s => option(s.id, `${s.name} · ${s.subtitle}`))); return g; };
+    studentSelect.replaceChildren(option('', '请选择学生'), ...(cls && inClass.length ? [group(cls.name, inClass), ...(others.length ? [group('其他学生', others)] : [])] : catalog.students.map(s => option(s.id, `${s.name} · ${s.subtitle}`))));
+    if (catalog.students.some(s => String(s.id) === previous)) studentSelect.value = previous;
+  }
+  window.addEventListener('scope-changed', () => { if (record && drafts) { drawScope(); draw().catch(e => status(e.message)); } });
   function card(item, sid) {
     const box = el('article', undefined, 'evidence-draft');
     const title = item.knowledge_id ? `知识点：${item.knowledge_name || pointName(item.knowledge_id)}` : '未对应题组知识点的题目';

@@ -1,0 +1,115 @@
+/* Course and class scope: the switcher, course and class homes, class distribution. */
+:root {
+  --state-needs: #d9822b;
+  --state-partial: #5b7fd6;
+  --state-mastered: #2f8a5f;
+  --state-unknown: #d5dbe5;
+}
+
+/* Switcher at the top of every page that follows the scope. */
+.context-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  margin-block-end: 18px; padding: 8px 12px;
+  background: #fff; border: 1px solid var(--line); border-radius: 12px;
+}
+body[data-page=records] .context-bar, body[data-page=settings] .context-bar { display: none; }
+.context-pick { display: flex; align-items: center; gap: 8px; min-inline-size: 0; flex: 0 1 auto; }
+.context-pick-label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.context-pick-label span { color: var(--accent); }
+.context-pick select { inline-size: auto; min-inline-size: 10rem; max-inline-size: 22rem; font-weight: 600; background: #fbfcff; }
+.context-sep { color: #a3adbd; }
+.context-all { margin-inline-start: auto; font-size: 13px; text-decoration: none; white-space: nowrap; }
+.context-all:hover { text-decoration: underline; }
+
+/* Course and class homes. */
+.scope-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 20px; align-items: start; margin-block-end: 18px; }
+.scope-header > .trace-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.scope-header > .trace-actions .primary { margin: 0; inline-size: auto; }
+.scope-header h2 { font-size: 22px; margin: 2px 0 0; }
+.scope-header .helper { margin: 4px 0 0; }
+.scope-header .current-summary { margin: 12px 0 0; }
+.scope-header > .scope-edit, .scope-header > [role=status] { grid-column: 1 / -1; }
+.scope-kicker { display: block; font-size: 12px; font-weight: 600; letter-spacing: .5px; color: var(--accent); }
+.scope-edit { padding-block-start: 4px; }
+.scope-edit .trace-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-block-start: 14px; }
+.scope-edit .trace-actions .primary { margin: 0; inline-size: auto; }
+.scope-empty { display: flex; gap: 18px; align-items: flex-start; }
+.scope-empty .primary { inline-size: auto; margin-block-start: 6px; }
+.student-card.is-current { border-color: var(--accent); background: var(--accent-soft, #edf2ff); }
+.course-card { inline-size: 100%; cursor: pointer; font: inherit; }
+.course-card .scope-kicker { margin-block-end: 4px; }
+
+/* Class distribution per knowledge point. */
+.state-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-block-end: 12px; }
+.legend { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.legend::before { content: ""; inline-size: 10px; block-size: 10px; border-radius: 3px; background: var(--state-unknown); }
+.legend.needs_support::before { background: var(--state-needs); }
+.legend.partial::before { background: var(--state-partial); }
+.legend.mastered::before { background: var(--state-mastered); }
+.class-points { display: grid; gap: 8px; }
+.class-point { border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.class-point[open] { border-color: #c9d5ee; }
+.class-point > summary {
+  display: grid; grid-template-columns: minmax(10rem, 1.1fr) minmax(8rem, 1.4fr) minmax(0, 1.2fr);
+  gap: 8px 16px; align-items: center; padding: 12px 14px; cursor: pointer; list-style: none;
+}
+.class-point > summary::-webkit-details-marker { display: none; }
+.class-point-title { display: flex; align-items: center; gap: 8px; min-inline-size: 0; }
+.class-point-title strong { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.class-point-summary { margin: 0; }
+.class-bar { display: flex; block-size: 22px; border-radius: 6px; overflow: hidden; background: var(--state-unknown); }
+.class-bar-seg {
+  display: flex; align-items: center; justify-content: center; min-inline-size: 18px;
+  font-size: 11px; font-weight: 600; color: #fff; font-variant-numeric: tabular-nums;
+}
+.class-bar-seg.needs_support { background: var(--state-needs); }
+.class-bar-seg.partial { background: var(--state-partial); }
+.class-bar-seg.mastered { background: var(--state-mastered); }
+.class-bar-seg.unknown { background: var(--state-unknown); color: #4a5568; }
+.class-bar-seg + .class-bar-seg { border-inline-start: 2px solid #fff; }
+.class-point-groups { padding: 0 14px 12px; display: grid; gap: 4px; }
+.class-point-groups p { margin: 0; font-size: 13px; line-height: 1.8; }
+.class-point-groups .legend { color: #405069; font-weight: 600; }
+.class-topic-filter { display: flex; align-items: center; gap: 8px; }
+.class-topic-filter label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.class-topic-filter select { inline-size: auto; max-inline-size: 18rem; }
+.class-focus { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 8px; }
+.class-focus-item { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; border-inline-start: 3px solid var(--state-needs); }
+.class-focus-item a { font-weight: 600; text-decoration: none; }
+.class-focus-item .helper { display: block; margin: 2px 0 0; }
+.class-history-item { padding: 10px 0; border-block-start: 1px solid var(--line); }
+.class-history-item strong { font-size: 13px; }
+.class-history-item p { margin: 4px 0 0; font-size: 13px; white-space: pre-wrap; }
+#class-history-box summary, #student-history-box summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+#class-edit-status[data-error=true], #student-edit-status[data-error=true] { color: #a83232; }
+#profile-dialog { width: min(760px, calc(100vw - 32px)); }
+
+/* Students of a class. */
+.roster-card { display: flex; flex-direction: column; gap: 10px; }
+.roster-card-main { display: block; color: inherit; text-decoration: none; flex: 1; }
+.roster-card-main:hover strong { color: var(--accent); }
+.roster-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.add-existing { margin-block-end: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: #fbfcff; }
+.add-existing .trace-actions .primary { margin: 0; inline-size: auto; }
+.add-existing-move { display: flex; align-items: flex-end; }
+
+/* Resources inside a course or class. */
+.resource-host .upload-grid { margin-block-start: 0; }
+.upload-unassigned { margin-block-start: 18px; padding-block-start: 12px; border-block-start: 1px solid var(--line); }
+.upload-unassigned summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+dialog.attach-dialog[open] { inline-size: min(34rem, calc(100vw - 32px)); block-size: fit-content; height: fit-content; }
+.attach-dialog .dialog-body { flex: 0 1 auto; }
+.attach-dialog select { inline-size: 100%; }
+
+@media (max-width: 760px) {
+  .context-bar { padding: 8px 10px; }
+  .context-pick { flex: 1 1 100%; }
+  .context-pick select { flex: 1; max-inline-size: none; min-inline-size: 0; }
+  .context-sep { display: none; }
+  .context-all { margin-inline-start: 0; }
+  .scope-header { grid-template-columns: 1fr; }
+  .scope-header > .trace-actions { justify-content: flex-start; }
+  .class-point > summary { grid-template-columns: 1fr; }
+  .scope-empty { flex-direction: column; }
+}
+@media print { .context-bar { display: none !important; } }

@@ -11,9 +11,11 @@ function count() {
   $('batch-submit').disabled = !chosen || jobs.some(job => ['queued', 'running'].includes(job.status));
 }
 function drawStudents() {
-  const topic = topics[$('topic').value], ids = topic?.student_ids;
-  const list = students.filter(student => !ids || ids.includes(student.id));
-  $('batch-note').textContent = `${topic?.title || '当前备课副本'} · 可选 ${list.length} 名学生`;
+  // Within the current class by default; a lesson without a course keeps every listed student.
+  const topic = topics[$('topic').value], ids = topic?.student_ids, scope = window.workspaceScope;
+  const cls = scope?.klass(), members = cls && topic?.course_id === scope.courseId() ? new Set(cls.student_ids) : null;
+  const list = students.filter(student => (!ids || ids.includes(student.id)) && (!members || members.has(student.id)));
+  $('batch-note').textContent = `${topic?.title || '当前备课'}${members ? ' · ' + cls.name : ''} · 可选 ${list.length} 名学生`;
   $('batch-students').replaceChildren(...list.map(student => {
     const label = el('label', undefined, 'batch-student'), box = el('input');
     box.type = 'checkbox'; box.value = student.id; box.checked = true; box.onchange = count;

@@ -1,22 +1,26 @@
 /* Hash navigation preserves form inputs and background tasks across pages. */
 (() => {
   const pages = {
-    workbench: ['讲义工作台', '选择备课副本和学生，补充本次备注，生成有针对性的讲义。'],
-    quizzes: ['出题', '按课程目标与学生水平生成练习题。'],
+    workbench: ['讲义工作台', '选择备课和讲义对象（全班或学生），补充本次备注，生成有针对性的讲义。'],
+    quizzes: ['出题', '按课程目标与班级或学生水平生成练习题。'],
     grading: ['阅卷', '上传学生作答与参考答案，自动提取并逐题批改。'],
-    profiles: ['学生画像', '独立管理每位同学的信息、学习特点和长期薄弱点。'],
-    materials: ['课程材料', '保存目标、教案和参考资料，建立可以反复使用的备课副本。'],
-    uploads: ['上传资料', '汇集本地文档与网页内容，建立你的教学资料库。'],
+    profiles: ['班级与画像', '班级画像汇总班内学生的诊断；学生档案在各课程间共享。'],
+    materials: ['课程', '每门课程有自己的备课、课程资料和班级。'],
     records: ['生成记录', '管理已保存讲义，查看后台任务与每次生成的完整记录。'],
     settings: ['系统设置', '管理本地工作空间的服务连接与模型配置。'],
   };
   const aliases = {'lecture-results': 'workbench', 'support-modules': 'records'};
+  // Old bookmarks: the upload page now lives inside the course.
+  const redirects = {uploads: 'materials/resources'};
+  const subTitles = {courses: '全部课程', 'materials/resources': '课程资料', 'materials/knowledge': '知识点库', 'materials/classes': '班级', 'materials/new': '新建备课',
+    'profiles/students': '学生名单', 'profiles/resources': '班级资料', 'profiles/new': '新建学生', 'profiles/import': '批量导入学生资料'};
   const recordTypes = ['lectures', 'quizzes', 'grading', 'experiments'];
   let active;
   function navigate(focus = false) {
-    const hash = location.hash.slice(1);
-    const profileRoute = /^profiles\/(new|import|[1-9]\d*)$/.test(hash);
-    const materialRoute = /^materials\/[\w-]+$/.test(hash);
+    let hash = location.hash.slice(1);
+    if (redirects[hash]) { hash = redirects[hash]; history.replaceState(null, '', '#' + hash); }
+    const profileRoute = /^profiles\/(new|import|students|resources|[1-9]\d*)$/.test(hash);
+    const materialRoute = hash === 'courses' || /^materials\/[\w-]+$/.test(hash);
     const recordsRoute = /^records\/(lectures|quizzes|grading|experiments)$/.test(hash);
     const page = recordsRoute ? 'records' : materialRoute ? 'materials' : profileRoute ? 'profiles' : pages[hash] ? hash : aliases[hash] || 'workbench';
     if (!pages[hash] && !profileRoute && !materialRoute && !recordsRoute) history.replaceState(null, '', '#' + page);
@@ -27,7 +31,7 @@
       if (link.dataset.page === page) { link.setAttribute('aria-current', 'page'); if (link.scrollIntoView && link.parentElement.scrollWidth > link.parentElement.clientWidth) link.scrollIntoView({block: 'nearest', inline: 'nearest'}); }
       else link.removeAttribute('aria-current');
     }
-    const title = materialRoute ? (hash === 'materials/new' ? '新建备课副本' : '备课副本详情') : profileRoute ? (hash === 'profiles/new' ? '新建学生画像' : hash === 'profiles/import' ? '批量导入学生资料' : '学生档案') : pages[page][0];
+    const title = subTitles[hash] || (materialRoute ? '备课详情' : profileRoute ? '学生档案' : pages[page][0]);
     $('page-title').textContent = title;
     document.title = title + ' · 知页';
     document.body.dataset.page = page;

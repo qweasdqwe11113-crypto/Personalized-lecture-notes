@@ -53,7 +53,7 @@ $('generate-form').onsubmit=async e=>{
  e.preventDefault();if(busy||!current)return;
  setBusy(true);error('');$('progress').textContent='正在提交并固定输入…';
  try{
-  const job=await api('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...window.generationPayload(),student_id:Number($('student').value),plan_overrides:typeof readLecturePlan==='function'?readLecturePlan():{}})});
+  const job=await api('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...window.generationPayload(),...(typeof window.lectureTarget==='function'?window.lectureTarget():{student_id:Number($('student').value)}),plan_overrides:typeof readLecturePlan==='function'?readLecturePlan():{}})});
   await refreshJobs().catch(()=>{});await watchJob(job.id);
  }catch(e){error(e.message);setBusy(false);}
 };

@@ -41,3 +41,12 @@ class FrontendTests(unittest.TestCase):
 
     def test_refreshing_images_preserves_live_choices_and_survives_failure(self):
         self.run_case('refreshingImagesKeepsLiveSelection')
+
+    def test_workbench_offers_the_current_class_and_submits_a_class_target(self):
+        self.run_case('classTargetFollowsScope')
+
+    def test_student_edit_opens_from_the_roster_and_keeps_its_base_revision(self):
+        self.run_case('studentEditKeepsItsBaseRevision')
+
+    def test_knowledge_review_merges_rows_and_confirms_the_edited_draft(self):
+        self.run_case('knowledgeReviewMergesAndConfirms')

@@ -12,13 +12,17 @@
     $('roster-import-topic-field').hidden=$('roster-import-recorder-field').hidden=kind!=='evidence';
     $('roster-import-help').textContent=help[kind];$('roster-import-template').href='/api/students/import/template?kind='+kind;reset();
   }
+  // Imports go into the current class: names are matched within it and new students join it.
+  const scope=window.workspaceScope;
   async function loadTopics(){
-    const data=await api('/api/course-tasks'),select=$('roster-import-topic'),selected=select.value;
-    select.replaceChildren(...Object.entries(data.topics).map(([key,t])=>{const o=el('option',(t.custom?'':'示例 · ')+[t.stage,t.course,t.title].filter(Boolean).join(' / '));o.value=key;return o;}));
-    if(data.topics[selected])select.value=selected;
+    const data=await api('/api/course-tasks'),select=$('roster-import-topic'),selected=select.value,course=scope?.courseId();
+    const own=Object.entries(data.topics).filter(([,t])=>course==null||t.course_id===course);
+    select.replaceChildren(...own.map(([key,t])=>{const o=el('option',(t.custom?'':'示例 · ')+(t.title||'未命名备课'));o.value=key;return o;}));
+    if(own.some(([key])=>key===selected))select.value=selected;
   }
   function form(extra={}){
     const data=new FormData();data.append('kind',$('roster-import-kind').value);data.append('topic',$('roster-import-topic').value);
+    if(scope?.classId()!=null)data.append('class_id',String(scope.classId()));
     data.append('file',$('roster-import-file').files[0]);for(const [k,v] of Object.entries(extra))data.append(k,v);return data;
   }
   function draw(data,kind){
@@ -53,11 +57,14 @@
     if(!preview)return;const button=$('roster-import-submit');button.disabled=true;status('正在导入…');
     try{
       const data=await api('/api/students/import',{method:'POST',body:form({token:preview.token,confirmed:'true',recorder:$('roster-import-recorder').value})});
-      status(preview.kind==='students'?`已新建 ${data.created_ids.length} 份学生档案。`:`已记录 ${data.ready} 条学习证据，可在各学生档案中查看。`);
+      status(preview.kind==='students'?`已新建 ${data.created_ids.length} 份学生档案，并加入${scope?.klass()?.name||'本班'}。`:`已记录 ${data.ready} 条学习证据，可在各学生档案中查看。`);
       reset();$('roster-import-form').reset();syncKind();
-      await Promise.all([refreshStudentRoster(),typeof refreshWorkspaceCatalog==='function'?refreshWorkspaceCatalog():null]);
+      if(typeof refreshWorkspaceCatalog==='function')await refreshWorkspaceCatalog();
+      if(scope)await scope.refresh();await refreshStudentRoster();
     }catch(e){status(e.message+(e.status===409?'':' 本次未写入任何记录。'));button.disabled=false;}
   };
   window.addEventListener('hashchange',()=>{if(location.hash==='#profiles/import')loadTopics().catch(e=>status(e.message));});
-  syncKind();loadTopics().catch(()=>{});
+  // Another class or course invalidates a preview made for the previous one.
+  window.addEventListener('scope-changed',event=>{if(event.detail==='refresh')return;reset();status('');loadTopics().catch(()=>{});});
+  syncKind();(scope?scope.ready.catch(()=>{}):Promise.resolve()).then(loadTopics).catch(()=>{});
 })();

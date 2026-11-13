@@ -5,7 +5,7 @@ import hashlib
 import json
 import re
 
-from profiles import STRATEGIES
+from profiles import CLASS_STRATEGIES, STRATEGIES
 
 MATERIAL_BUDGET = 16000
 CONTEXT_BUDGET = 56000
@@ -19,17 +19,24 @@ def plan_for(context, overrides=None):
     if overrides is not None and (not isinstance(overrides, dict) or len(overrides) > 20):
         raise LectureInputError('讲解安排格式无效，请重新读取当前课程。')
     states = context.get('states', []) if context.get('personalization_mode') != 'none' else []
+    defaults = CLASS_STRATEGIES if context.get('personalization_mode') == 'class' else STRATEGIES
     allowed = {str(s['id']) for s in states}
     if overrides and set(overrides) - allowed:
         raise LectureInputError('讲解安排含不属于本次画像的知识点。无画像模式不发送个体安排。')
     result = []
     for state in states:
-        action = (overrides or {}).get(str(state['id']), STRATEGIES[state['state']])
+        action = (overrides or {}).get(str(state['id']), defaults[state['state']])
         if not isinstance(action, str) or not action.strip() or len(action.strip()) > 400:
             raise LectureInputError('每个知识点的讲解安排请填写 1—400 字。')
         evidence = state.get('recent_evidence', [])
         warnings = []
         dated = [e.get('observed_at') for e in evidence if e.get('observed_at')]
+        spread = state.get('distribution')
+        if spread is not None:
+            if spread['unknown'] * 2 > state['class_size']:
+                warnings.append('超过一半学生未诊断，班级判断依据有限。')
+            if spread['needs_support'] and spread['mastered']:
+                warnings.append('班内同时有需要补充和已掌握的学生，建议分层安排例题与练习。')
         if state['state'] == 'unknown':
             warnings.append('未诊断，不能当作薄弱。')
         elif not dated:
@@ -40,7 +47,7 @@ def plan_for(context, overrides=None):
             warnings.append('存在保留原判断的证据，请核对差异；不自动更改掌握状态。')
         result.append(dict(knowledge_id=state['id'], name=state['name'], state=state['state'],
             evidence=state.get('evidence', ''), evidence_ids=[e['id'] for e in evidence],
-            action=action.strip(), teacher_modified=action.strip()!=STRATEGIES[state['state']],
+            action=action.strip(), teacher_modified=action.strip()!=defaults[state['state']],
             target_section='核心讲解、例题与检验', warnings=warnings))
     return result
 

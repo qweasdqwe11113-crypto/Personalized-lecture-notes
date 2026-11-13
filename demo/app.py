@@ -13,8 +13,8 @@ from psycopg.rows import dict_row
 from dotenv import load_dotenv
 from model_settings import register_model_settings
 from flask import Flask, Response, jsonify, render_template, request, g, has_request_context
-from profiles import (ProfileError, compare_lecture_profile, decorate_states, evidence_history, get_profile,
-                      record_evidence, update_profile)
+from profiles import (CLASS_STRATEGIES, ProfileError, compare_lecture_profile, decorate_states, evidence_history,
+                      get_profile, record_evidence, update_profile)
 from prompts import prepare_request
 from vision import selected_evidence
 from qwen import ModelError, ModelResult, call_qwen, config_flags, stream_to, visible_text
@@ -27,6 +27,7 @@ from reviews import (ReviewError, STATUS_LABELS, add_issue, lecture_row,
                      review_bundle, save_revision, version_row)
 from courses import TOPICS, REFERENCE_EXAMPLES, course_family
 from catalog import load_catalog, register_catalog
+from classes import class_context_states, class_members, library_ids, register_classes, student_class
 from comparisons import comparison_options, compare_lectures
 from jobs import JobError, JobQueue
 from gate import ModelGate, configured_limit
@@ -38,11 +39,12 @@ from presentations import execute_presentation, register_presentations
 from packages import register_packages
 from roster_import import register_roster_import
 from quizzes import QuizQueue, grading_reference, register_quizzes
+from knowledge import KnowledgeQueue, register_knowledge
 from grading import register_grading
 from evaluation import register_evaluation
 from rendering import markdown_html, visual_appendix
 import richdoc
-from uploads import read_upload, register_uploads
+from uploads import ImportError as UploadError, read_upload, register_uploads
 from embed import EmbeddingError, OllamaEmbedder, QwenEmbedder
 from retrieval import (MODES as RETRIEVAL_MODES, RetrievalError, adopt_content, build_query,
                        index_knowledge, search as search_chunks, status as retrieval_status,
@@ -53,7 +55,7 @@ load_dotenv(ROOT / '.env')
 app = Flask(__name__)
 register_model_settings(app, ROOT / '.env')
 app.config['MAX_CONTENT_LENGTH'] = 11 * 1024 * 1024
-register_uploads(app, ROOT)
+register_uploads(app, ROOT, lambda course_id, class_id: upload_scope(course_id, class_id))
 DSN = os.environ.get('DATABASE_URL', 'postgresql:///lecture_demo_prototype')
 MODEL = os.environ.get('QWEN_MODEL', 'qwen3.8-27b')
 # One gate for every language-model call; MODEL_CONCURRENCY=1 restores strictly serial calls.
@@ -69,6 +71,15 @@ def db():
     return psycopg.connect(DSN, row_factory=dict_row, connect_timeout=5)
 
 
+def upload_scope(course_id, class_id):
+    with db() as conn:
+        if not conn.execute('SELECT 1 FROM courses WHERE id=%s', (course_id,)).fetchone():
+            raise UploadError('课程不存在，请刷新后重试。')
+        if class_id is not None and not conn.execute('SELECT 1 FROM classes WHERE id=%s AND course_id=%s',
+                                                     (class_id, course_id)).fetchone():
+            raise UploadError('班级不属于所选课程，请刷新后重试。')
+
+
 register_catalog(app, lambda: db(), ROOT)
 
 
@@ -82,9 +93,36 @@ def topic_catalog():
     return result
 
 
-def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql', goal=None, learner_note=''):
+def scoped_materials(conn, knowledge_ids, class_id):
+    """Course-wide material plus, when a class is in scope, that class's own material."""
+    rows = conn.execute('''SELECT * FROM materials WHERE knowledge_id=ANY(%s)
+        AND (class_id IS NULL OR class_id=%s) ORDER BY id''', (knowledge_ids, class_id)).fetchall()
+    # Older inputs carry no class field; add it only where a material is class-only.
+    return [{k: v for k, v in row.items() if k != 'class_id' or v is not None} for row in rows]
+
+
+register_classes(app, lambda: db(), topic_catalog)
+
+
+def course_knowledge_ids(course_id):
+    """The course library first (diagnoses are kept per library point), then lesson-only points."""
+    with db() as conn:
+        shelf = library_ids(conn, course_id)
+    return list(dict.fromkeys(shelf + [k for t in topic_catalog().values() if t.get('course_id') == course_id
+                                       for k in t['knowledge_ids']]))
+
+
+def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql', goal=None, learner_note='', class_id=None):
+    """Frozen generation input for one student, or for a whole class when class_id is given.
+
+    A class target uses mode 'class' (aggregated class profile) or 'none' (generic lecture);
+    either way the class's own material is in scope. Returns None for an invalid target.
+    """
     topic = topic_catalog()[topic_key]
-    if student_id not in topic['student_ids']:
+    whole_class = class_id is not None
+    if whole_class:
+        mode = 'none' if mode == 'none' else 'class'
+    elif mode == 'class' or student_id not in topic['student_ids']:
         return None
     if retrieval_mode == 'vector':
         # Prepare missing or stale chunks before opening the read-only snapshot.
@@ -92,37 +130,60 @@ def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql', goa
             index_knowledge(conn, EMBEDDER, topic['knowledge_ids'])
     with db() as conn:
         conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
-        student = conn.execute('SELECT * FROM students WHERE id=%s', (student_id,)).fetchone()
-        if not student:
-            return None
-        states = conn.execute('''SELECT k.id, k.name, COALESCE(a.canonical_id,k.id) AS profile_knowledge_id, COALESCE(s.state,'unknown') AS state,
-            COALESCE(s.evidence,'没有诊断记录。') AS evidence,
-            COALESCE(s.revision,0) AS revision,s.evidence_id,s.updated_at
-            FROM knowledge_points k LEFT JOIN knowledge_aliases a ON a.knowledge_id=k.id
-            LEFT JOIN student_knowledge s ON s.knowledge_id=COALESCE(a.canonical_id,k.id) AND s.student_id=%s
-            WHERE k.id=ANY(%s) ORDER BY k.id''', (student_id,topic['knowledge_ids'])).fetchall()
+        if whole_class:
+            klass = conn.execute('''SELECT c.*,co.name AS course_name FROM classes c JOIN courses co ON co.id=c.course_id
+                WHERE c.id=%s''', (class_id,)).fetchone()
+            if not klass or klass['course_id'] != topic.get('course_id'):
+                return None
+            members = class_members(conn, class_id)
+            if not members:
+                return None
+            scope = class_id
+            states = class_context_states(conn, members, topic['knowledge_ids'])
+        else:
+            student = conn.execute('SELECT * FROM students WHERE id=%s', (student_id,)).fetchone()
+            if not student:
+                return None
+            scope = student_class(conn, student_id, topic.get('course_id'))
+            states = conn.execute('''SELECT k.id, k.name, COALESCE(a.canonical_id,k.id) AS profile_knowledge_id, COALESCE(s.state,'unknown') AS state,
+                COALESCE(s.evidence,'没有诊断记录。') AS evidence,
+                COALESCE(s.revision,0) AS revision,s.evidence_id,s.updated_at
+                FROM knowledge_points k LEFT JOIN knowledge_aliases a ON a.knowledge_id=k.id
+                LEFT JOIN student_knowledge s ON s.knowledge_id=COALESCE(a.canonical_id,k.id) AND s.student_id=%s
+                WHERE k.id=ANY(%s) ORDER BY k.id''', (student_id,topic['knowledge_ids'])).fetchall()
         # Exact SQL lookup, restricted to the selected topic.
-        materials = conn.execute('SELECT * FROM materials WHERE knowledge_id=ANY(%s) ORDER BY id',
-                                 (topic['knowledge_ids'],)).fetchall()
+        materials = scoped_materials(conn, topic['knowledge_ids'], scope)
         retrieval = {'mode': retrieval_mode, 'backend': None, 'embed_model': None, 'query': None, 'items': []}
         if retrieval_mode == 'vector':
             # Without a profile the question stays the shared goal, so ablation is still clean.
-            query = build_query(goal or topic['goal'], states if mode == 'profile' else [])
+            query = build_query(goal or topic['goal'], states if mode in ('profile', 'class') else [])
             if mode == 'profile' and learner_note:
                 query += '；本次学生备注：' + learner_note
-            retrieval = search_chunks(conn, EMBEDDER, query, topic['knowledge_ids'], limit=RETRIEVAL_LIMIT)
+            retrieval = search_chunks(conn, EMBEDDER, query, topic['knowledge_ids'], limit=RETRIEVAL_LIMIT, class_id=scope)
             materials = to_materials(retrieval['items'])
         # Fetch each point separately so a frequently updated point cannot crowd
         # another point's evidence out of the model input.
-        recent = {s['id']: evidence_history(conn, student_id, [s['profile_knowledge_id']], limit=3) for s in states}
+        recent = ({s['id']: s.pop('recent_evidence') for s in states} if whole_class else
+                  {s['id']: evidence_history(conn, student_id, [s['profile_knowledge_id']], limit=3) for s in states})
         topic = {**topic, 'canonical_knowledge_ids': {str(s['id']): s['profile_knowledge_id'] for s in states}}
     decorate_states(states)
     for s in states:
         s['recent_evidence'] = recent[s['id']]
+        if whole_class:
+            s['strategy'] = CLASS_STRATEGIES[s['state']]
+    if whole_class:
+        student = {'name': f"{klass['name']}（全班）", 'subtitle': f"{klass['course_name']} · {len(members)} 名学生",
+                   'profile': klass['profile'] or '教师尚未填写班级特点。'}
     ctx = {'student':student, 'topic':topic, 'states':states, 'materials':materials, 'retrieval': retrieval}
     ctx['lecture_length_policy'] = 'expanded-v1'
     ctx['personalization_mode'] = mode
-    if mode == 'profile' and learner_note:
+    if whole_class:
+        # Recorded with the run; the class name and size are teaching context, not learner identifiers.
+        ctx['class_target'] = {'id': class_id}
+        if mode == 'class':
+            ctx['class_profile'] = {'id': class_id, 'name': klass['name'], 'course': klass['course_name'],
+                                    'student_count': len(members), 'profile_revision': klass['profile_revision']}
+    if mode in ('profile', 'class') and learner_note:
         ctx['learner_note'] = learner_note
     if course_family(topic) == 'probability':
         ctx['reference_examples'] = REFERENCE_EXAMPLES[:1] if (topic.get('reference_origin') or topic_key).endswith('basic') else REFERENCE_EXAMPLES
@@ -182,8 +243,9 @@ def web_manifest():
 def bootstrap():
     with db() as conn:
         students = conn.execute('SELECT * FROM students ORDER BY id').fetchall()
-        history = conn.execute('''SELECT l.id,s.name,l.topic,l.created_at FROM lectures l
-                                  JOIN students s ON s.id=l.student_id ORDER BY l.id DESC LIMIT 8''').fetchall()
+        history = conn.execute('''SELECT l.id,COALESCE(s.name,c.name||'（全班）') AS name,l.topic,l.created_at,
+            l.student_id,l.class_id FROM lectures l LEFT JOIN students s ON s.id=l.student_id
+            LEFT JOIN classes c ON c.id=l.class_id ORDER BY l.id DESC LIMIT 8''').fetchall()
     return jsonify(students=students, topics=topic_catalog(), model=MODEL, history=history,
                    database='PostgreSQL · 已连接', configured=config_flags()['endpoint_format_ok'] and config_flags()['model_present'],
                    embed_model=EMBEDDER.model)
@@ -192,32 +254,39 @@ def bootstrap():
 @app.get('/api/context')
 def context():
     student_id = request.args.get('student_id', type=int)
+    class_id = request.args.get('class_id', type=int)
     topic = request.args.get('topic', 'linear')
     goal = request.args.get('goal', '').strip()
     mode = request.args.get('personalization_mode', 'profile')
     retrieval_mode = request.args.get('retrieval_mode', 'sql')
     note = learner_note(request.args)
-    if (student_id is None or topic not in topic_catalog() or len(goal) > 400
-            or mode not in ('profile', 'none') or retrieval_mode not in RETRIEVAL_MODES):
-        return jsonify(error='请选择有效学生和主题。'), 400
-    data = get_context(student_id, topic, mode, retrieval_mode, goal, note)
+    if ((student_id is None) == (class_id is None) or topic not in topic_catalog() or len(goal) > 400
+            or mode not in ('profile', 'none', 'class') or retrieval_mode not in RETRIEVAL_MODES):
+        return jsonify(error='请选择有效学生或班级，以及备课。'), 400
+    data = get_context(student_id, topic, mode, retrieval_mode, goal, note, class_id)
     if data:
         data['scope_check'] = assess_scope(data, goal or topic_catalog()[topic]['goal'])
-    return (jsonify(data) if data else (jsonify(error='学生不存在。'),404))
+    return (jsonify(data) if data else (jsonify(error='班级不属于这份备课的课程，或班级还没有学生。' if class_id is not None
+                                                     else '学生不存在。'), 404))
 
 
 @app.get('/api/students/<int:student_id>/profile')
 def student_profile(student_id):
+    """With course_id, only that course's knowledge points; the record itself is shared."""
+    course_id = request.args.get('course_id', type=int)
+    points = course_knowledge_ids(course_id) if course_id is not None else None
     with db() as conn:
         conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
-        result = get_profile(conn, student_id)
+        result = get_profile(conn, student_id, points)
     return jsonify(result)
 
 
 @app.get('/api/students')
 def list_students():
     with db() as conn:
-        return jsonify(students=conn.execute('SELECT * FROM students ORDER BY id').fetchall())
+        return jsonify(students=conn.execute('''SELECT s.*,COALESCE(array_agg(m.class_id ORDER BY m.class_id)
+            FILTER (WHERE m.class_id IS NOT NULL),'{}') AS class_ids FROM students s
+            LEFT JOIN class_students m ON m.student_id=s.id GROUP BY s.id ORDER BY s.id''').fetchall())
 
 
 @app.post('/api/students')
@@ -239,9 +308,10 @@ def create_student():
 
 @app.post('/api/students/<int:student_id>/profile')
 def save_student_profile(student_id):
+    course_id = request.args.get('course_id', type=int)
     with db() as conn:
         update_profile(conn, student_id, request.get_json(silent=True))
-        result = get_profile(conn, student_id)
+        result = get_profile(conn, student_id, course_knowledge_ids(course_id) if course_id is not None else None)
     return jsonify(result)
 
 
@@ -266,9 +336,10 @@ def student_knowledge_states(student_id):
 
 @app.post('/api/students/<int:student_id>/evidence')
 def save_student_evidence(student_id):
+    course_id = request.args.get('course_id', type=int)
     with db() as conn:
         record_evidence(conn, student_id, request.get_json(silent=True))
-        result = get_profile(conn, student_id)
+        result = get_profile(conn, student_id, course_knowledge_ids(course_id) if course_id is not None else None)
     return jsonify(result), 201
 
 
@@ -454,9 +525,12 @@ register_packages(app, lambda: db())
 register_roster_import(app, lambda: db())
 QUIZZES = QuizQueue(lambda: db(), lambda prepared, attempted: call_qwen(prepared, attempted), GENERATION_LOCK)
 register_quizzes(app, lambda: db(), lambda: QUIZZES, topic_catalog, get_context, lambda: MODEL)
+KNOWLEDGE = KnowledgeQueue(lambda: db(), ROOT, lambda prepared, attempted: call_qwen(prepared, attempted),
+                           GENERATION_LOCK, lambda: MODEL)
+register_knowledge(app, lambda: db(), ROOT, lambda: KNOWLEDGE, topic_catalog)
 recover_evaluation = register_evaluation(
     app, lambda: db(), lambda: TASKS, get_context, lambda: MODEL,
-    lambda: not GENERATION_LOCK.locked() and QUIZZES.wait_idle(0)
+    lambda: not GENERATION_LOCK.locked() and QUIZZES.wait_idle(0) and KNOWLEDGE.wait_idle(0)
     and not app.extensions['grading_busy']())
 
 
@@ -500,17 +574,24 @@ def job_input(data):
     learner_note(data)
     validated_teaching_options(data)
     sid, topic = data.get('student_id'), data.get('topic')
+    class_id = data.get('class_id')
     goal, mode = data.get('goal', ''), data.get('personalization_mode', 'profile')
-    if type(sid) is not int or not isinstance(topic, str) or topic not in topic_catalog():
+    # Exactly one target: a student, or a whole class.
+    if class_id is not None:
+        if type(class_id) is not int or sid is not None:
+            raise JobError('请选择一个学生或一个班级作为讲义对象。')
+    elif type(sid) is not int:
+        raise JobError('请选择有效学生和主题。')
+    if not isinstance(topic, str) or topic not in topic_catalog():
         raise JobError('请选择有效学生和主题。')
     if not isinstance(goal, str) or len(goal.strip()) > 400:
         raise JobError('教学目标请控制在 400 字以内。')
-    if mode not in ('profile', 'none'):
+    if mode not in ('profile', 'none', 'class') or (mode == 'class' and class_id is None):
         raise JobError('请选择有画像或无画像模式。')
     retrieval_mode = data.get('retrieval_mode', 'sql')
     if retrieval_mode not in RETRIEVAL_MODES:
         raise JobError('请选择精确 SQL 或向量检索。')
-    return sid, topic, goal.strip() or topic_catalog()[topic]['goal'], mode, retrieval_mode
+    return sid, topic, goal.strip() or topic_catalog()[topic]['goal'], mode, retrieval_mode, class_id
 
 
 def pipeline_options(data):
@@ -525,11 +606,12 @@ def pipeline_options(data):
 
 def build_job(data):
     """Validate one submission and freeze its context and request."""
-    sid, topic, goal, mode, retrieval_mode = job_input(data)
+    sid, topic, goal, mode, retrieval_mode, class_id = job_input(data)
     pipeline = pipeline_options(data)
-    ctx = get_context(sid, topic, mode, retrieval_mode, goal, learner_note(data))
+    ctx = get_context(sid, topic, mode, retrieval_mode, goal, learner_note(data), class_id)
     if not ctx:
-        raise JobError('学生不存在，或不在这份备课副本的学生范围内。', 404)
+        raise JobError('班级不属于这份备课的课程，或班级还没有学生。' if class_id is not None else
+                       '学生不存在，或不在这份备课副本的学生范围内。', 404)
     evidence = selected_evidence(ROOT, data.get('visual_analysis_ids', []))
     if evidence:
         ctx['visual_evidence'] = evidence
@@ -564,7 +646,11 @@ def submit_batch():
     for sid in ids:
         try:
             # The per-topic plan is individual, so a batch always uses each student's default plan.
-            _, topic, goal, ctx, prepared = build_job({**data, 'student_id': sid, 'plan_overrides': None})
+            # A batch is always per student; a class target on the form means "each classmate".
+            each = {**{k: v for k, v in data.items() if k != 'class_id'}, 'student_id': sid, 'plan_overrides': None}
+            if each.get('personalization_mode') == 'class':
+                each['personalization_mode'] = 'profile'
+            _, topic, goal, ctx, prepared = build_job(each)
             job = TASKS.submit(sid, topic, goal, ctx, prepared, bulk=True)
             results.append(dict(student_id=sid, job_id=job['id'], run_id=job['run_id'], status=job['status']))
         except (JobError, LectureInputError, RetrievalError, EmbeddingError) as exc:
@@ -578,9 +664,10 @@ def job_status():
     if not re.fullmatch(r'[0-9a-f]{32}(,[0-9a-f]{32}){0,59}', raw):
         raise JobError('任务编号无效。')
     with db() as conn:
-        rows = conn.execute("""SELECT j.id,j.status,j.run_id,r.lecture_id,r.error_message,r.student_id,s.name,
-            r.elapsed_seconds FROM generation_jobs j JOIN generation_runs r ON r.id=j.run_id
-            JOIN students s ON s.id=r.student_id WHERE j.id=ANY(%s)""", (raw.split(','),)).fetchall()
+        rows = conn.execute("""SELECT j.id,j.status,j.run_id,r.lecture_id,r.error_message,r.student_id,r.class_id,
+            COALESCE(s.name,c.name||'（全班）') AS name,r.elapsed_seconds FROM generation_jobs j
+            JOIN generation_runs r ON r.id=j.run_id LEFT JOIN students s ON s.id=r.student_id
+            LEFT JOIN classes c ON c.id=r.class_id WHERE j.id=ANY(%s)""", (raw.split(','),)).fetchall()
     return jsonify(jobs=rows)
 
 
@@ -1032,5 +1119,6 @@ if __name__ == '__main__':
     recover_grading()
     TASKS.recover()
     QUIZZES.recover()
+    KNOWLEDGE.recover()
     recover_evaluation()
     app.run(host='127.0.0.1', port=int(os.environ.get('PORT','5055')), debug=False, threaded=True)

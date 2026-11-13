@@ -79,16 +79,23 @@ LECTURE_LIMIT = 20000
 
 def quiz_versions(context):
     """Versions are derived from the frozen context, so retries rebuild the same labels."""
-    suffix = '+json-v1' if context.get('json_mode') else ''
+    suffix = ('+json-v1' if context.get('json_mode') else '') + ('+class-v1' if context.get('personalization_mode') == 'class' else '')
     if context.get('lecture'):
         return 'quiz-v1+lecture-v1' + suffix, 'quiz-context-lecture-v1'
     return 'quiz-v1' + suffix, 'quiz-context-v1'
+
+
+CLASS_QUIZ = ('本次题组面向整个班级：context.states 的 state 是按全班已确认状态归纳的班级判断，distribution 为各状态人数，'
+              'recent_evidence 只是部分学生的证据样本。按分布安排题目的铺垫与干扰项，兼顾基础与拓展；'
+              '题干、答案和解析中不出现任何学生姓名或个人情况。')
 
 
 def prepare_quiz(context, options, model):
     system = (PROMPTS / 'quiz-v1.md').read_text(encoding='utf-8')
     if context.get('lecture'):
         system = system.rstrip() + '\n' + (PROMPTS / 'quiz-lecture-v1.md').read_text(encoding='utf-8').strip()
+    if context.get('personalization_mode') == 'class':
+        system = system.rstrip() + '\n' + CLASS_QUIZ
     payload = dict(model=model, temperature=0.4, max_tokens=16000,
                    chat_template_kwargs={'enable_thinking': False}, messages=[
         {'role': 'system', 'content': system},
@@ -126,10 +133,15 @@ def lecture_context(conn, data, topics):
     if key not in topics:
         raise QuizError('无法确定该讲义所属的备课副本，请从讲义所在课程重新出题。')
     frozen = lecture['context']
-    profiled = frozen.get('personalization_mode', 'profile') != 'none'
+    mode = frozen.get('personalization_mode', 'profile')
+    profiled = mode != 'none'
     ctx = dict(student=frozen['student'] if profiled else {'name': '通用练习', 'profile': '未提供学生画像。'},
                topic={**topics[key], **frozen['topic']}, states=frozen.get('states', []) if profiled else [],
-               materials=frozen.get('materials', []), personalization_mode='profile' if profiled else 'none')
+               materials=frozen.get('materials', []), personalization_mode=mode if profiled else 'none')
+    # A class lecture's quiz belongs to the same class; its aggregate profile travels with it.
+    for field in ('class_target', 'class_profile') if mode == 'class' else ('class_target',):
+        if field in frozen:
+            ctx[field] = frozen[field]
     ctx['lecture'] = dict(id=lecture_id, revision=number, content=content,
                           content_sha256=sha256(content.encode('utf-8')).hexdigest(),
                           status=STATUS_LABELS.get(version['status'], '原稿未审核'),
@@ -215,9 +227,10 @@ class QuizQueue:
                 raise QuizError('出题队列已满，请等待当前任务完成。', 429)
             job_id = uuid4().hex
             with self.db() as conn:
-                conn.execute('''INSERT INTO quiz_jobs(id,parent_id,topic_key,student_id,context,options,request_body,request_sha256)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s)''',
-                    (job_id, parent, topic, sid, Jsonb(context), Jsonb(options), prepared.body, prepared.sha256))
+                conn.execute('''INSERT INTO quiz_jobs(id,parent_id,topic_key,student_id,class_id,context,options,request_body,request_sha256)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
+                    (job_id, parent, topic, sid, (context.get('class_target') or {}).get('id'), Jsonb(context),
+                     Jsonb(options), prepared.body, prepared.sha256))
             self.pending.append((job_id, context, prepared))
             if self.thread is None:
                 self.thread = Thread(target=self._work, daemon=True, name='quiz-worker')
@@ -331,27 +344,38 @@ def register_quizzes(app, db, queue, catalog, context_builder, model):
             raise QuizError('请提交有效的出题设置。')
         if data.get('lecture_id') is not None:
             return lecture_quiz(data)
-        key, sid = data.get('topic'), data.get('student_id')
+        key, sid, class_id = data.get('topic'), data.get('student_id'), data.get('class_id')
         topics = catalog()
         if not isinstance(key, str) or key not in topics:
             raise QuizError('请选择有效的备课副本。')
         topic = topics[key]
         options = validate_options(data, topic['knowledge_ids'])
+        if class_id is not None and (type(class_id) is not int or sid is not None):
+            raise QuizError('请选择一个学生或一个班级作为出题依据。')
         if sid is not None and (type(sid) is not int or sid not in topic['student_ids']):
             raise QuizError('请选择可用于当前副本的学生。')
-        if options['student_level'] == 'profile' and sid is None:
-            raise QuizError('按学生画像出题时，请先选择学生。')
+        if options['student_level'] == 'profile' and sid is None and class_id is None:
+            raise QuizError('按学生画像出题时，请先选择学生或班级。')
         with db() as conn:
             points = conn.execute('SELECT id,name FROM knowledge_points WHERE id=ANY(%s)', (topic['knowledge_ids'],)).fetchall()
+            if class_id is not None and not conn.execute('SELECT 1 FROM classes WHERE id=%s AND course_id=%s',
+                                                         (class_id, topic.get('course_id'))).fetchone():
+                raise QuizError('所选班级不属于这份备课的课程。')
             if options['student_level'] != 'profile':
-                materials = conn.execute('SELECT * FROM materials WHERE knowledge_id=ANY(%s) ORDER BY id', (topic['knowledge_ids'],)).fetchall()
+                # Course-wide material, plus the chosen class's own material.
+                materials = [{k: v for k, v in m.items() if k != 'class_id' or v is not None} for m in conn.execute(
+                    'SELECT * FROM materials WHERE knowledge_id=ANY(%s) AND (class_id IS NULL OR class_id=%s) ORDER BY id',
+                    (topic['knowledge_ids'], class_id)).fetchall()]
         if options['student_level'] == 'profile':
-            ctx = context_builder(sid, key, 'profile')
+            ctx = (context_builder(None, key, 'class', class_id=class_id) if class_id is not None
+                   else context_builder(sid, key, 'profile'))
             if not ctx:
-                raise QuizError('无法读取学生档案，请刷新后重试。')
+                raise QuizError('班级还没有学生，无法按班级画像出题。' if class_id is not None else '无法读取学生档案，请刷新后重试。')
         else:
             ctx = dict(student={'name': '通用练习', 'profile': '未提供学生画像。'}, topic=topic,
                        states=[], materials=materials, personalization_mode='none')
+            if class_id is not None:
+                ctx['class_target'] = {'id': class_id}
         ctx['materials'] = [{**m, 'citation_id': f'M{m["id"]}'} for m in ctx['materials']]
         ctx['knowledge_names'] = {str(p['id']): p['name'] for p in points}
         ctx['question_plan'] = question_plan(options, ctx['states'])
@@ -369,11 +393,12 @@ def register_quizzes(app, db, queue, catalog, context_builder, model):
         if data.get('topic') not in (None, key):
             raise QuizError('讲义所属备课副本与所选副本不一致，请刷新后重试。')
         options = validate_options(data, ctx['topic']['knowledge_ids'])
-        if options['student_level'] == 'profile' and sid is None:
+        if options['student_level'] == 'profile' and ctx['personalization_mode'] == 'none':
             raise QuizError('这份讲义是无画像对照讲义，请选择通用学生水平出题。')
         if options['student_level'] != 'profile':
             # The lecture snapshot stays as teaching background; individual diagnostics do not.
-            ctx = {**ctx, 'student': {'name': '通用练习', 'profile': '未提供学生画像。'}, 'states': [],
+            ctx = {**{k: v for k, v in ctx.items() if k != 'class_profile'},
+                   'student': {'name': '通用练习', 'profile': '未提供学生画像。'}, 'states': [],
                    'personalization_mode': 'none', 'lecture': {**ctx['lecture'], 'personalization_plan': []}}
         ctx['materials'] = [{**m, 'citation_id': f'M{m["id"]}'} for m in ctx['materials']]
         ctx['knowledge_names'] = {str(p['id']): p['name'] for p in points}

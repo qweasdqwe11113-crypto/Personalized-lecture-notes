@@ -42,9 +42,9 @@ flowchart TD
 | 讲义工作台 `#workbench` | `app.js`、`jobs.js`、`live.js`、`batch.js`、`teaching.js`、`lecture-workflow.js`、`lesson-settings.js`、`vision.js` | `/api/bootstrap`、`/api/context`、`/api/jobs`、`/api/jobs/batch`、`/api/job-status`、`/api/jobs/<id>/stream`、`/api/figures/render` |
 | 出题 `#quizzes` | `quizzes.js` | `/api/quizzes`（`lecture_id` 为配套出题） |
 | 阅卷 `#grading` | `grading.js`、`grading-evidence.js` | `/api/grading`、`/api/grading/<id>/evidence-drafts` |
-| 学生画像 `#profiles`、`#profiles/new`、`#profiles/import`、`#profiles/<id>` | `student-roster.js`、`profiles.js`、`roster-import.js` | `/api/students*`、`/api/students/import*` |
-| 课程材料 `#materials`、`#materials/<key>` | `course-manager.js` | `/api/course-tasks*` |
-| 上传资料 `#uploads` | `uploads.js`、`vision.js` | `/api/uploads*`、`/api/vision/*` |
+| 顶部课程 / 班级切换（全部页面） | `context.js` | `/api/courses` |
+| 课程 `#courses`（全部课程）、`#materials`（备课）、`#materials/resources`（课程资料）、`#materials/knowledge`（知识点库）、`#materials/classes`（班级）、`#materials/<key>`（备课详情） | `course-page.js`、`course-manager.js`、`knowledge.js`、`uploads.js`、`vision.js` | `/api/courses*`（含 `/api/courses/<id>/knowledge`）、`/api/knowledge/*`、`/api/course-tasks*`、`/api/uploads*`、`/api/vision/*` |
+| 班级与画像 `#profiles`（班级画像）、`#profiles/students`、`#profiles/resources`（班级资料）、`#profiles/new`、`#profiles/import`、`#profiles/<id>` | `class-page.js`、`student-roster.js`、`profiles.js`、`roster-import.js`、`uploads.js` | `/api/classes*`、`/api/students*`、`/api/students/import*` |
 | 生成记录 `#records/...` | `jobs.js`、`traces.js`、`evaluation.js` | `/api/generation-runs*`、`/api/lecture-experiments*` |
 | 系统设置 `#settings` | `model-settings.js` | `/api/health`、`/api/model-settings*` |
 
@@ -60,7 +60,7 @@ flowchart TD
 | `presentations.js` | `presentations.py` | 生成课件、预览、单页微调 |
 | `packages.js` | `packages.py` | 导出授课包，显示已有练习与课件数量 |
 
-前端约定：`app.js` 定义 `$`、`api`、`el` 和共享状态（`lastResult`、`busy`、`topics` 等），后加载的脚本直接使用。跨模块通过事件同步：`lecture-version-changed`（讲义或忙碌状态变化）、`workspace-context`（课程上下文变化）、`grading-record-shown`（阅卷记录显示）。修改 DOM ID、脚本顺序或共享函数时，要同时检查依赖它的页面。`usability.css` 之后依次加载 `rich.css`（公式、表格、图、实时预览、批量窗口）和 `motion.css`（动效，最后加载）。`app.js` 里的 `renderMarkdown` 负责公式（KaTeX，位于 `static/vendor/katex/`）、表格和图占位，所有讲义预览共用。`pwa.js`、`sw.js`、`manifest.webmanifest` 提供可安装外壳，`/api/` 不缓存。
+前端约定：`app.js` 定义 `$`、`api`、`el` 和共享状态（`lastResult`、`busy`、`topics` 等），后加载的脚本直接使用。`context.js` 提供 `window.workspaceScope`（当前课程、班级、`classOf()`、`refresh()`、`ready`），选择记在浏览器 `localStorage`。跨模块通过事件同步：`scope-changed`（课程或班级切换，`detail` 为来源；`refresh` 表示只是数据刷新）、`lecture-version-changed`（讲义或忙碌状态变化）、`workspace-context`（备课目录变化）、`grading-record-shown`（阅卷记录显示）。讲义对象为 `#student` 的值：学生编号或 `class:<班级编号>`，由 `window.lectureTarget()` 转成请求字段。资料区 `#resource-workspace` 只有一份，`uploads.js` 按路由移入课程或班级的资料标签。修改 DOM ID、脚本顺序或共享函数时，要同时检查依赖它的页面。`usability.css` 之后依次加载 `rich.css`（公式、表格、图、实时预览、批量窗口）和 `motion.css`（动效，最后加载）。`app.js` 里的 `renderMarkdown` 负责公式（KaTeX，位于 `static/vendor/katex/`）、表格和图占位，所有讲义预览共用。`pwa.js`、`sw.js`、`manifest.webmanifest` 提供可安装外壳，`/api/` 不缓存。
 
 ## 3. 后端模块
 
@@ -68,8 +68,10 @@ flowchart TD
 
 | 模块 | 职责 |
 | --- | --- |
-| `courses.py` | 预置课程任务与课程类别判断 |
-| `catalog.py` | 合并预置与自建备课副本；复制副本；把上传资料收录为知识点材料 |
+| `courses.py` | 预置课程任务、预置课程与演示班级（`PRESET_COURSES`）、课程类别判断 |
+| `classes.py` | 课程 → 班级 → 学生：课程与班级增改、选课（一门课程每名学生只在一个班）、班级画像汇总（`class_state` 规则）、班级讲义上下文、一次性迁移 `ensure_course_structure` |
+| `catalog.py` | 合并预置与自建备课（每份属于一门课程，`course_id`）；课程备课从知识点库勾选（`knowledge_ids`），新名称加入知识点库；复制；把课程或班级资料收录为知识点材料（班级资料带 `class_id`） |
+| `knowledge.py` | 课程知识点库与知识点识别：按页或标题切片、去页眉页脚、找编号标题（规则），模型细分（`prompts/knowledge-recognition-v1.md`），草稿 `knowledge_drafts`，教师确认后写入知识点与资料片段；后台队列 `KnowledgeQueue` 与其他模型调用共用并发闸门 |
 | `profiles.py` | 学习证据、掌握状态、修改历史与画像对照；证据写入须教师确认 |
 | `roster_import.py` | 学生名单与学习证据 CSV 的预览、指纹校验和整批事务导入 |
 | `uploads.py`、`assets.py`、`vision.py` | 文件与网址导入、正文与图片提取、图片规范化与指纹、视觉模型识读 |
@@ -180,8 +182,10 @@ flowchart TD
     F["本地文件 / 公开网址"] --> U["uploads.py"]
     U --> TXT["正文：存入上传库"]
     U --> IMG["图片：assets 与 vision 提取保存"]
+    TXT --> KN["knowledge.py<br/>识别知识点 → 教师确认"]
+    KN --> MT[("materials 表")]
     TXT --> C["catalog.py<br/>收录到知识点"]
-    C --> MT[("materials 表")]
+    C --> MT
     MT --> SQL["精确 SQL 取材"]
     MT --> IDX["retrieval 与 embed<br/>分块索引"]
     IDX --> VS["向量检索"]
@@ -192,7 +196,7 @@ flowchart TD
     SEL --> CTX
 ```
 
-上传不等于进入课程，需显式收录（材料来源记为 `upload:<id>`）。引用编号：`[M编号]` 课程材料，`[V编号]` 图片解析，`[K编号]` 只用于定位本次讲解安排。
+上传不等于进入课程：识别出的知识点经教师确认后，片段以 `upload:<id>#p起-止`（PDF 页）或 `#s起-止`（文本段）写入 `materials`；也可整份显式收录（来源记为 `upload:<id>`）。课程备课勾选知识点库中的知识点，材料按知识点取用，所以同一知识点的片段服务于所有勾选它的备课。上传记录带 `course_id` / `class_id`：课程资料全班共用，班级资料收录后 `materials.class_id` 有值，`retrieval.SCOPE` 和 `scoped_materials` 只在为该班或班内学生生成时取用。引用编号：`[M编号]` 课程材料，`[V编号]` 图片解析，`[K编号]` 只用于定位本次讲解安排。
 
 ## 5. 任务队列与锁
 
@@ -213,9 +217,10 @@ flowchart TD
 | 表 | 用途 |
 | --- | --- |
 | `students`、`knowledge_points`、`course_tasks`、`knowledge_aliases` | 学生、知识点、自建备课副本、副本诊断身份映射 |
+| `courses`、`classes`、`class_students`、`class_profile_history`、`schema_migrations` | 课程、班级与班级特点、选课（`UNIQUE(course_id, student_id)`）、班级特点修改历史、一次性迁移记录 |
 | `student_knowledge`、`learning_evidence`、`knowledge_state_history`、`student_profile_history` | 当前掌握状态、证据与历史 |
 | `materials`、`material_chunks` | 课程材料与向量分块 |
-| `lectures`、`lecture_revisions`、`lecture_issues` | 讲义原稿、修订与问题 |
+| `lectures`、`lecture_revisions`、`lecture_issues` | 讲义原稿、修订与问题；班级讲义 `student_id` 为空、`class_id` 有值（`generation_runs`、`quiz_jobs` 同理） |
 | `generation_runs`、`generation_jobs` | 冻结输入、运行结果、排队状态（讲义、章节、PPT 共用） |
 | `quiz_jobs` | 题组任务、冻结输入与结果 |
 | `lecture_experiments`、`lecture_experiment_cells` | 当前版本固定对照 |
@@ -237,7 +242,9 @@ flowchart TD
 | 页面或导航 | `index.html`、`navigation.js`、对应 JS/CSS | DOM ID、脚本顺序、共享事件、窄屏布局 |
 | 备课副本 | `catalog.py`、`course-manager.js` | 知识点身份与别名、材料关联、复制 |
 | 学生画像 | `profiles.py`、`roster_import.py` | 证据确认路径、版本冲突、历史快照 |
+| 课程与班级 | `classes.py`、`context.js`、`course-page.js`、`class-page.js` | 一门课一个班的约束、班级讲义的匿名上下文、班级资料范围、`scope-changed` 监听者、`test_classes.py` |
 | 上传与识图 | `uploads.py`、`assets.py`、`vision.py` | SQLite 结构、收录接口、图片指纹 |
+| 知识点库与识别 | `knowledge.py`、`knowledge.js`、`course-manager.js` 的勾选列表 | 草稿版本（`version`）与确认、同名合并、`renumber` 的章节排序、来源片段格式 `#p起-止`（`sourceHref` 据此跳页）、`test_knowledge.py` |
 | 检索 | `retrieval.py`、`embed.py`、`app.get_context()` | 索引更新、知识点范围、检索快照、无画像模式 |
 | 讲义结构与篇幅 | `lecture_policy.py`、`teaching.py`、`prompts.py` | `quality.py`、字符预算、历史版本 |
 | 队列与重试 | `jobs.py`、`runs.py`、`gate.py`、`jobs.js` | 取消、并发额度的获取与释放、失败状态、重启恢复 |

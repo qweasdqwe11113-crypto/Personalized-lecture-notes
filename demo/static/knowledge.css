@@ -1,0 +1,93 @@
+/* Course knowledge library, recognition status of uploads, the review dialog and the lesson picker. */
+.knowledge-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.knowledge-badge::before { content: ""; inline-size: 7px; block-size: 7px; border-radius: 50%; background: #c3cad6; }
+.knowledge-badge.running::before { background: var(--accent); animation: knowledge-pulse 1.2s ease-in-out infinite; }
+.knowledge-badge.ready { color: var(--warning, #8a5b15); }
+.knowledge-badge.ready::before { background: #d9822b; }
+.knowledge-badge.done { color: var(--success, #237653); }
+.knowledge-badge.done::before { background: #2f8a5f; }
+.knowledge-badge.failed { color: var(--danger, #b23e38); }
+.knowledge-badge.failed::before { background: var(--danger, #b23e38); }
+@keyframes knowledge-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .knowledge-badge.running::before { animation: none; } }
+
+/* One line under each upload. */
+.upload-row-info .upload-knowledge { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-block-start: 8px; }
+.upload-knowledge button { padding: 3px 10px; font-size: 12px; }
+.upload-knowledge .primary { inline-size: auto; margin: 0; display: inline-flex; border-radius: 6px; }
+
+/* Library tab. */
+.knowledge-drafts { display: grid; gap: 8px; margin-block-end: 12px; }
+.knowledge-draft { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px;
+  padding: 10px 14px; border: 1px solid #f1d9b5; border-radius: 10px; background: var(--warning-soft, #fff8e8); font-size: 13px; }
+.knowledge-draft .primary { inline-size: auto; margin: 0; padding: 6px 14px; font-size: 13px; }
+.knowledge-groups { display: grid; gap: 10px; }
+.knowledge-chapter { border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.knowledge-chapter > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; cursor: pointer; font-size: 14px; }
+.knowledge-chapter[open] > summary { border-block-end: 1px solid var(--line); }
+.knowledge-point { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 14px; }
+.knowledge-point + .knowledge-point { border-block-start: 1px solid #eef1f6; }
+.knowledge-point.is-archived { opacity: .75; }
+.knowledge-point-main { min-inline-size: 0; flex: 1; }
+.knowledge-point-main strong { font-size: 14px; font-weight: 600; }
+.knowledge-point-main .helper { margin: 2px 0 0; }
+.knowledge-point-meta { margin: 4px 0 0; font-size: 12px; color: #8b96a8; }
+.knowledge-sources { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-block-start: 4px; }
+.knowledge-source { font-size: 12px; color: #4268ba; text-decoration: none; overflow-wrap: anywhere; }
+.knowledge-source:hover { text-decoration: underline; }
+.knowledge-point-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.knowledge-point-edit { flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 8px 12px; align-items: end; }
+.knowledge-point-edit label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.knowledge-point-edit .trace-actions { display: flex; gap: 8px; }
+.knowledge-point-edit .primary { inline-size: auto; margin: 0; }
+.knowledge-archived { margin-block-start: 14px; }
+.knowledge-archived summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+
+/* Review dialog. */
+dialog.lesson-settings-dialog.knowledge-dialog { width: min(920px, calc(100vw - 32px)); inline-size: min(920px, calc(100vw - 32px)); }
+.knowledge-dialog[open] { display: flex; flex-direction: column; }
+.knowledge-dialog .dialog-body { flex: 1 1 auto; }
+.knowledge-items { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 8px; }
+.knowledge-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fbfcff; }
+.knowledge-item-head { display: flex; align-items: center; gap: 8px; min-inline-size: 0; }
+.knowledge-item-head input { flex: 1; min-inline-size: 0; font-weight: 600; padding: 5px 8px; }
+.knowledge-item > input { grid-column: 1 / -1; margin-inline-start: 30px; inline-size: calc(100% - 30px); padding: 4px 8px; font-size: 12px; color: #56647a; border-color: transparent; background: transparent; }
+.knowledge-item > input:hover, .knowledge-item > input:focus { border-color: #dbe1eb; background: #fff; }
+.knowledge-index { flex: 0 0 auto; min-inline-size: 22px; font-size: 12px; color: var(--muted); text-align: end; font-variant-numeric: tabular-nums; }
+.knowledge-item-tail { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.knowledge-item-tail button { padding: 3px 10px; font-size: 12px; }
+.knowledge-range { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--muted); margin-inline-end: 4px; }
+.knowledge-range input { inline-size: 4.2em; padding: 3px 6px; font-variant-numeric: tabular-nums; }
+.knowledge-dialog .trace-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Lesson editor picker. */
+.knowledge-picker { margin: 18px 0 0; padding: 12px 14px 14px; border: 1px solid var(--line); border-radius: 10px; }
+.knowledge-picker legend { padding: 0 6px; font-size: 14px; font-weight: 600; }
+.knowledge-picker legend .helper { font-weight: 400; margin-inline-start: 6px; }
+.knowledge-picker > .helper { margin: 0 0 8px; }
+.knowledge-picker input[type=search] { inline-size: 100%; margin-block-end: 8px; }
+.knowledge-picker-groups { display: grid; gap: 6px; max-block-size: 26rem; overflow: auto; }
+.knowledge-picker-group { border: 1px solid #eef1f6; border-radius: 8px; padding: 0 10px; }
+.knowledge-picker-group > summary { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; cursor: pointer; font-size: 13px; font-weight: 600; }
+.knowledge-pick { display: flex; align-items: center; gap: 8px; padding: 4px 0 4px 4px; font-size: 14px; cursor: pointer; }
+.knowledge-pick input { inline-size: 16px; block-size: 16px; margin: 0; flex: 0 0 auto; }
+.knowledge-picker-group[open] { padding-block-end: 6px; }
+
+@media (max-width: 760px) {
+  .knowledge-point { flex-direction: column; }
+  .knowledge-item { grid-template-columns: 1fr; }
+  .knowledge-range { margin-inline-end: auto; }
+}
+
+/* Review rows: name, range and actions on one line, the summary beneath (ID scope beats form defaults). */
+#knowledge-dialog-items input { margin: 0; min-block-size: 0; }
+#knowledge-dialog-items .knowledge-item-head input { padding: 5px 8px; }
+#knowledge-dialog-items .knowledge-item > input { grid-row: 2; padding: 3px 8px; }
+#knowledge-dialog-items .knowledge-range input { inline-size: 4.4em; padding: 3px 6px; }
+#knowledge-dialog-items .knowledge-item-tail { grid-column: 2; grid-row: 1; flex-wrap: nowrap; }
+@media (max-width: 760px) { #knowledge-dialog-items .knowledge-item-tail { grid-column: 1; grid-row: 3; flex-wrap: wrap; } }
+/* Picker rows sit inside the lesson form; scope them above the form's label defaults. */
+#course-knowledge-groups .knowledge-pick { display: flex; align-items: center; gap: 8px; margin: 0; padding: 5px 0 5px 4px; font-weight: 400; line-height: 1.5; }
+#course-knowledge-groups .knowledge-pick:hover span { color: var(--accent); }
+#course-knowledge-groups .knowledge-pick input:disabled + span { color: #9aa5b5; }

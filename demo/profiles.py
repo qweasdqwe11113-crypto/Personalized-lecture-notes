@@ -12,6 +12,13 @@ STRATEGIES = {
     'mastered': '压缩基础复述；围绕本次目标给出一个迁移或条件变化的例子。',
     'unknown': '不判断为薄弱；先提供适中解释，并明确暂无充分诊断依据。'
 }
+# Class lectures: the same four judgements, phrased for a mixed room rather than one learner.
+CLASS_STRATEGIES = {
+    'needs_support': '面向全班先补基础：用小例子逐步说明每一步的依据，再为已掌握的同学准备一道变式拓展。',
+    'partial': '分层讲解：简要回顾后集中讲清班上常见错误，给出基础与变式两档练习。',
+    'mastered': '压缩基础复述，围绕本次目标给出迁移或条件变化的例子；为少数未掌握的同学保留简短回顾。',
+    'unknown': '班级暂无足够诊断，不判断为薄弱；提供适中解释，并安排课堂检查题收集证据。'
+}
 SOURCE_LABELS = {'initial_snapshot': '原有画像留存', 'homework': '作业',
                  'quiz': '测验', 'observation': '课堂观察', 'teacher_review': '教师复核'}
 
@@ -56,6 +63,8 @@ def compare_lecture_profile(conn, lecture):
     """
     context = lecture['context']
     mode = context.get('personalization_mode', 'profile')
+    if lecture.get('student_id') is None:
+        raise ProfileError('这是面向全班的讲义，依据的是班级画像；请在「班级」页查看当前班级画像。', 400)
     historical_student = context.get('student') if mode == 'profile' else None
     historical_states = context.get('states', []) if mode == 'profile' else []
     previous = {s['id']: s for s in historical_states}
@@ -144,20 +153,27 @@ def retain_initial_evidence(conn):
                 (evidence['id'], row['student_id'], row['knowledge_id']))
 
 
-def get_profile(conn, student_id):
+def get_profile(conn, student_id, knowledge_ids=None):
+    """One student's record; with knowledge_ids, only those points (copy aliases resolved)."""
     student = conn.execute('SELECT * FROM students WHERE id=%s', (student_id,)).fetchone()
     if not student:
         raise ProfileError('学生不存在。', 404)
-    states = conn.execute('''SELECT k.id,k.name,COALESCE(s.state,'unknown') AS state,
+    states = conn.execute('''SELECT k.id,k.name,k.chapter,COALESCE(s.state,'unknown') AS state,
         COALESCE(s.evidence,'没有诊断记录。') AS evidence, COALESCE(s.revision,0) AS revision,
         s.evidence_id,s.updated_at FROM knowledge_points k LEFT JOIN student_knowledge s
         ON s.knowledge_id=k.id AND s.student_id=%s
-        WHERE NOT EXISTS (SELECT 1 FROM knowledge_aliases a WHERE a.knowledge_id=k.id) ORDER BY k.id''', (student_id,)).fetchall()
+        WHERE NOT EXISTS (SELECT 1 FROM knowledge_aliases a WHERE a.knowledge_id=k.id)
+        AND (%s::integer[] IS NULL OR k.id IN (SELECT COALESCE(a.canonical_id,p.id) FROM knowledge_points p
+             LEFT JOIN knowledge_aliases a ON a.knowledge_id=p.id WHERE p.id=ANY(%s)))
+        ORDER BY k.course_id NULLS FIRST,k.position,k.id''', (student_id, knowledge_ids, knowledge_ids)).fetchall()
+    classes = conn.execute('''SELECT m.class_id,c.name AS class_name,m.course_id,co.name AS course_name
+        FROM class_students m JOIN classes c ON c.id=m.class_id JOIN courses co ON co.id=m.course_id
+        WHERE m.student_id=%s ORDER BY m.course_id''', (student_id,)).fetchall()
     edits = conn.execute('''SELECT * FROM student_profile_history
         WHERE student_id=%s ORDER BY id DESC LIMIT 20''', (student_id,)).fetchall()
     count = conn.execute('SELECT count(*) AS n FROM learning_evidence WHERE student_id=%s',
                          (student_id,)).fetchone()['n']
-    return {'student': student, 'states': decorate_states(states),
+    return {'student': student, 'states': decorate_states(states), 'classes': classes,
             'evidence_history': evidence_history(conn, student_id),
             'evidence_count': count, 'profile_history': [json_dates(row) for row in edits],
             'source_labels': SOURCE_LABELS, 'state_labels': STATE_LABELS}
