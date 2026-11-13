@@ -90,6 +90,24 @@ class EditionTests(ProfileDatabaseFixture):
         with patch.object(module, 'release', return_value=True):
             self.assertTrue(self.client.get('/api/onboarding').get_json()['tour']['auto'])
 
+    def test_course_and_class_choice_is_kept_by_the_server(self):
+        self.assertEqual(self.client.get('/api/workspace-scope').get_json(), {'scope': None})
+        choice = {'course': 2, 'classes': {'1': 11, '2': None}}
+        saved = self.client.put('/api/workspace-scope', json=choice)
+        self.assertEqual(saved.status_code, 200, saved.get_json())
+        self.assertEqual(self.client.get('/api/workspace-scope').get_json(), {'scope': choice})
+        # The latest choice replaces the earlier one; a cleared course is allowed.
+        self.client.put('/api/workspace-scope', json={'course': None, 'classes': {}})
+        self.assertEqual(self.client.get('/api/workspace-scope').get_json(), {'scope': {'course': None, 'classes': {}}})
+        for body in ([], {'course': '2', 'classes': {}}, {'course': 0, 'classes': {}}, {'course': True, 'classes': {}},
+                     {'course': 1, 'classes': []}, {'course': 1, 'classes': {'x': 1}}, {'course': 1, 'classes': {'01': 1}},
+                     {'course': 1, 'classes': {'1': -3}}, {'course': 1, 'classes': {'1': 1.5}},
+                     {'course': 1, 'classes': {str(i): i for i in range(1, 502)}}):
+            self.assertEqual(self.client.put('/api/workspace-scope', json=body).status_code, 400, body)
+        refused = self.client.put('/api/workspace-scope', json=choice, headers={'Origin': 'https://external.invalid'})
+        self.assertEqual(refused.status_code, 403)
+        self.assertEqual(self.client.get('/api/workspace-scope').get_json()['scope']['course'], None)
+
     def test_data_folder_follows_the_environment(self):
         with patch.dict(os.environ, {'ZHIYE_DATA_DIR': '/tmp/知页 数据'}):
             self.assertEqual(edition.data_dir(), Path('/tmp/知页 数据'))

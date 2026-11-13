@@ -31,7 +31,7 @@ flowchart TD
 | 入口 | 说明 |
 | --- | --- |
 | `run_demo.sh` | 检查依赖与 `.env`，运行 `demo/init_db.py`，再启动 `demo/app.py`（默认 127.0.0.1:5055） |
-| `demo/app.py` | 讲义上下文与生成、导出、学生接口；创建共享任务队列与生成锁，注册其余模块的路由 |
+| `demo/app.py` | 讲义上下文与生成、导出、学生接口；创建共享任务队列与生成锁，注册其余模块的路由；所有请求先检查 Host 是本机名字（防 DNS 重绑定），写请求再检查 Origin 与大小 |
 | `demo/schema.sql`、`demo/init_db.py` | 表结构与增量初始化；种子数据在 `seed.json`、`university_seed.json` |
 | `demo/tests/` | 单元与集成测试；`serve_*_fixture.py` 为固定响应的离线沙盒（5056 端口） |
 
@@ -62,7 +62,7 @@ flowchart TD
 | `presentations.js` | `presentations.py` | 生成课件、预览、单页微调 |
 | `packages.js` | `packages.py` | 导出授课包，显示已有练习与课件数量 |
 
-前端约定：`app.js` 定义 `$`、`api`、`el` 和共享状态（`lastResult`、`busy`、`topics` 等），后加载的脚本直接使用。`context.js` 提供 `window.workspaceScope`（当前课程、班级、`classOf()`、`refresh()`、`ready`），选择记在浏览器 `localStorage`。跨模块通过事件同步：`scope-changed`（课程或班级切换，`detail` 为来源；`refresh` 表示只是数据刷新）、`lecture-version-changed`（讲义或忙碌状态变化）、`workspace-context`（备课目录变化）、`grading-record-shown`（阅卷记录显示）。讲义对象为 `#student` 的值：学生编号或 `class:<班级编号>`，由 `window.lectureTarget()` 转成请求字段。资料区 `#resource-workspace` 只有一份，`uploads.js` 按路由移入课程或班级的资料标签。修改 DOM ID、脚本顺序或共享函数时，要同时检查依赖它的页面。`usability.css` 之后依次加载 `rich.css`（公式、表格、图、实时预览、批量窗口）和 `motion.css`（动效，最后加载）。`app.js` 里的 `renderMarkdown` 负责公式（KaTeX，位于 `static/vendor/katex/`）、表格和图占位，所有讲义预览共用。`pwa.js`、`sw.js`、`manifest.webmanifest` 提供可安装外壳，`/api/` 不缓存。
+前端约定：`app.js` 定义 `$`、`api`、`el` 和共享状态（`lastResult`、`busy`、`topics` 等），后加载的脚本直接使用。`context.js` 提供 `window.workspaceScope`（当前课程、班级、`classOf()`、`refresh()`、`ready`），选择存在服务端（`GET`/`PUT /api/workspace-scope`，`workspace_settings` 表的 `workspace_scope`），浏览器 `localStorage` 只作后备，并把旧版本记下的选择迁到服务端一次。跨模块通过事件同步：`scope-changed`（课程或班级切换，`detail` 为来源；`refresh` 表示只是数据刷新）、`lecture-version-changed`（讲义或忙碌状态变化）、`workspace-context`（备课目录变化）、`grading-record-shown`（阅卷记录显示）。讲义对象为 `#student` 的值：学生编号或 `class:<班级编号>`，由 `window.lectureTarget()` 转成请求字段。资料区 `#resource-workspace` 只有一份，`uploads.js` 按路由移入课程或班级的资料标签。修改 DOM ID、脚本顺序或共享函数时，要同时检查依赖它的页面。`usability.css` 之后依次加载 `rich.css`（公式、表格、图、实时预览、批量窗口）和 `motion.css`（动效，最后加载）。`app.js` 里的 `renderMarkdown` 负责公式（KaTeX，位于 `static/vendor/katex/`）、表格和图占位，所有讲义预览共用。`pwa.js`、`sw.js`、`manifest.webmanifest` 提供可安装外壳，`/api/` 不缓存。
 
 ## 3. 后端模块
 
@@ -221,7 +221,7 @@ flowchart TD
 | --- | --- |
 | `students`、`knowledge_points`、`course_tasks`、`knowledge_aliases` | 学生、知识点、自建备课副本、副本诊断身份映射 |
 | `courses`、`classes`、`class_students`、`class_profile_history`、`schema_migrations` | 课程、班级与班级特点、选课（`UNIQUE(course_id, student_id)`）、班级特点修改历史、一次性迁移记录 |
-| `workspace_settings` | 整个工作空间的小设置（键值，`jsonb`），目前只有 `workspace_tour`：新手引导看完或跳过的记录 |
+| `workspace_settings` | 整个工作空间的小设置（键值，`jsonb`）：`workspace_tour` 新手引导看完或跳过的记录；`workspace_scope` 顶部选中的课程和每门课最近选的班级 |
 | `student_knowledge`、`learning_evidence`、`knowledge_state_history`、`student_profile_history` | 当前掌握状态、证据与历史 |
 | `materials`、`material_chunks` | 课程材料与向量分块 |
 | `lectures`、`lecture_revisions`、`lecture_issues` | 讲义原稿、修订与问题；班级讲义 `student_id` 为空、`class_id` 有值（`generation_runs`、`quiz_jobs` 同理） |

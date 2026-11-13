@@ -304,7 +304,54 @@ async function tourCardPlacement() {
   assert.deepEqual({...place(null, card, view)}, {side: 'center', left: 460, top: 300});
 }
 
-const cases = {tourCardPlacement, knowledgeReviewMergesAndConfirms, studentEditKeepsItsBaseRevision, classTargetFollowsScope, richMarkdown, submissionCarriesPipelineChoices, markdownOrder, markdownFenceContent, automaticLengthRemainsOptional, imagePreviewOrder, uploadPreviewOrder, refreshingImagesKeepsLiveSelection, acceptedJobSurvivesHistoryFailure, backgroundCompletionPreservesPage};
+async function scopeChoiceKeptByServer() {
+  const listing = {unassigned_students: 0, courses: [
+    {id: 1, name: '高等数学', stage: '大学', lesson_keys: [], classes: [{id: 11, name: '一班', student_ids: [1]}]},
+    {id: 2, name: '线性代数', stage: '大学', lesson_keys: [], classes: [{id: 21, name: '甲班', student_ids: []}, {id: 22, name: '乙班', student_ids: [2]}]},
+  ]};
+  const start = (stored, browser) => {
+    const puts = [];
+    const e = environment(async (url, options = {}) => {
+      if (url === '/api/courses') return listing;
+      if (url === '/api/workspace-scope' && options.method === 'PUT') { puts.push(JSON.parse(options.body)); return {scope: JSON.parse(options.body)}; }
+      if (url === '/api/workspace-scope') { if (stored instanceof Error) throw stored; return {scope: stored}; }
+      throw new Error('unexpected ' + url);
+    });
+    const saved = {'zhiye.scope': browser && JSON.stringify(browser)};
+    e.context.CustomEvent = CustomEvent;
+    e.context.localStorage = {getItem: key => saved[key] ?? null, setItem: (key, value) => { saved[key] = value; }};
+    e.load('context.js');
+    return {e, puts, saved, scope: e.context.workspaceScope};
+  };
+
+  // The server's choice wins over this browser's (a new port starts with empty storage anyway).
+  let t = start({course: 2, classes: {'1': 11, '2': 22, '9': 90}}, {course: 1, classes: {'1': 11}});
+  await t.scope.ready; await flush();
+  assert.equal(t.scope.courseId(), 2);
+  assert.equal(t.scope.classId(), 22);
+  assert.equal(t.puts.length, 1, 'only to drop the course that no longer exists');
+  assert.deepEqual(t.puts[0], {course: 2, classes: {'1': 11, '2': 22}});
+  t.e.$('ctx-class').value = '21'; t.e.$('ctx-class').onchange(); await flush();
+  t.e.$('ctx-course').value = '1'; t.e.$('ctx-course').onchange(); await flush();
+  assert.equal(t.scope.classId(), 11, 'each course keeps its own class');
+  assert.deepEqual(t.puts.slice(1), [{course: 2, classes: {'1': 11, '2': 21}}, {course: 1, classes: {'1': 11, '2': 21}}]);
+  t.e.$('ctx-course').value = '2'; t.e.$('ctx-course').onchange(); await flush();
+  assert.equal(t.scope.classId(), 21, 'coming back finds the class chosen before');
+  assert.equal(JSON.parse(t.saved['zhiye.scope']).course, 2, 'the browser keeps a copy as a fallback');
+
+  // Nothing on the server yet: the choice this browser made before moves to the server once.
+  t = start(null, {course: 1, classes: {'1': 11}});
+  await t.scope.ready; await flush();
+  assert.deepEqual([t.scope.courseId(), t.scope.classId()], [1, 11]);
+  assert.deepEqual(t.puts, [{course: 1, classes: {'1': 11}}]);
+
+  // The server cannot answer: the page still works from this browser's copy.
+  t = start(new Error('数据库暂不可用。'), {course: 2, classes: {'2': 22}});
+  await t.scope.ready; await flush();
+  assert.deepEqual([t.scope.courseId(), t.scope.classId()], [2, 22]);
+}
+
+const cases = {scopeChoiceKeptByServer, tourCardPlacement, knowledgeReviewMergesAndConfirms, studentEditKeepsItsBaseRevision, classTargetFollowsScope, richMarkdown, submissionCarriesPipelineChoices, markdownOrder, markdownFenceContent, automaticLengthRemainsOptional, imagePreviewOrder, uploadPreviewOrder, refreshingImagesKeepsLiveSelection, acceptedJobSurvivesHistoryFailure, backgroundCompletionPreservesPage};
 (async () => {
   const name = process.argv[2]; assert.ok(cases[name], 'choose a regression case');
   await cases[name](); console.log(name + ': OK');
