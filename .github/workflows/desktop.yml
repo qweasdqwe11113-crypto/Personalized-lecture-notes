@@ -90,6 +90,7 @@ jobs:
           path: |
             desktop/dist/${{ matrix.flavor }}/*.AppImage
             desktop/dist/${{ matrix.flavor }}/*.tar.gz
+            desktop/dist/${{ matrix.flavor }}/*.deb
             desktop/dist/${{ matrix.flavor }}/*.exe
           if-no-files-found: error
           retention-days: 14
@@ -117,12 +118,13 @@ jobs:
 
           | | Windows | Linux |
           |---|---|---|
-          | **知页**（正式版，空白工作空间） | \`zhiye-${GITHUB_REF_NAME#v}-win-x64.exe\` | \`zhiye-${GITHUB_REF_NAME#v}-linux-x86_64.AppImage\` 或 \`.tar.gz\` |
-          | **知页测试版**（带演示课程，可与正式版并存） | \`zhiye-test-${GITHUB_REF_NAME#v}-win-x64.exe\` | \`zhiye-test-${GITHUB_REF_NAME#v}-linux-x86_64.AppImage\` 或 \`.tar.gz\` |
+          | **知页**（正式版，空白工作空间） | \`zhiye-${GITHUB_REF_NAME#v}-win-x64.exe\` | \`zhiye-${GITHUB_REF_NAME#v}-linux-amd64.deb\`（Ubuntu / Debian），或 \`zhiye-${GITHUB_REF_NAME#v}-linux-x86_64.AppImage\`、\`zhiye-${GITHUB_REF_NAME#v}-linux-x64.tar.gz\` |
+          | **知页测试版**（带演示课程，可与正式版并存） | \`zhiye-test-${GITHUB_REF_NAME#v}-win-x64.exe\` | 同上，文件名以 \`zhiye-test-\` 开头 |
 
           - 数据库与服务都随程序安装，在本机运行；教学数据保存在用户数据目录，卸载或升级程序不会删除。
           - 首次使用请在「系统设置」中填写语言模型服务的地址、模型名称和密钥。
           - Windows 安装包没有代码签名，首次运行若出现「Windows 已保护你的电脑」，点「更多信息 → 仍要运行」。
-          - Linux 的 AppImage 下载后需要先 \`chmod +x\`；也可以解压 tar.gz 后运行其中的 \`zhiye\`（测试版为 \`zhiye-test\`）。
+          - Ubuntu / Debian 建议用 .deb：\`sudo apt install ./zhiye-${GITHUB_REF_NAME#v}-linux-amd64.deb\`，安装后从应用菜单打开，在 Ubuntu 24.04 及以后也保留 Chromium 沙箱。
+          - 其他 Linux 用 AppImage（下载后先 \`chmod +x\`）或解压 tar.gz 后运行其中的 \`zhiye\`（测试版为 \`zhiye-test\`）。
           EOF
           gh release create "$GITHUB_REF_NAME" artifacts/* --draft --title "知页 $GITHUB_REF_NAME" --notes-file notes.md

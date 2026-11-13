@@ -35,9 +35,17 @@
 | 系统 | 正式版 | 测试版 |
 | --- | --- | --- |
 | Windows | `zhiye-0.1.0-win-x64.exe` | `zhiye-test-0.1.0-win-x64.exe` |
-| Linux | `zhiye-0.1.0-linux-x86_64.AppImage` 或 `zhiye-0.1.0-linux-x64.tar.gz` | 文件名以 `zhiye-test-` 开头 |
+| Linux（Ubuntu / Debian） | `zhiye-0.1.0-linux-amd64.deb` | `zhiye-test-0.1.0-linux-amd64.deb` |
+| Linux（其他发行版） | `zhiye-0.1.0-linux-x86_64.AppImage` 或 `zhiye-0.1.0-linux-x64.tar.gz` | 文件名以 `zhiye-test-` 开头 |
 
 - **Windows**：双击安装程序，按提示选择安装位置。安装包没有代码签名，第一次运行如果出现「Windows 已保护你的电脑」，点「更多信息」→「仍要运行」。安装后桌面和开始菜单都有「知页」图标。
+- **Linux（.deb，Ubuntu / Debian 推荐）**：在下载目录打开终端，运行下面的命令（会要求输入本机登录密码），装好后在应用菜单里找到「知页」：
+
+  ```bash
+  sudo apt install ./zhiye-0.1.0-linux-amd64.deb
+  ```
+
+  也可以在终端输入 `zhiye`（测试版为 `zhiye-test`）启动。正式版和测试版可以都装上。这种安装方式在 Ubuntu 24.04 及以后也会保留浏览器沙箱（见[常见问题](#八常见问题)）。卸载用 `sudo apt remove zhiye`（测试版为 `zhiye-test`），数据目录同样保留。
 - **Linux（AppImage）**：下载后先赋予执行权限，再双击或在终端中运行：
 
   ```bash
@@ -290,11 +298,21 @@
 
 **Linux 上打不开，或日志提示「不使用沙箱运行」**
 
-Ubuntu 24.04 起，系统限制了浏览器沙箱。知页会自动改为不使用沙箱启动，并在日志里记一行说明。使用 tar.gz 版的话，可以在程序目录里运行下面的命令，之后就会重新启用沙箱：
+Ubuntu 24.04 起，系统限制了浏览器沙箱。用 AppImage 或 tar.gz 时，知页会自动改为不使用沙箱启动，并在日志里记一行说明，可以正常使用。想保留沙箱，最简单的是改用 .deb 安装包（见[下载与安装](#下载与安装)），它在安装时就做好了沙箱需要的设置。使用 tar.gz 版的话，也可以在程序目录里运行下面的命令，之后就会重新启用沙箱：
 
 ```bash
 sudo chown root:root chrome-sandbox && sudo chmod 4755 chrome-sandbox
 ```
+
+**Linux 上界面文字显示成方框**
+
+系统里没有中文字体（常见于精简安装或服务器版系统）。安装中文字体后重新打开知页即可：
+
+```bash
+sudo apt install fonts-noto-cjk
+```
+
+用 .deb 安装时一般会自动装上这个字体。
 
 **Windows 提示「Windows 已保护你的电脑」**
 

@@ -265,7 +265,8 @@ Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中
 | `scripts/stage.mjs`、`prune.mjs` | 准备 `build/resources`：便携 Python 及依赖（`prune.mjs` 删去 Tcl/Tk 与标准库测试，按平台只扫描原生库目录）、服务代码白名单（正式版不含演示数据文件）、PostgreSQL |
 | `scripts/smoke.mjs`、`dist.mjs`、`dev.mjs` | 无界面冒烟测试、打包、从源码运行 |
 | `scripts/linux-sandbox.cjs` | Linux 上判断能否使用 Chromium 沙箱，不能时加 `--no-sandbox`；`dev.mjs` 调用它，打包时 `afterPack` 把程序改名为 `<名称>-bin`，原名换成启动脚本 |
-| `electron-builder.config.cjs` | 两个版本的应用名、安装包名和安装选项 |
+| `scripts/deb-after-install.tpl` | .deb 的安装后脚本：`/usr/bin` 链接指向启动脚本、`chrome-sandbox` 总是设为 root 所有且 4755、装入 AppArmor 配置；基于 electron-builder 的模板，`${…}` 由它替换，脚本里的 shell 变量不能写花括号 |
+| `electron-builder.config.cjs` | 两个版本的应用名、安装包名（含 .deb 包名 `zhiye` / `zhiye-test`、依赖和推荐的中文字体）和安装选项；`files` 排除 `node_modules/@embedded-postgres`，安装包里只有 `resources/postgres` 这一份 PostgreSQL |
 
 ## 7. 修改时的关联检查
 
@@ -288,5 +289,6 @@ Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中
 | 模型配置 | `model_settings.py`、`qwen.py`、`vision.py`、`embed.py` | 三个通道的区别、密钥遮蔽、重启生效 |
 | 正式版 / 测试版 | `edition.py`、`init_db.py`、`courses.py` 的预置课程、`index.html` 中的 `release` 分支 | 正式版空库可从零建课（`test_edition.py`）、`desktop/scripts/stage.mjs` 的文件白名单 |
 | 桌面客户端 | `desktop/src/`、`desktop/scripts/` | `npm test`、`node scripts/smoke.mjs --dev`；新增服务环境变量要加进 `processes.cleanEnv` 的清理列表 |
+| Linux 安装包与沙箱 | `desktop/electron-builder.config.cjs`、`scripts/linux-sandbox.cjs`、`scripts/deb-after-install.tpl` | `test/deb.test.js`、`test/linux-sandbox.test.js`；升级 electron-builder 时对照它的 `templates/linux/after-install.tpl` 和 `apparmor-profile.tpl`；打包后用 `dpkg-deb -c` / `dpkg-deb -e` 看权限和安装脚本 |
 
 测试按功能命名为 `demo/tests/test_<功能>.py`，例如 `test_quizzes.py`、`test_packages.py`、`test_teaching_loop.py`、`test_presentations.py`。
