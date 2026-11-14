@@ -7,6 +7,7 @@ import time
 from flask import jsonify, request
 from psycopg.types.json import Jsonb
 
+import figures
 from prompts import PreparedRequest, designed_system, designed_view, prepare_request
 from qwen import ModelError, ModelResult
 from quality import REVIEW_ITEMS, check_output
@@ -46,13 +47,19 @@ def split_sections(content):
 def replacement(edit, output):
     text = output.strip()
     sections = split_sections(text)
+    # A ```figure block is part of the lecture format (the program draws it); any other code block is not.
+    prose = figures.FENCE.sub('', text)
     # The model never controls the splice boundaries or the other sections.
     if (not text or len(text) > 14000 or len(sections) != 1 or sections[0]['start'] != 0
             or sections[0]['title'] != edit['title']
-            or len(re.findall(r'^[ \t]*#{1,2}[ \t]+[^\r\n]+', text, re.M)) != 1
-            or '```' in text or '~~~' in text
+            or len(re.findall(r'^[ \t]*#{1,2}[ \t]+[^\r\n]+', prose, re.M)) != 1
+            or '```' in prose or '~~~' in prose
             or not text.split('\n', 1)[-1].strip() or '\n' not in text):
         raise ModelError('invalid_section', '模型未返回单个有效章节，候选未应用，请调整要求后重试。',
+                         'output', ModelResult(output))
+    broken = [line for line, source in figures.find(text) if not figures.render(source)['ok']]
+    if broken:
+        raise ModelError('invalid_section', f'模型在本节第 {broken[0]} 行写的图无法绘制，候选未应用，请重试。',
                          'output', ModelResult(output))
     old = edit['base_content'][edit['start']:edit['end']]
     trailing = old[len(old.rstrip('\r\n')):]
