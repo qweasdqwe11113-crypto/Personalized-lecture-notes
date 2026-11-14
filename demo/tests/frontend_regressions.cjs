@@ -274,7 +274,84 @@ async function studentEditKeepsItsBaseRevision() {
   assert.match(e.$('student-edit-status').textContent, /已保存/);
 }
 
-const cases = {knowledgeReviewMergesAndConfirms, studentEditKeepsItsBaseRevision, classTargetFollowsScope, richMarkdown, submissionCarriesPipelineChoices, markdownOrder, markdownFenceContent, automaticLengthRemainsOptional, imagePreviewOrder, uploadPreviewOrder, refreshingImagesKeepsLiveSelection, acceptedJobSurvivesHistoryFailure, backgroundCompletionPreservesPage};
+async function tourCardPlacement() {
+  const e = environment();
+  Object.assign(e.context.document, {querySelector: () => null, body: new Element('body')});
+  e.context.workspaceScope = {ready: new Promise(() => {})};
+  e.load('tour.js');
+  const {place} = e.context.zhiyeTour;
+  const view = {width: 1280, height: 800}, card = {width: 360, height: 200};
+  const box = (left, top, width, height) => ({left, top, width, height, right: left + width, bottom: top + height});
+  // The sidebar: the card goes to its right, level with the middle of the lit area.
+  const nav = place(box(10, 100, 200, 400), card, view);
+  assert.equal(nav.side, 'right');
+  assert.equal(nav.left, 224);
+  assert.equal(nav.top, 200);
+  assert.equal(nav.arrow, 100);
+  // A bar across the top: no room beside it, so the card goes below, under its middle.
+  const bar = place(box(240, 20, 1020, 50), card, view);
+  assert.deepEqual([bar.side, bar.top, bar.left], ['bottom', 84, 570]);
+  // A short item near the bottom: the card stays inside the window and the arrow still points at it.
+  const low = place(box(10, 740, 200, 48), card, view);
+  assert.equal(low.side, 'right');
+  assert.equal(low.top, 588);
+  assert.ok(low.arrow > 150 && low.arrow <= 178, 'the arrow follows the item, not the card centre');
+  // Something filling the window: the card sits over its lower right corner instead of off screen.
+  const full = place(box(6, 6, 1268, 788), card, view);
+  assert.deepEqual([full.side, full.left, full.top], ['inside', 900, 580]);
+  assert.ok(full.top + card.height <= view.height - 12);
+  // Nothing lit (the welcome step): centred.
+  assert.deepEqual({...place(null, card, view)}, {side: 'center', left: 460, top: 300});
+}
+
+async function scopeChoiceKeptByServer() {
+  const listing = {unassigned_students: 0, courses: [
+    {id: 1, name: '高等数学', stage: '大学', lesson_keys: [], classes: [{id: 11, name: '一班', student_ids: [1]}]},
+    {id: 2, name: '线性代数', stage: '大学', lesson_keys: [], classes: [{id: 21, name: '甲班', student_ids: []}, {id: 22, name: '乙班', student_ids: [2]}]},
+  ]};
+  const start = (stored, browser) => {
+    const puts = [];
+    const e = environment(async (url, options = {}) => {
+      if (url === '/api/courses') return listing;
+      if (url === '/api/workspace-scope' && options.method === 'PUT') { puts.push(JSON.parse(options.body)); return {scope: JSON.parse(options.body)}; }
+      if (url === '/api/workspace-scope') { if (stored instanceof Error) throw stored; return {scope: stored}; }
+      throw new Error('unexpected ' + url);
+    });
+    const saved = {'zhiye.scope': browser && JSON.stringify(browser)};
+    e.context.CustomEvent = CustomEvent;
+    e.context.localStorage = {getItem: key => saved[key] ?? null, setItem: (key, value) => { saved[key] = value; }};
+    e.load('context.js');
+    return {e, puts, saved, scope: e.context.workspaceScope};
+  };
+
+  // The server's choice wins over this browser's (a new port starts with empty storage anyway).
+  let t = start({course: 2, classes: {'1': 11, '2': 22, '9': 90}}, {course: 1, classes: {'1': 11}});
+  await t.scope.ready; await flush();
+  assert.equal(t.scope.courseId(), 2);
+  assert.equal(t.scope.classId(), 22);
+  assert.equal(t.puts.length, 1, 'only to drop the course that no longer exists');
+  assert.deepEqual(t.puts[0], {course: 2, classes: {'1': 11, '2': 22}});
+  t.e.$('ctx-class').value = '21'; t.e.$('ctx-class').onchange(); await flush();
+  t.e.$('ctx-course').value = '1'; t.e.$('ctx-course').onchange(); await flush();
+  assert.equal(t.scope.classId(), 11, 'each course keeps its own class');
+  assert.deepEqual(t.puts.slice(1), [{course: 2, classes: {'1': 11, '2': 21}}, {course: 1, classes: {'1': 11, '2': 21}}]);
+  t.e.$('ctx-course').value = '2'; t.e.$('ctx-course').onchange(); await flush();
+  assert.equal(t.scope.classId(), 21, 'coming back finds the class chosen before');
+  assert.equal(JSON.parse(t.saved['zhiye.scope']).course, 2, 'the browser keeps a copy as a fallback');
+
+  // Nothing on the server yet: the choice this browser made before moves to the server once.
+  t = start(null, {course: 1, classes: {'1': 11}});
+  await t.scope.ready; await flush();
+  assert.deepEqual([t.scope.courseId(), t.scope.classId()], [1, 11]);
+  assert.deepEqual(t.puts, [{course: 1, classes: {'1': 11}}]);
+
+  // The server cannot answer: the page still works from this browser's copy.
+  t = start(new Error('数据库暂不可用。'), {course: 2, classes: {'2': 22}});
+  await t.scope.ready; await flush();
+  assert.deepEqual([t.scope.courseId(), t.scope.classId()], [2, 22]);
+}
+
+const cases = {scopeChoiceKeptByServer, tourCardPlacement, knowledgeReviewMergesAndConfirms, studentEditKeepsItsBaseRevision, classTargetFollowsScope, richMarkdown, submissionCarriesPipelineChoices, markdownOrder, markdownFenceContent, automaticLengthRemainsOptional, imagePreviewOrder, uploadPreviewOrder, refreshingImagesKeepsLiveSelection, acceptedJobSurvivesHistoryFailure, backgroundCompletionPreservesPage};
 (async () => {
   const name = process.argv[2]; assert.ok(cases[name], 'choose a regression case');
   await cases[name](); console.log(name + ': OK');

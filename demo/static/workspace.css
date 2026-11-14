@@ -174,9 +174,11 @@ footer { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--line);
 }
 
 /* ====== 边缘悬浮拉手 ====== */
+/* Placed against #workspace, so notices and the start guide above it move the handle along. */
+#workspace { position: relative; }
 .sidebar-toggle {
   position: absolute;
-  top: 250px;
+  top: 172px;
   /* 位置由 layout.js 通过 inline style 设置（相对 #workspace 偏移），
      这里只给初始值，避免首帧闪烁。 */
   left: 330px;

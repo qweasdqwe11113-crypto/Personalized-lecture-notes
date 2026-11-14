@@ -1,6 +1,6 @@
 # 项目模块关联图
 
-更新日期：2026-11-05。面向开发者：说明模块职责、调用关系、数据流和存储，修改代码前先确认影响范围。功能行为见 [docs/features.md](docs/features.md)。
+更新日期：2026-11-13。面向开发者：说明模块职责、调用关系、数据流和存储，修改代码前先确认影响范围。功能行为见 [docs/features.md](docs/features.md)。
 
 ## 1. 整体结构
 
@@ -31,7 +31,7 @@ flowchart TD
 | 入口 | 说明 |
 | --- | --- |
 | `run_demo.sh` | 检查依赖与 `.env`，运行 `demo/init_db.py`，再启动 `demo/app.py`（默认 127.0.0.1:5055） |
-| `demo/app.py` | 讲义上下文与生成、导出、学生接口；创建共享任务队列与生成锁，注册其余模块的路由 |
+| `demo/app.py` | 讲义上下文与生成、导出、学生接口；创建共享任务队列与生成锁，注册其余模块的路由；所有请求先检查 Host 是本机名字（防 DNS 重绑定），写请求再检查 Origin 与大小 |
 | `demo/schema.sql`、`demo/init_db.py` | 表结构与增量初始化；种子数据在 `seed.json`、`university_seed.json` |
 | `demo/tests/` | 单元与集成测试；`serve_*_fixture.py` 为固定响应的离线沙盒（5056 端口） |
 
@@ -47,6 +47,8 @@ flowchart TD
 | 班级与画像 `#profiles`（班级画像）、`#profiles/students`、`#profiles/resources`（班级资料）、`#profiles/new`、`#profiles/import`、`#profiles/<id>` | `class-page.js`、`student-roster.js`、`profiles.js`、`roster-import.js`、`uploads.js` | `/api/classes*`、`/api/students*`、`/api/students/import*` |
 | 生成记录 `#records/...` | `jobs.js`、`traces.js`、`evaluation.js` | `/api/generation-runs*`、`/api/lecture-experiments*` |
 | 系统设置 `#settings` | `model-settings.js` | `/api/health`、`/api/model-settings*` |
+| 开始使用引导（讲义工作台顶部） | `getting-started.js` | `/api/health`、`/api/courses`、`/api/courses/<id>/knowledge` |
+| 新手引导（遮罩高亮 + 说明卡片；正式版首次自动出现，左侧「新手引导」或客户端「帮助」菜单重看） | `tour.js`、`tour.css` | `GET /api/onboarding`、`POST /api/onboarding/tour` |
 
 讲义工具栏与弹窗：
 
@@ -60,7 +62,7 @@ flowchart TD
 | `presentations.js` | `presentations.py` | 生成课件、预览、单页微调 |
 | `packages.js` | `packages.py` | 导出授课包，显示已有练习与课件数量 |
 
-前端约定：`app.js` 定义 `$`、`api`、`el` 和共享状态（`lastResult`、`busy`、`topics` 等），后加载的脚本直接使用。`context.js` 提供 `window.workspaceScope`（当前课程、班级、`classOf()`、`refresh()`、`ready`），选择记在浏览器 `localStorage`。跨模块通过事件同步：`scope-changed`（课程或班级切换，`detail` 为来源；`refresh` 表示只是数据刷新）、`lecture-version-changed`（讲义或忙碌状态变化）、`workspace-context`（备课目录变化）、`grading-record-shown`（阅卷记录显示）。讲义对象为 `#student` 的值：学生编号或 `class:<班级编号>`，由 `window.lectureTarget()` 转成请求字段。资料区 `#resource-workspace` 只有一份，`uploads.js` 按路由移入课程或班级的资料标签。修改 DOM ID、脚本顺序或共享函数时，要同时检查依赖它的页面。`usability.css` 之后依次加载 `rich.css`（公式、表格、图、实时预览、批量窗口）和 `motion.css`（动效，最后加载）。`app.js` 里的 `renderMarkdown` 负责公式（KaTeX，位于 `static/vendor/katex/`）、表格和图占位，所有讲义预览共用。`pwa.js`、`sw.js`、`manifest.webmanifest` 提供可安装外壳，`/api/` 不缓存。
+前端约定：`app.js` 定义 `$`、`api`、`el` 和共享状态（`lastResult`、`busy`、`topics` 等），后加载的脚本直接使用。`context.js` 提供 `window.workspaceScope`（当前课程、班级、`classOf()`、`refresh()`、`ready`），选择存在服务端（`GET`/`PUT /api/workspace-scope`，`workspace_settings` 表的 `workspace_scope`），浏览器 `localStorage` 只作后备，并把旧版本记下的选择迁到服务端一次。跨模块通过事件同步：`scope-changed`（课程或班级切换，`detail` 为来源；`refresh` 表示只是数据刷新）、`lecture-version-changed`（讲义或忙碌状态变化）、`workspace-context`（备课目录变化）、`grading-record-shown`（阅卷记录显示）。讲义对象为 `#student` 的值：学生编号或 `class:<班级编号>`，由 `window.lectureTarget()` 转成请求字段。资料区 `#resource-workspace` 只有一份，`uploads.js` 按路由移入课程或班级的资料标签。修改 DOM ID、脚本顺序或共享函数时，要同时检查依赖它的页面。`usability.css` 之后依次加载 `rich.css`（公式、表格、图、实时预览、批量窗口）和 `motion.css`（动效，最后加载）。`app.js` 里的 `renderMarkdown` 负责公式（KaTeX，位于 `static/vendor/katex/`）、表格和图占位，所有讲义预览共用。`pwa.js`、`sw.js`、`manifest.webmanifest` 提供可安装外壳，`/api/` 不缓存。
 
 ## 3. 后端模块
 
@@ -108,6 +110,7 @@ flowchart TD
 | `grading.py` | 阅卷任务、识读与评分校验、证据草稿 |
 | `evaluation.py`、`experiment.py` | 当前版本固定对照；历史文件式实验 |
 | `rendering.py`、`model_settings.py` | 安全渲染与图片附录；模型配置的查看、测试与保存 |
+| `edition.py` | 正式版 / 测试版（`ZHIYE_EDITION`）与数据目录（`ZHIYE_DATA_DIR`，存放 `.env` 和 `.runtime/`，默认项目根目录）；`app.py`、`init_db.py`、`catalog.py`、`presentations.py` 共用 |
 | `richdoc.py` | 导出用：LaTeX 转 Word 原生公式、图转图片、表格；`app.py` 与 `packages.py` 共用 |
 | `scale/` | 可选的扩展语料、合成班级装载（`load.py`）、检索评测（`eval_retrieval.py`）和生成基准（`bench.py`） |
 
@@ -218,6 +221,7 @@ flowchart TD
 | --- | --- |
 | `students`、`knowledge_points`、`course_tasks`、`knowledge_aliases` | 学生、知识点、自建备课副本、副本诊断身份映射 |
 | `courses`、`classes`、`class_students`、`class_profile_history`、`schema_migrations` | 课程、班级与班级特点、选课（`UNIQUE(course_id, student_id)`）、班级特点修改历史、一次性迁移记录 |
+| `workspace_settings` | 整个工作空间的小设置（键值，`jsonb`）：`workspace_tour` 新手引导看完或跳过的记录；`workspace_scope` 顶部选中的课程和每门课最近选的班级 |
 | `student_knowledge`、`learning_evidence`、`knowledge_state_history`、`student_profile_history` | 当前掌握状态、证据与历史 |
 | `materials`、`material_chunks` | 课程材料与向量分块 |
 | `lectures`、`lecture_revisions`、`lecture_issues` | 讲义原稿、修订与问题；班级讲义 `student_id` 为空、`class_id` 有值（`generation_runs`、`quiz_jobs` 同理） |
@@ -233,7 +237,40 @@ flowchart TD
 | `uploads.sqlite3` | 上传原件与正文、提取的图片、图片识读记录 |
 | `grading.sqlite3` | 阅卷任务、提取文字、评分结果、所用题组与知识点映射 |
 | `ppt-aesthetics/` | PPT 视觉审查记录、送审副本与渲染图 |
-| `.env`（项目根目录） | 数据库与模型配置，含密钥 |
+| `.env`（项目根目录，设置了 `ZHIYE_DATA_DIR` 时在该目录） | 数据库与模型配置，含密钥 |
+
+**桌面客户端**（`desktop/`，数据目录结构）
+
+| 位置 | 内容 |
+| --- | --- |
+| `database/` | 自带 PostgreSQL 的数据库文件 |
+| `database-secret.json` | 数据库用户 `zhiye` 的随机密码 |
+| `workspace/` | 作为 `ZHIYE_DATA_DIR`：`.env`（模型配置）与 `.runtime/` |
+| `logs/client.log` | 客户端、`pg_ctl` 和服务的输出 |
+| `last-version.json` | 上次成功启动的客户端版本；升级未完成时还记着本次的升级前备份（`pending`） |
+| `升级前备份-<旧版本>-<时间>/` | 升级前自动备份，格式同手动备份，最多保留 3 份 |
+| `恢复前-<时间>/` | 「从备份恢复」时移开的原数据 |
+
+## 6.1 桌面客户端
+
+Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中打开服务页面。服务代码与网页版完全相同，客户端只通过环境变量传入数据库地址、端口、数据目录和版本。
+
+| 文件 | 职责 |
+| --- | --- |
+| `src/main.js` | 窗口、菜单、启动页状态、IPC（检查发送方）、导航与权限限制、备份 / 恢复 / 更换数据目录、检查更新、安全退出 |
+| `src/runtime.js` | 启动顺序：数据目录与版本检查（`upgrade.prepare`）→ `Postgres` → `Backend.migrate`（`init_db.py`）→ `Backend.start`（`app.py`）→ 记录版本；重启与停止 |
+| `src/upgrade.js` | `last-version.json`、版本比较、升级前备份（停库、复制、只留 3 份、失败即停）、拒绝降级、恢复前的版本检查 |
+| `src/postgres.js` | 建库（`initdb`）、追加配置、`pg_ctl` 启停、连接地址 |
+| `src/backend.js` | 服务环境变量（`serviceEnv`）、运行 `init_db.py` 与 `app.py`、等待 `/api/health` |
+| `src/processes.js` | 清理继承的环境变量（`cleanEnv`）、运行子进程、结束进程树、Windows 短路径 |
+| `src/paths.js`、`config.js`、`ports.js`、`logs.js`、`backup.js`、`policy.js` | 程序与数据位置、客户端设置、端口、日志、冷备份（逐个文件复制与删除）、导航与链接规则（均不依赖 Electron，有单元测试） |
+| `src/preload.js` | 页面可用的 `window.zhiyeDesktop`：启动页多几项（状态、重试、更换目录），服务页面只有查看日志、打开数据目录、重启服务，以及接收「帮助 → 新手引导」 |
+| `src/launcher/` | 启动页 |
+| `scripts/stage.mjs`、`prune.mjs` | 准备 `build/resources`：便携 Python 及依赖（`prune.mjs` 删去 Tcl/Tk 与标准库测试，按平台只扫描原生库目录）、服务代码白名单（正式版不含演示数据文件）、PostgreSQL |
+| `scripts/smoke.mjs`、`dist.mjs`、`dev.mjs` | 无界面冒烟测试、打包、从源码运行 |
+| `scripts/linux-sandbox.cjs` | Linux 上判断能否使用 Chromium 沙箱，不能时加 `--no-sandbox`；`dev.mjs` 调用它，打包时 `afterPack` 把程序改名为 `<名称>-bin`，原名换成启动脚本 |
+| `scripts/deb-after-install.tpl` | .deb 的安装后脚本：`/usr/bin` 链接指向启动脚本、`chrome-sandbox` 总是设为 root 所有且 4755、装入 AppArmor 配置；基于 electron-builder 的模板，`${…}` 由它替换，脚本里的 shell 变量不能写花括号 |
+| `electron-builder.config.cjs` | 两个版本的应用名、安装包名（含 .deb 包名 `zhiye` / `zhiye-test`、依赖和推荐的中文字体）和安装选项；`files` 排除 `node_modules/@embedded-postgres`，安装包里只有 `resources/postgres` 这一份 PostgreSQL |
 
 ## 7. 修改时的关联检查
 
@@ -254,5 +291,8 @@ flowchart TD
 | PPT | `presentations.py`、`ppt_story.py`、`pptkit_export.py` | 模板版本、视觉审查、单页微调、`test_presentations.py` |
 | 出题 / 阅卷 / 授课包 | `quizzes.py`、`grading.py`、`packages.py` | 冻结版本与 JSON 模式、题号映射、学生练习不含答案 |
 | 模型配置 | `model_settings.py`、`qwen.py`、`vision.py`、`embed.py` | 三个通道的区别、密钥遮蔽、重启生效 |
+| 正式版 / 测试版 | `edition.py`、`init_db.py`、`courses.py` 的预置课程、`index.html` 中的 `release` 分支 | 正式版空库可从零建课（`test_edition.py`）、`desktop/scripts/stage.mjs` 的文件白名单 |
+| 桌面客户端 | `desktop/src/`、`desktop/scripts/` | `npm test`、`node scripts/smoke.mjs --dev`；新增服务环境变量要加进 `processes.cleanEnv` 的清理列表 |
+| Linux 安装包与沙箱 | `desktop/electron-builder.config.cjs`、`scripts/linux-sandbox.cjs`、`scripts/deb-after-install.tpl` | `test/deb.test.js`、`test/linux-sandbox.test.js`；升级 electron-builder 时对照它的 `templates/linux/after-install.tpl` 和 `apparmor-profile.tpl`；打包后用 `dpkg-deb -c` / `dpkg-deb -e` 看权限和安装脚本 |
 
 测试按功能命名为 `demo/tests/test_<功能>.py`，例如 `test_quizzes.py`、`test_packages.py`、`test_teaching_loop.py`、`test_presentations.py`。

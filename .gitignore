@@ -21,6 +21,16 @@ htmlcov/
 build/
 dist/
 *.egg-info/
+.tox/
+.hypothesis/
+.ipynb_checkpoints/
+
+# Node 依赖与缓存（客户端的构建目录见 desktop/.gitignore）
+node_modules/
+.npm/
+.eslintcache
+coverage/
+.nyc_output/
 
 # 本地运行数据、日志与临时文件
 .runtime/
@@ -34,6 +44,25 @@ dist/
 *.swp
 *.swo
 *~
+*.bak
+*.orig
+*.rej
+# Office / LibreOffice 打开文档时留下的锁文件
+~$*
+.~lock.*#
+
+# 桌面客户端数据目录中的内容与备份（含学生数据和 API 密钥）
+database-secret.json
+知页备份-*/
+恢复前-*/
+
+# 编辑器与 IDE 的个人配置
+.vscode/
+.idea/
+*.code-workspace
+.history/
+*.sublime-project
+*.sublime-workspace
 
 # AI 助手配置、记忆与本地计划
 /.workbuddy/
@@ -61,16 +90,23 @@ GEMINI.md
 [Tt][Oo][Dd][Oo]
 [Tt][Oo][Dd][Oo].*
 
-# 已移除的旧周报
+# 已移除的旧周报与进度汇报
 /part1.*
+/artifacts/presentation/
 
-# 本机云服务凭据
+# 本机云服务凭据与签名证书
 /.aws/
+*.pem
+*.key
+*.p12
+*.pfx
 
 # 操作系统生成的文件
 .DS_Store
 Thumbs.db
 desktop.ini
+ehthumbs.db
+.directory
 
 # 课程资料、测试夹具、提示模板和已有实验记录应继续跟踪，
 # 不使用 *.txt、*.pdf、*.png、artifacts/ 等宽泛规则。

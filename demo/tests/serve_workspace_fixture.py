@@ -52,7 +52,7 @@ def main():
             env = root / '.env'
             env.write_text('\n'.join(f'{key}={value}' for key, value in settings.items()))
             stack.enter_context(patch.dict(module.app.config, MODEL_ENV_FILE=str(env), TEMPLATES_AUTO_RELOAD=True))
-            stack.enter_context(patch.object(module, 'ROOT', root))
+            stack.enter_context(patch.object(module, 'DATA', root))
             stack.enter_context(patch.object(module, 'MODEL', 'fixture-offline'))
             embedder = HashingEmbedder(dimensions=128)
             embedder.configured = lambda: True

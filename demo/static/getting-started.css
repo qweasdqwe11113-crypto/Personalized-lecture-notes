@@ -1,0 +1,49 @@
+/* "开始使用" guide on the workbench (getting-started.js). */
+.getting-started {
+  margin-block-end: 22px;
+  padding: 22px 24px 18px;
+  background:
+    radial-gradient(120% 140% at 100% 0%, #eef3ff 0%, rgba(238, 243, 255, 0) 55%),
+    #fff;
+}
+.start-head { display: flex; gap: 24px; align-items: flex-start; justify-content: space-between; }
+.start-head h2 { margin: 4px 0 0; font-size: 19px; color: #1d2b44; letter-spacing: .2px; }
+.start-head .helper { margin: 6px 0 0; max-inline-size: 46em; }
+.start-progress { display: flex; align-items: center; gap: 12px; flex-shrink: 0; padding-block-start: 4px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.start-bar { inline-size: 120px; block-size: 6px; border-radius: 99px; background: #e6ebf4; overflow: hidden; }
+.start-bar i { display: block; block-size: 100%; inline-size: 0; border-radius: inherit; background: linear-gradient(90deg, #4c74e6, var(--accent)); transition: inline-size .35s ease; }
+.start-toggle { border: 0; background: none; padding: 4px 2px; color: var(--accent); font-size: 13px; cursor: pointer; }
+.start-toggle:hover { text-decoration: underline; text-underline-offset: 3px; }
+.getting-started.is-collapsed { padding-block-end: 22px; }
+.getting-started.is-collapsed .helper { display: none; }
+
+.start-steps { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 10px; counter-reset: none; }
+.start-step {
+  display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 14px; align-items: center;
+  padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: #fff;
+  transition: border-color .15s, background-color .15s;
+}
+.start-mark {
+  inline-size: 30px; block-size: 30px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 13px; font-weight: 700; color: #64748b; background: #f1f4f9; border: 1px solid #e2e8f0;
+}
+.start-body h3 { margin: 0; font-size: 15px; color: #233249; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.start-body p { margin: 3px 0 0; font-size: 13px; line-height: 1.7; color: var(--muted); }
+.start-step > .primary, .start-step > .secondary { margin: 0; inline-size: auto; white-space: nowrap; }
+.start-tag { font-size: 12px; font-weight: 500; color: var(--success); background: var(--success-soft); border-radius: 99px; padding: 1px 9px; }
+
+.start-step.is-current { border-color: #b9c9f3; background: linear-gradient(90deg, #f3f6ff, #fff 70%); box-shadow: inset 3px 0 0 var(--accent); }
+.start-step.is-current .start-mark { color: #fff; background: var(--accent); border-color: var(--accent); }
+.start-step.is-done .start-mark { color: var(--success); background: var(--success-soft); border-color: #cfe7d9; }
+.start-step.is-done h3 { color: #4b5a70; }
+.start-step.is-done > .secondary { color: var(--muted); }
+.start-step.is-blocked { background: #fafbfd; }
+.start-step.is-blocked .start-body h3 { color: #7b8698; }
+.start-step.is-blocked .start-body p { color: #98a2b3; }
+
+@media (max-width: 760px) {
+  .start-head { flex-direction: column; gap: 12px; }
+  .start-step { grid-template-columns: 30px minmax(0, 1fr); }
+  .start-step > .primary, .start-step > .secondary { grid-column: 2; justify-self: start; }
+}
+@media (prefers-reduced-motion: reduce) { .start-bar i { transition: none; } }

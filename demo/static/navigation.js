@@ -14,7 +14,8 @@
   const redirects = {uploads: 'materials/resources'};
   const subTitles = {courses: '全部课程', 'materials/resources': '课程资料', 'materials/knowledge': '知识点库', 'materials/classes': '班级', 'materials/new': '新建备课',
     'profiles/students': '学生名单', 'profiles/resources': '班级资料', 'profiles/new': '新建学生', 'profiles/import': '批量导入学生资料'};
-  const recordTypes = ['lectures', 'quizzes', 'grading', 'experiments'];
+  // The desktop release has no fixed-experiment tab.
+  const recordTypes = ['lectures', 'quizzes', 'grading', 'experiments'].filter(key => $('record-tab-' + key));
   let active;
   function navigate(focus = false) {
     let hash = location.hash.slice(1);
@@ -35,7 +36,7 @@
     $('page-title').textContent = title;
     document.title = title + ' · 知页';
     document.body.dataset.page = page;
-    const recordsTab = recordsRoute ? hash.split('/')[1] : 'lectures';
+    const recordsTab = recordsRoute && recordTypes.includes(hash.split('/')[1]) ? hash.split('/')[1] : 'lectures';
     for (const key of recordTypes) {
       const selected = key === recordsTab;
       $('record-tab-' + key).setAttribute('aria-selected', String(selected));

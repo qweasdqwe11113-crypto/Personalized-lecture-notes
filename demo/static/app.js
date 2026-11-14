@@ -218,7 +218,7 @@ $('print-lecture').onclick=()=>{if(lastResult)window.print();};
  // Wait for the course and class scope so the first lesson shown already belongs to it.
  if(window.workspaceScope)await window.workspaceScope.ready.catch(()=>{});
  const first=drawTopics(topics.linear&&scopedTopicKeys().includes('linear')?'linear':undefined);filterStudents();if(first)$('goal').value=topics[$('topic').value].goal;
- $('student').disabled=false;$('topic').disabled=false;drawHistory(d.history);await loadContext();if(!d.configured){error('请先在系统设置中配置语言模型地址和名称。');$('generate').disabled=true;}}catch(e){error(e.message);}})();
+ $('student').disabled=false;$('topic').disabled=false;drawHistory(d.history);await loadContext();if(!d.configured){if(!$('getting-started'))error('请先在系统设置中配置语言模型地址和名称。');$('generate').disabled=true;}}catch(e){error(e.message);}})();
 
 // ==================== 一键放大 + 滚轮缩放 + 拖拽 ====================
 let lightboxState = {

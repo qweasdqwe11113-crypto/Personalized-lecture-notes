@@ -1,16 +1,33 @@
 /* The current course and class, shared by every page. Pages read window.workspaceScope and
-   listen for 'scope-changed' (detail: what caused it). The choice is remembered per browser. */
+   listen for 'scope-changed' (detail: what caused it). The choice is kept by the server
+   (/api/workspace-scope): a browser keeps its storage per port, and the desktop client moves to
+   another port when its own is taken. This browser's copy is only a fallback, and carries a
+   choice made before the server kept it over to the server once. */
 (() => {
   const KEY = 'zhiye.scope';
   let courses = [], unassigned = 0, courseId = null, classId = null;
-  const memory = (() => { try { const v = JSON.parse(localStorage.getItem(KEY)); return v && typeof v === 'object' ? {course: v.course ?? null, classes: v.classes || {}} : {course: null, classes: {}}; } catch { return {course: null, classes: {}}; } })();
-  function remember() { try { localStorage.setItem(KEY, JSON.stringify(memory)); } catch { /* private window */ } }
+  const shape = v => v && typeof v === 'object' ? {course: v.course ?? null, classes: v.classes && typeof v.classes === 'object' ? {...v.classes} : {}} : null;
+  let memory = (() => { try { return shape(JSON.parse(localStorage.getItem(KEY))); } catch { return null; } })() || {course: null, classes: {}};
+  let loaded = false, sent = '', saving = Promise.resolve();
+  function remember() {
+    // Classes of courses that no longer exist are dropped, so the memory does not keep growing.
+    const known = new Set(courses.map(c => String(c.id)));
+    memory.classes = Object.fromEntries(Object.entries(memory.classes).filter(([id]) => known.has(id)));
+    const body = JSON.stringify(memory);
+    try { localStorage.setItem(KEY, body); } catch { /* private window */ }
+    if (body === sent) return;
+    sent = body;
+    // In order, so an older choice never lands after a newer one; a failed save is tried again
+    // with the next change.
+    saving = saving.then(() => api('/api/workspace-scope', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body}))
+      .catch(() => { if (sent === body) sent = ''; });
+  }
   const course = () => courses.find(c => c.id === courseId) || null;
   const klass = () => course()?.classes.find(c => c.id === classId) || null;
   const courseLabel = c => (c.stage ? c.stage + ' · ' : '') + c.name;
   function draw() {
     const option = (value, label) => { const o = el('option', label); o.value = value; return o; };
-    $('ctx-course').replaceChildren(...courses.map(c => option(c.id, courseLabel(c))));
+    $('ctx-course').replaceChildren(...(courses.length ? courses.map(c => option(c.id, courseLabel(c))) : [option('', '尚无课程')]));
     $('ctx-course').value = String(courseId ?? '');
     $('ctx-course').disabled = !courses.length;
     const own = course()?.classes || [];
@@ -34,7 +51,13 @@
     return changed;
   }
   async function refresh() {
-    const d = await api('/api/courses');
+    const [d, stored] = await Promise.all([api('/api/courses'),
+      loaded ? undefined : api('/api/workspace-scope').then(r => shape(r.scope), () => undefined)]);
+    if (!loaded) {
+      loaded = true;
+      // Nothing on the server yet (or it could not answer): keep this browser's copy.
+      if (stored) { memory = stored; sent = JSON.stringify(stored); }
+    }
     courses = d.courses; unassigned = d.unassigned_students;
     set(courseId ?? memory.course, classId ?? undefined, 'refresh');
     return d;

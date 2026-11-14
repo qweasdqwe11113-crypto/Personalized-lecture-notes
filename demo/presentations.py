@@ -20,6 +20,7 @@ from pptkit_export import build_pptx as build_kit_pptx, EXPORT_VERSION
 from ppt_story import DESIGN_VERSION, validate_visual, visual_texts
 from ppt_templates import DEFAULT_TEMPLATE, available_templates, template_record
 from ppt_aesthetics import register_aesthetics, AestheticError
+from edition import data_dir
 
 _aesthetic_reviews = None
 
@@ -452,7 +453,7 @@ def register_presentations(app, db, queue):
         return jsonify(id=run_id, state=desired, parent_run_id=run['context']['ppt_slide_edit']['parent_run_id'])
 
     global _aesthetic_reviews
-    _aesthetic_reviews = register_aesthetics(app, completed, build_pptx, Path(__file__).resolve().parents[1])
+    _aesthetic_reviews = register_aesthetics(app, completed, build_pptx, data_dir())
 
     @app.get('/api/presentations/<int:run_id>')
     def presentation_detail(run_id):

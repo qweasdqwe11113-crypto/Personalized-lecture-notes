@@ -133,6 +133,21 @@ class CatalogTests(ProfileDatabaseFixture):
         run = self.client.get('/api/generation-runs/' + str(response.json['generation_run_id']))
         self.assertEqual(run.status_code, 200)
 
+    def test_only_local_host_names_reach_the_workspace(self):
+        # DNS rebinding: a page on rebind.example re-points its name at 127.0.0.1. The browser then
+        # sends its own name as Host and as Origin, so the Origin comparison alone would pass.
+        foreign = {'Host': 'rebind.example:38660', 'Origin': 'http://rebind.example:38660'}
+        for method, path in (('get', '/api/students'), ('get', '/api/courses'), ('get', '/'),
+                             ('get', '/static/app.js'), ('post', '/api/onboarding/tour')):
+            response = getattr(self.client, method)(path, headers=foreign, json={'outcome': 'finished', 'step': 1} if method == 'post' else None)
+            self.assertEqual(response.status_code, 403, path)
+        self.assertNotIn('students', self.client.get('/api/students', headers={'Host': 'rebind.example'}).get_json())
+        for host in ('127.0.0.1:38660', 'localhost:38661', '[::1]:38660', 'localhost'):
+            self.assertEqual(self.client.get('/api/students', headers={'Host': host}).status_code, 200, host)
+        same = self.client.post('/api/onboarding/tour', json={'outcome': 'finished', 'step': 1},
+                                headers={'Host': '127.0.0.1:38660', 'Origin': 'http://127.0.0.1:38660'})
+        self.assertEqual(same.status_code, 200, same.get_json())
+
     def test_cross_origin_put_is_rejected_before_edit(self):
         saved = self.create()
         response = self.client.put('/api/course-tasks/' + saved['key'], json=self.payload(revision=0),

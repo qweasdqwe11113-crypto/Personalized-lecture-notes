@@ -5,11 +5,11 @@ import os
 from io import BytesIO
 import re
 import time
-from urllib.parse import quote
-from pathlib import Path
+from urllib.parse import quote, urlsplit
 
 import psycopg
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 from dotenv import load_dotenv
 from model_settings import register_model_settings
 from flask import Flask, Response, jsonify, render_template, request, g, has_request_context
@@ -42,6 +42,7 @@ from quizzes import QuizQueue, grading_reference, register_quizzes
 from knowledge import KnowledgeQueue, register_knowledge
 from grading import register_grading
 from evaluation import register_evaluation
+from edition import data_dir, release
 from rendering import markdown_html, visual_appendix
 import richdoc
 from uploads import ImportError as UploadError, read_upload, register_uploads
@@ -50,18 +51,20 @@ from retrieval import (MODES as RETRIEVAL_MODES, RetrievalError, adopt_content, 
                        index_knowledge, search as search_chunks, status as retrieval_status,
                        to_materials)
 
-ROOT = Path(__file__).resolve().parents[1]
-load_dotenv(ROOT / '.env')
+# Model settings (.env) and runtime stores (.runtime) live in the data folder: the repository in
+# development, the user's own folder in the desktop release.
+DATA = data_dir()
+load_dotenv(DATA / '.env')
 app = Flask(__name__)
-register_model_settings(app, ROOT / '.env')
+register_model_settings(app, DATA / '.env')
 app.config['MAX_CONTENT_LENGTH'] = 11 * 1024 * 1024
-register_uploads(app, ROOT, lambda course_id, class_id: upload_scope(course_id, class_id))
+register_uploads(app, DATA, lambda course_id, class_id: upload_scope(course_id, class_id))
 DSN = os.environ.get('DATABASE_URL', 'postgresql:///lecture_demo_prototype')
 MODEL = os.environ.get('QWEN_MODEL', 'qwen3.8-27b')
 # One gate for every language-model call; MODEL_CONCURRENCY=1 restores strictly serial calls.
 GENERATION_LOCK = ModelGate(configured_limit())
 # QUIZZES is created below; the lambda resolves it when a grading upload names a quiz.
-recover_grading = register_grading(app, ROOT, lambda prepared, attempt: call_qwen(prepared, attempt), GENERATION_LOCK,
+recover_grading = register_grading(app, DATA, lambda prepared, attempt: call_qwen(prepared, attempt), GENERATION_LOCK,
                                    quiz_reference=lambda job_id: grading_reference(QUIZZES.detail(job_id)))
 EMBEDDER = QwenEmbedder()
 RETRIEVAL_LIMIT = 6
@@ -80,7 +83,7 @@ def upload_scope(course_id, class_id):
             raise UploadError('班级不属于所选课程，请刷新后重试。')
 
 
-register_catalog(app, lambda: db(), ROOT)
+register_catalog(app, lambda: db(), DATA)
 
 
 def topic_catalog():
@@ -198,8 +201,25 @@ def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql', goa
     return ctx
 
 
+LOCAL_HOSTNAMES = ('localhost', '127.0.0.1', '::1')
+
+
+def addressed_locally():
+    """The request names this computer in its Host header. A web page that points its own domain
+    at 127.0.0.1 (DNS rebinding) still sends its own name, so it can neither read the workspace
+    nor pass the Origin check below, whose comparison uses the same header."""
+    try:
+        return urlsplit('http://' + request.host).hostname in LOCAL_HOSTNAMES
+    except ValueError:
+        return False
+
+
 @app.before_request
 def local_origin_only():
+    if not addressed_locally():
+        if request.path.startswith('/api/'):
+            return jsonify(error='请通过本机地址（127.0.0.1）访问工作空间。'), 403
+        return Response('请通过本机地址（127.0.0.1）访问工作空间。', 403, mimetype='text/plain')
     # Keep the local generation endpoint unavailable to cross-origin web pages.
     if request.method in ('POST', 'PUT') and request.path not in ('/api/uploads', '/api/grading') and request.content_length and request.content_length > 131072:
         return jsonify(error='提交内容过长，请缩短后重试。'), 413
@@ -220,7 +240,7 @@ def headers(response):
 
 @app.get('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html', release=release())
 
 
 @app.get('/sw.js')
@@ -396,7 +416,7 @@ def generate():
     if retrieval_mode not in RETRIEVAL_MODES:
         return jsonify(error='请选择精确 SQL 或向量检索。'), 400
     goal = goal.strip() or topic_catalog()[topic_key]['goal']
-    evidence = selected_evidence(ROOT, data.get('visual_analysis_ids', []))
+    evidence = selected_evidence(DATA, data.get('visual_analysis_ids', []))
     if not GENERATION_LOCK.acquire(blocking=False):
         return jsonify(error='已有讲义正在生成，请等待完成后再试。'), 429
     result, status = generate_locked(sid, topic_key, goal, mode, retrieval_mode=retrieval_mode,
@@ -525,10 +545,11 @@ register_packages(app, lambda: db())
 register_roster_import(app, lambda: db())
 QUIZZES = QuizQueue(lambda: db(), lambda prepared, attempted: call_qwen(prepared, attempted), GENERATION_LOCK)
 register_quizzes(app, lambda: db(), lambda: QUIZZES, topic_catalog, get_context, lambda: MODEL)
-KNOWLEDGE = KnowledgeQueue(lambda: db(), ROOT, lambda prepared, attempted: call_qwen(prepared, attempted),
+KNOWLEDGE = KnowledgeQueue(lambda: db(), DATA, lambda prepared, attempted: call_qwen(prepared, attempted),
                            GENERATION_LOCK, lambda: MODEL)
-register_knowledge(app, lambda: db(), ROOT, lambda: KNOWLEDGE, topic_catalog)
-recover_evaluation = register_evaluation(
+register_knowledge(app, lambda: db(), DATA, lambda: KNOWLEDGE, topic_catalog)
+# The fixed experiment compares the built-in probability lesson, which the release does not carry.
+recover_evaluation = (lambda: None) if release() else register_evaluation(
     app, lambda: db(), lambda: TASKS, get_context, lambda: MODEL,
     lambda: not GENERATION_LOCK.locked() and QUIZZES.wait_idle(0) and KNOWLEDGE.wait_idle(0)
     and not app.extensions['grading_busy']())
@@ -612,7 +633,7 @@ def build_job(data):
     if not ctx:
         raise JobError('班级不属于这份备课的课程，或班级还没有学生。' if class_id is not None else
                        '学生不存在，或不在这份备课副本的学生范围内。', 404)
-    evidence = selected_evidence(ROOT, data.get('visual_analysis_ids', []))
+    evidence = selected_evidence(DATA, data.get('visual_analysis_ids', []))
     if evidence:
         ctx['visual_evidence'] = evidence
     options = validated_teaching_options(data)
@@ -777,7 +798,7 @@ def adopt_upload():
                 return jsonify(error='知识点不存在。'), 400
     except psycopg.Error:
         return jsonify(error='数据库暂不可用，请检查本机 PostgreSQL。'), 503
-    record = read_upload(ROOT, upload_id)
+    record = read_upload(DATA, upload_id)
     if record is None:
         return jsonify(error='资料不存在。'), 404
     try:
@@ -805,6 +826,88 @@ def health():
                    model_concurrency=GENERATION_LOCK.limit, embed_model=EMBEDDER.model,
                    embedding_configured=EMBEDDER.configured(),
                    note='本机配置与数据库检查；未调用模型，不能证明密钥有效、服务可达或支持嵌入接口。')
+
+
+TOUR_SETTING = 'workspace_tour'
+TOUR_OUTCOMES = ('finished', 'skipped')
+SCOPE_SETTING = 'workspace_scope'
+
+
+def read_setting(conn, key):
+    row = conn.execute('SELECT value FROM workspace_settings WHERE key=%s', (key,)).fetchone()
+    return row['value'] if row else None
+
+
+def write_setting(conn, key, value):
+    conn.execute('INSERT INTO workspace_settings(key,value) VALUES (%s,%s) '
+                 'ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()', (key, Jsonb(value)))
+
+
+@app.get('/api/onboarding')
+def onboarding():
+    """Whether the workspace tour opens by itself: once per data folder, in the desktop release."""
+    try:
+        with db() as conn:
+            seen = read_setting(conn, TOUR_SETTING) is not None
+    except psycopg.Error:
+        return jsonify(error='数据库暂不可用。'), 503
+    return jsonify(tour={'seen': seen, 'auto': release() and not seen})
+
+
+@app.post('/api/onboarding/tour')
+def record_tour():
+    """The teacher finished or skipped the tour; it no longer opens by itself."""
+    body = request.get_json(silent=True) or {}
+    outcome, step = body.get('outcome'), body.get('step')
+    if outcome not in TOUR_OUTCOMES or type(step) is not int or not 1 <= step <= 50:
+        return jsonify(error='引导状态无效。'), 400
+    try:
+        with db() as conn:
+            write_setting(conn, TOUR_SETTING, {'outcome': outcome, 'step': step})
+    except psycopg.Error:
+        return jsonify(error='数据库暂不可用，引导状态未保存。'), 503
+    return jsonify(tour={'seen': True, 'auto': False})
+
+
+def clean_scope(body):
+    """The selectors' memory: the current course, and the class last chosen in each course
+    ({"<course id>": class id or null}). None when it is not that shape."""
+    if not isinstance(body, dict) or not isinstance(body.get('classes', {}), dict):
+        return None
+    course, classes = body.get('course'), body.get('classes', {})
+    positive = lambda value: type(value) is int and 0 < value < 2**31
+    if (course is not None and not positive(course)) or len(classes) > 500:
+        return None
+    for key, value in classes.items():
+        if not re.fullmatch(r'[1-9][0-9]{0,8}', key) or (value is not None and not positive(value)):
+            return None
+    return {'course': course, 'classes': dict(classes)}
+
+
+@app.get('/api/workspace-scope')
+def workspace_scope():
+    """The course and class last chosen at the top of the pages. Kept here rather than in the
+    browser, which keeps its storage per port: the desktop client moves to another port when its
+    own is taken, and the choice would be lost."""
+    try:
+        with db() as conn:
+            scope = read_setting(conn, SCOPE_SETTING)
+    except psycopg.Error:
+        return jsonify(error='数据库暂不可用。'), 503
+    return jsonify(scope=scope)
+
+
+@app.put('/api/workspace-scope')
+def remember_workspace_scope():
+    scope = clean_scope(request.get_json(silent=True))
+    if scope is None:
+        return jsonify(error='课程与班级选择无效。'), 400
+    try:
+        with db() as conn:
+            write_setting(conn, SCOPE_SETTING, scope)
+    except psycopg.Error:
+        return jsonify(error='数据库暂不可用，课程与班级选择未保存。'), 503
+    return jsonify(scope=scope)
 
 
 @app.get('/api/generation-runs')
@@ -1121,4 +1224,6 @@ if __name__ == '__main__':
     QUIZZES.recover()
     KNOWLEDGE.recover()
     recover_evaluation()
-    app.run(host='127.0.0.1', port=int(os.environ.get('PORT','5055')), debug=False, threaded=True)
+    # Only the data folder's .env counts: Flask would otherwise load the nearest .env above the
+    # working directory, which in the desktop release may belong to something else.
+    app.run(host='127.0.0.1', port=int(os.environ.get('PORT','5055')), debug=False, threaded=True, load_dotenv=False)

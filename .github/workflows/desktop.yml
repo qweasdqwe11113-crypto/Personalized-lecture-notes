@@ -1,0 +1,130 @@
+# 桌面客户端：在 Linux 与 Windows 上各打包「知页」（正式版，空白工作空间）和「知页测试版」（带演示课程）。
+# 推送 v* 标签时额外建立一个草稿 Release，检查无误后在 GitHub 上手动发布；
+# 涉及客户端或服务代码的 Pull Request 只构建和测试，安装包作为 Artifacts 下载。
+name: 桌面客户端
+
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths:
+      - 'desktop/**'
+      - 'demo/**'
+      - 'assets/ppt-templates/**'
+      - 'tools/ppt-kit/**'
+      - 'requirements.txt'
+      - '.github/workflows/desktop.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.system }} · ${{ matrix.flavor == 'demo' && '测试版' || '正式版' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # 22.04 keeps the glibc baseline low, so the Linux packages also run on older distributions.
+        os: [ubuntu-22.04, windows-latest]
+        flavor: [release, demo]
+        include:
+          - os: ubuntu-22.04
+            system: Linux
+          - os: windows-latest
+            system: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: desktop
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: 版本号与标签一致
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::标签 $GITHUB_REF_NAME 与 desktop/package.json 的版本 $version 不一致"
+            exit 1
+          fi
+
+      - name: 缓存 Python 运行环境下载
+        uses: actions/cache@v6
+        with:
+          path: desktop/.cache
+          key: python-${{ runner.os }}-${{ hashFiles('desktop/scripts/stage.mjs') }}
+
+      - run: npm ci
+
+      - name: 客户端单元测试
+        run: npm test
+
+      - name: 准备运行环境与服务代码
+        run: node scripts/stage.mjs --flavor ${{ matrix.flavor }}
+
+      - name: 冒烟测试（启动数据库与服务、重启、备份、再次启动）
+        run: node scripts/smoke.mjs --resources build/resources --edition ${{ matrix.flavor }}
+
+      - name: 打包
+        run: node scripts/dist.mjs --flavor ${{ matrix.flavor }}
+        env:
+          # Unsigned builds: do not look for a signing certificate.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: zhiye-${{ matrix.flavor }}-${{ matrix.system }}
+          path: |
+            desktop/dist/${{ matrix.flavor }}/*.AppImage
+            desktop/dist/${{ matrix.flavor }}/*.tar.gz
+            desktop/dist/${{ matrix.flavor }}/*.deb
+            desktop/dist/${{ matrix.flavor }}/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: 草稿 Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: 建立草稿
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cat > notes.md <<EOF
+          ## 下载哪个文件
+
+          | | Windows | Linux |
+          |---|---|---|
+          | **知页**（正式版，空白工作空间） | \`zhiye-${GITHUB_REF_NAME#v}-win-x64.exe\` | \`zhiye-${GITHUB_REF_NAME#v}-linux-amd64.deb\`（Ubuntu / Debian），或 \`zhiye-${GITHUB_REF_NAME#v}-linux-x86_64.AppImage\`、\`zhiye-${GITHUB_REF_NAME#v}-linux-x64.tar.gz\` |
+          | **知页测试版**（带演示课程，可与正式版并存） | \`zhiye-test-${GITHUB_REF_NAME#v}-win-x64.exe\` | 同上，文件名以 \`zhiye-test-\` 开头 |
+
+          - 数据库与服务都随程序安装，在本机运行；教学数据保存在用户数据目录，卸载或升级程序不会删除。
+          - 首次使用请在「系统设置」中填写语言模型服务的地址、模型名称和密钥。
+          - Windows 安装包没有代码签名，首次运行若出现「Windows 已保护你的电脑」，点「更多信息 → 仍要运行」。
+          - Ubuntu / Debian 建议用 .deb：\`sudo apt install ./zhiye-${GITHUB_REF_NAME#v}-linux-amd64.deb\`，安装后从应用菜单打开，在 Ubuntu 24.04 及以后也保留 Chromium 沙箱。
+          - 其他 Linux 用 AppImage（下载后先 \`chmod +x\`）或解压 tar.gz 后运行其中的 \`zhiye\`（测试版为 \`zhiye-test\`）。
+          EOF
+          gh release create "$GITHUB_REF_NAME" artifacts/* --draft --title "知页 $GITHUB_REF_NAME" --notes-file notes.md

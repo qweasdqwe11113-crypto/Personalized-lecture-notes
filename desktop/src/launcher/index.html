@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>知页</title>
+<link rel="stylesheet" href="launcher.css">
+<script defer src="launcher.js"></script>
+</head>
+<body>
+<main class="stage">
+  <section class="card" aria-labelledby="product">
+    <div class="progress" aria-hidden="true"><i id="progress-fill"></i></div>
+    <header class="brand">
+      <span class="mark" aria-hidden="true">知</span>
+      <div>
+        <h1 id="product">知页</h1>
+        <p>教学工作空间<span id="edition" class="edition" hidden></span></p>
+      </div>
+    </header>
+
+    <p id="lead" class="lead" role="status" aria-live="polite">正在启动本机服务…</p>
+    <ol id="steps" class="steps"></ol>
+
+    <section id="error" class="problem" hidden aria-labelledby="error-title">
+      <h2 id="error-title"></h2>
+      <p id="error-message" class="problem-message"></p>
+      <p id="error-hint" class="problem-hint"></p>
+      <details id="error-details">
+        <summary>技术细节（日志末尾）</summary>
+        <pre id="error-log"></pre>
+      </details>
+      <div class="actions">
+        <button id="retry" class="primary" type="button">重试</button>
+        <button id="open-logs" type="button">查看日志</button>
+        <button id="open-data" type="button">打开数据目录</button>
+        <button id="choose-data" type="button">更换数据目录…</button>
+      </div>
+    </section>
+
+    <footer class="meta">
+      <span id="version"></span>
+      <span id="data-dir" class="data-dir"></span>
+    </footer>
+  </section>
+  <p class="note">所有数据都保存在这台电脑上；只有生成内容时，才会把所需材料发送给你配置的模型服务。</p>
+</main>
+</body>
+</html>

@@ -326,6 +326,13 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
  name text PRIMARY KEY,
  applied_at timestamptz NOT NULL DEFAULT now()
 );
+-- Small settings of this workspace as a whole, such as whether the teacher has been through the
+--   workspace tour. Kept in the database so they follow the data folder and its backups.
+CREATE TABLE IF NOT EXISTS workspace_settings (
+ key text PRIMARY KEY,
+ value jsonb NOT NULL,
+ updated_at timestamptz NOT NULL DEFAULT now()
+);
 
 -- Class-only material: used only when generating for that class or its students.
 ALTER TABLE materials ADD COLUMN IF NOT EXISTS class_id integer REFERENCES classes(id);

@@ -113,6 +113,46 @@ To try everything without calling a real model, start the offline sandbox. All m
 .venv/bin/python demo/tests/serve_workspace_fixture.py   # then open http://127.0.0.1:5056
 ```
 
+## Desktop Client (Windows / Linux)
+
+`desktop/` packages the app as an installable program (Electron). It carries its own PostgreSQL 17 and Python 3.12 with every dependency, so a teacher installs one file and needs no command line: on first start it creates a private database in the user's data folder, starts the service on 127.0.0.1 and opens the workspace in its window. Closing the window shuts the service and database down cleanly.
+
+Teachers: see the step-by-step [user guide](docs/user-guide.md) (Chinese), from installation and model setup to daily use. The client's 帮助 → 使用说明 menu opens it.
+
+Two editions are built from the same code and can be installed side by side:
+
+| | 知页 (release) | 知页测试版 (test) |
+| --- | --- | --- |
+| Starts with | An empty workspace: no courses, classes, students, materials or built-in lessons, and no comparison-experiment page. On first start a short tour highlights the main areas, and a getting-started guide on the workbench walks through the first steps | The demonstration courses, classes and fictional students, as in the development setup |
+| Data folder | `%LOCALAPPDATA%\Zhiye` · `~/.local/share/zhiye` | `%LOCALAPPDATA%\Zhiye-Test` · `~/.local/share/zhiye-test` |
+| Installer | `zhiye-<version>-win-x64.exe` · `zhiye-<version>-linux-amd64.deb` (Ubuntu / Debian) · `zhiye-<version>-linux-x86_64.AppImage` / `zhiye-<version>-linux-x64.tar.gz` | `zhiye-test-…` with the same suffixes |
+| Linux package | `zhiye`, installed in `/opt/知页`, started as `zhiye` | `zhiye-test`, in `/opt/知页测试版`, started as `zhiye-test` |
+
+Model keys are entered in Settings (系统设置) and saved in the data folder; a button there restarts the service. The 服务 menu restarts the service, opens the page in a browser, makes and restores backups (a copy of the stopped database and workspace; restoring moves the current data aside rather than deleting it), and opens the data folder or the log. Uninstalling or upgrading keeps the data folder. The installers are not code-signed, and there is no automatic update; 知页 → 检查更新 looks up the latest GitHub release. On Ubuntu 24.04 and later, AppArmor blocks Chromium's sandbox for programs without a profile (AppImage, tar.gz, a development checkout), so the client starts without it there instead of failing. The `.deb` (`sudo apt install ./zhiye-<version>-linux-amd64.deb`) keeps the sandbox on: its install script makes `chrome-sandbox` root-owned with the setuid bit and loads an AppArmor profile (`/etc/apparmor.d/zhiye`) that allows user namespaces, so Chromium uses its namespace sandbox where the profile is loaded and the setuid helper otherwise ([desktop/scripts/deb-after-install.tpl](desktop/scripts/deb-after-install.tpl)). For the tar.gz, `sudo chown root:root chrome-sandbox && sudo chmod 4755 chrome-sandbox` in its folder brings the sandbox back.
+
+**Releases** are built by GitHub Actions ([.github/workflows/desktop.yml](.github/workflows/desktop.yml)). Push a tag `vX.Y.Z` that matches the version in `desktop/package.json`: for each system and edition the workflow runs the unit tests, stages the runtime, runs a smoke test (start the database and service, restart, back up, start again) and builds the installers, then drafts a GitHub Release with all eight files (two `.exe`; an AppImage, a tar.gz and a `.deb` per edition on Linux). Publish the draft by hand once it looks right. Pull requests that touch the client or the service build and test the same packages and attach them as artifacts, without a release; once the workflow is on `main`, *Run workflow* on the Actions page does the same.
+
+**Developing the client** (Node.js 22+; the repository's `.venv` must exist):
+
+```bash
+cd desktop
+npm install
+npm run dev        # release edition, empty, from the repository code (data in ~/.local/share/zhiye-dev)
+npm run dev:test   # test edition with the demonstration data
+npm test           # client unit tests
+```
+
+Building an installer locally, for the current system only:
+
+```bash
+cd desktop
+node scripts/stage.mjs --flavor release      # portable Python + requirements, service code, PostgreSQL → build/resources
+node scripts/smoke.mjs --resources build/resources --edition release
+node scripts/dist.mjs --flavor release       # → dist/release/ (Linux: AppImage, tar.gz and .deb)
+```
+
+Use `--flavor demo` / `--edition demo` for the test edition. The web setup above is unchanged: `./run_demo.sh` still serves the demonstration data from your own PostgreSQL.
+
 ## Configuration
 
 All settings live in the local `.env` (ignored by git); see [.env.example](.env.example).
@@ -128,6 +168,8 @@ All settings live in the local `.env` (ignored by git); see [.env.example](.env.
 | `MODEL_CONCURRENCY` | Language-model calls allowed at the same time, 1–8, default 3. Used by sectioned writing and class batches; `1` restores strictly serial calls |
 | `QWEN_EMBEDDING_BATCH_SIZE` | Texts per embedding request, default 10 (the Model Studio limit); long documents are embedded in batches |
 | `PORT` | Service port, default 5055; listens on localhost only |
+| `ZHIYE_EDITION` | `release` starts a new database empty (no demonstration data, preset courses or built-in lessons) and hides the comparison experiments; anything else keeps the demonstration data. Existing data is never deleted. The desktop client sets it |
+| `ZHIYE_DATA_DIR` | Folder holding `.env` and `.runtime/`; defaults to the repository root. The desktop client points it at its data folder |
 
 ## Project Structure
 
@@ -136,9 +178,13 @@ All settings live in the local `.env` (ignored by git); see [.env.example](.env.
 ├── run_demo.sh              # Start script: check dependencies → init database → start server
 ├── requirements.txt         # Python dependencies
 ├── .env.example             # Configuration template
+├── LICENSE                  # MIT license for the project's own code and documentation
 ├── project_map.md           # Module map and data flow (developer docs, Chinese)
+├── desktop/                 # Desktop client: Electron shell, bundled PostgreSQL and Python, installers
+├── .github/workflows/       # desktop.yml builds the Windows and Linux installers
 ├── demo/                    # The Flask application
 │   ├── app.py               # Entry point: lecture context and generation, exports, module registration
+│   ├── edition.py           # Release or test edition, and the data folder (ZHIYE_EDITION, ZHIYE_DATA_DIR)
 │   ├── schema.sql           # PostgreSQL schema; init_db.py creates it and loads seed data
 │   ├── prompts.py, prompts/ # Prompt assembly and versioned prompt files (lectures, quizzes, slides)
 │   ├── quizzes.py           # Quizzes and lecture-linked quizzes
@@ -165,7 +211,7 @@ All settings live in the local `.env` (ignored by git); see [.env.example](.env.
 └── artifacts/               # Sample files for grading
 ```
 
-Runtime data is written to `.runtime/` (ignored): the upload store, grading store, slide-review records and exported lesson packages.
+Runtime data is written to `.runtime/` (ignored; below `ZHIYE_DATA_DIR` when set): the upload store, grading store, slide-review records and exported lesson packages.
 
 ## Tests
 
@@ -173,7 +219,7 @@ Runtime data is written to `.runtime/` (ignored): the upload store, grading stor
 .venv/bin/python -m unittest discover -s demo/tests -v
 ```
 
-Tests create a temporary schema in the dedicated database and drop it afterwards; they never touch production data or call a real model. With Node.js installed, frontend behaviour regressions run as well. All 340 tests pass as of 2026-11-10.
+Tests create a temporary schema in the dedicated database and drop it afterwards; they never touch production data or call a real model. With Node.js installed, frontend behaviour regressions run as well. The desktop client has its own unit tests (`cd desktop && npm test`) and a smoke test of the bundled runtime (see [Desktop Client](#desktop-client-windows--linux)). All 385 Python tests pass as of 2026-11-13, and all 35 desktop unit tests as of 2026-11-14.
 
 ## Documentation
 
@@ -181,6 +227,7 @@ The detailed documents are written in Chinese.
 
 | Document | Contents |
 | --- | --- |
+| [docs/user-guide.md](docs/user-guide.md) | **Teacher's guide**: installing the client, connecting a model, setting up courses, classes and students, then lectures, quizzes, slides, grading, backup and common problems |
 | [docs/features.md](docs/features.md) | Behaviour, limits and design details of each page: lectures, profiles, retrieval, quizzes, slides, lesson packages, grading, job queue, experiments |
 | [project_map.md](project_map.md) | Module responsibilities, call relationships, data flow and storage — read before changing code |
 | [docs/image-lecture-workflow.md](docs/image-lecture-workflow.md) | How image reading feeds into lectures, and its limits |
@@ -190,9 +237,22 @@ The detailed documents are written in Chinese.
 | [docs/archive/](docs/archive/) | Early VLM + RAG planning drafts from 2026-10-21; historical only, not the current implementation |
 | [experiments/2026-10-12-bayes](experiments/2026-10-12-bayes/summary.md), [demo/VERIFICATION.md](demo/VERIFICATION.md) | Historical comparison experiment and early engineering verification |
 
+## License
+
+The project's own code and documentation, including the slide layout engine in `tools/ppt-kit/`, are released under the [MIT License](LICENSE). The software is provided as is; everything a model generates (lectures, quizzes, slides, grading suggestions) must be reviewed by a teacher before use.
+
+Third-party material keeps its own terms and is not relicensed:
+
+| Material | Where | Terms |
+| --- | --- | --- |
+| KaTeX 0.16.11 | `demo/static/vendor/katex/` | MIT (license in that folder) |
+| Slide templates from the LibreOffice design candidates | `assets/ppt-templates/` | CC0 and MIT, see `assets/ppt-templates/licenses/` |
+| Bundled in the desktop packages | PostgreSQL 17, CPython 3.12, Electron with Chromium, and the Python packages in `requirements.txt` | Each under its own license (PostgreSQL License, PSF License, MIT, BSD, Apache-2.0 and similar; psycopg is LGPL-3.0). The license texts ship inside the packages |
+
 ## Status
 
 - **Implemented**: lecture generation and review, matching quizzes, classroom slides, lesson packages, grading into profiles, and batch import of student data. All are covered by automated tests and have been run end to end once with a real model (qwen3.8-max).
 - **Added on 2026-11-10, covered by automated tests and exercised in the offline sandbox, not yet run against a real model**: sectioned writing with automatic rewrite, streaming preview, LaTeX formulas and program-drawn figures, arithmetic recomputation, class batches with bounded model concurrency, automatic single retry for invalid quiz and slide output, an installable (PWA) shell, and the scale corpus with its benchmarks.
+- **Desktop client (2026-11-13)**: the Linux packages were built and run on Linux: first start on an empty data folder, the getting-started guide, restarting the service, backup, and a clean shutdown. The `.deb` packages of both editions were installed side by side in an Ubuntu 24.04 virtual machine (with the AppArmor user-namespace restriction on) and both started with Chromium's sandbox; they have not been tried on Debian or older Ubuntu releases. The Windows installer is built and smoke-tested on GitHub Actions and has been installed and tested on a real Windows computer.
 - **Known issues**: single-call lectures came back at about a third of the requested length (1,177 of 3,600–5,400 characters in the one qwen3.8-max run). Sectioned writing is meant to fix this, but whether it does has to be measured with `demo/scale/bench.py --real`. It costs about six model calls per lecture and roughly six times the input tokens. Lectures and quizzes still contain occasional math errors from the model; the arithmetic check only catches numbers that disagree, so teachers still need to check every question.
 - **Not yet done**: a with/without-profile comparison on the current version, ablations of the vision and retrieval components with a real embedding model, and independent teacher review. Until then, no claims can be made about saving preparation time or improving learning. Slides still use plain-text formulas and carry no figures; exported HTML keeps formulas as LaTeX source.
