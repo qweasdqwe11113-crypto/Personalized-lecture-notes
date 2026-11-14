@@ -47,6 +47,18 @@ class ProgressHub:
             self._touch(run)
             part['version'] = run['version']
 
+    def add(self, run_id, parts):
+        """Append parts that only become known while the run is under way."""
+        with self._condition:
+            run = self._runs.get(run_id)
+            if not run:
+                return
+            fresh = [(key, heading) for key, heading in parts if key not in run['parts']]
+            self._touch(run)
+            for key, heading in fresh:
+                run['parts'][key] = dict(heading=heading, text='', version=run['version'], state='waiting')
+                run['order'].append(key)
+
     def finish(self, run_id):
         with self._condition:
             run = self._runs.get(run_id)

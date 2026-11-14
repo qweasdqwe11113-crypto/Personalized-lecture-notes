@@ -54,10 +54,20 @@ def save_success(conn, run_id, student_id, goal, context, prepared, output, elap
     return lecture
 
 
+def save_candidate(conn, run_id, output, elapsed):
+    """A finished run that is not a lecture: a lesson design waiting for the teacher."""
+    updated = conn.execute('''UPDATE generation_runs SET status='succeeded',finished_at=now(),
+        elapsed_seconds=%s,content=%s,usage=%s,response_metadata=%s WHERE id=%s AND status='running' RETURNING id''',
+        (elapsed, output.content, Jsonb(output.usage), Jsonb(output.metadata), run_id)).fetchone()
+    if not updated:
+        raise RuntimeError('Generation run cannot be completed twice.')
+
+
 def recent_runs(conn):
     return conn.execute('''SELECT r.id,r.status,r.topic,r.created_at,r.finished_at,r.elapsed_seconds,
         r.lecture_id,r.prompt_version,r.error_message,COALESCE(s.name,c.name||'（全班）') AS name,
-        r.context ? 'section_edit' AS section_rewrite,r.context ? 'ppt_export' AS ppt_generation FROM generation_runs r
+        r.context ? 'section_edit' AS section_rewrite,r.context ? 'ppt_export' AS ppt_generation,
+        COALESCE((r.context->'designed'->>'stop')::boolean,false) AS design_review FROM generation_runs r
         LEFT JOIN students s ON s.id=r.student_id LEFT JOIN classes c ON c.id=r.class_id
         ORDER BY r.id DESC LIMIT 10''').fetchall()
 

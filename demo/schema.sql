@@ -376,3 +376,11 @@ CREATE TABLE IF NOT EXISTS knowledge_drafts (
  updated_at timestamptz NOT NULL DEFAULT now(),
  confirmed_at timestamptz
 );
+
+-- A lesson design waiting for the teacher's confirmation is a finished run that is not a lecture
+-- yet. Every other finished run still has to point at its lecture, as before.
+ALTER TABLE generation_runs DROP CONSTRAINT IF EXISTS generation_runs_check;
+ALTER TABLE generation_runs DROP CONSTRAINT IF EXISTS generation_runs_result_check;
+ALTER TABLE generation_runs ADD CONSTRAINT generation_runs_result_check CHECK (
+ (status = 'succeeded' AND (lecture_id IS NOT NULL OR response_metadata->>'operation' = 'lesson_design'))
+ OR (status <> 'succeeded' AND lecture_id IS NULL));

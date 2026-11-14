@@ -79,6 +79,61 @@ def fit_template_shapes(slide, width, height, region, *, zones=False):
                         run.font.size = Pt(run.font.size.pt * scale)
 
 
+LESSON_TEMPLATE_ERROR = '课件模板不可用，请换一个模板。'
+
+
+def build_lesson_pptx(deck, template_id, provenance=()):
+    """Slides planned by lesson_slides.plan() drawn on a semantic template. No model content controls geometry.
+
+    provenance: lines appended to the hidden last page (lecture, design and template versions)."""
+    import lesson_layout
+    try:
+        template = template_record(template_id)
+    except ValueError as exc:
+        raise ValueError(LESSON_TEMPLATE_ERROR) from exc
+    if not template['semantic']:
+        raise ValueError(LESSON_TEMPLATE_ERROR)
+    native = template['asset_kind'] == 'pptx'
+    prs = Presentation(template['path']) if native else Presentation()
+    if native:
+        for entry in list(prs.slides._sldIdLst):
+            prs.part.drop_rel(entry.rId)
+            prs.slides._sldIdLst.remove(entry)
+    else:
+        prs.slide_width, prs.slide_height = Pt(CANVAS_W), Pt(CANVAS_H)
+    prs.core_properties.title = plain(deck['title'])
+    profile = template['profile']
+    skin = profile.get('skin')
+    theme = Theme.from_dict(profile['palette'] if skin else template['theme']['palette'])
+    pages = deck['slides']
+    for index, page in enumerate(pages, 1):
+        if native:
+            slide = prs.slides.add_slide(prs.slide_masters[profile['masters'][0 if index == 1 else 1]].slide_layouts[6])
+            for shape in list(slide.shapes):
+                if shape.is_placeholder:
+                    shape.element.getparent().remove(shape.element)
+        else:
+            slide = blank_slide(prs)
+            set_slide_bg(slide, RGBColor(255, 255, 255))
+        slide.name = plain(page['title'])
+        if page.get('hidden'):
+            page = {**page, 'lines': [*page['lines'], *provenance]}
+            slide._element.set('show', '0')
+        lesson_layout.draw(slide, theme, page, page['progress'], plain(deck['label']), index, deck['visible'], skin=skin)
+        if native:
+            region = profile.get('cover_region', profile['region']) if index == 1 else profile['region']
+            fit_template_shapes(slide, prs.slide_width / 12700, prs.slide_height / 12700, region,
+                                zones=profile.get('zones', False))
+        slide.notes_slide.notes_text_frame.text = plain(page['notes'])
+    output = BytesIO()
+    prs.save(output)
+    output.seek(0)
+    errors = [message for level, message in check(output) if level == 'error']
+    if errors:
+        raise ValueError('课件排版检查未通过：' + '；'.join(errors))
+    return output.getvalue()
+
+
 def build_pptx(deck, source, context, *, classroom=False):
     template = None
     if source.get('template_id'):

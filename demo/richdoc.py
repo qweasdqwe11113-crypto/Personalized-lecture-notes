@@ -131,6 +131,10 @@ class _Reader:
         if name in ('frac', 'dfrac', 'tfrac'):
             top, bottom = self.argument(), self.argument()
             return f'<m:f><m:num>{top}</m:num><m:den>{bottom}</m:den></m:f>'
+        if name in ('binom', 'dbinom', 'tbinom'):
+            top, bottom = self.argument(), self.argument()
+            return ('<m:d><m:dPr><m:begChr m:val="("/><m:endChr m:val=")"/></m:dPr><m:e><m:f><m:fPr><m:type m:val="noBar"/></m:fPr>'
+                    f'<m:num>{top}</m:num><m:den>{bottom}</m:den></m:f></m:e></m:d>')
         if name == 'sqrt':
             degree = ''
             if self.peek() == '[':
@@ -155,6 +159,8 @@ class _Reader:
         if name in ('begin', 'end'):
             self.group_text()
             return ''
+        if name == 'gap':   # a handout gap inside a formula (design.open_gaps)
+            return _run('＿＿＿＿', plain=True)
         if name in IGNORED:
             return ''
         if name in FUNCTIONS:

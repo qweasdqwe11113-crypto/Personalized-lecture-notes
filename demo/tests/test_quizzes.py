@@ -8,6 +8,8 @@ from zipfile import ZipFile
 
 from psycopg.types.json import Jsonb
 
+import unittest
+
 from test_profiles import ProfileDatabaseFixture, module
 from quizzes import QuizQueue, parse_questions, question_plan, validate_options
 
@@ -238,6 +240,134 @@ class LectureQuizTests(QuizFixture):
         allowed = self.submit(self.lecture_payload(lecture_id=generic, student_level='foundation'))
         self.assertEqual(allowed['status'], 'succeeded', allowed)
 
+    def test_designed_lecture_quiz_follows_the_lesson_design(self):
+        # The quiz is the after-class check of a designed lesson: the handout's notation, every objective,
+        # nothing the students already did in class. A copied example goes back to the model once.
+        from test_lesson_design import design_reply
+        with self.fixture_db() as conn:
+            conn.execute('UPDATE lectures SET context=context||%s WHERE id=%s',
+                         (Jsonb({'lesson_design': design_reply()}), self.lecture_id))
+        seen = []
+        def model(prepared, attempted):
+            payload = json.loads(prepared.body)
+            seen.append((prepared.prompt_version, prepared.input_version, payload['messages']))
+            ctx = json.loads(payload['messages'][1]['content'])['context']
+            result = fixture_result(ctx)
+            first = result['questions'][0]
+            if len(seen) == 1:
+                first['stem'] = ctx['lecture']['design']['used'][0]['stem'].replace('$A_1$', 'A1')
+            else:
+                first['stem'] = '两条产线的产量占比为 0.7、0.3，次品率为 0.01、0.04。抽到一件次品，求 P(A1|D)，并说明 A2 的后验为何更大。'
+                first['analysis'] = '对应学习目标 1。$P(A_1\\mid D) = \\frac{0.007}{0.019}$，与例1同类。'
+            # One backslash, as models write it: JSON reads "\frac" as a form feed followed by "rac".
+            return module.ModelResult(json.dumps(result, ensure_ascii=False).replace('\\\\frac', '\\frac'), {'total_tokens': 10})
+        with patch.object(module, 'call_qwen', model):
+            response = self.client.post('/api/quizzes', json=self.lecture_payload())
+            self.assertEqual(response.status_code, 202, response.json)
+            self.assertTrue(self.queue.wait_idle(5))
+        result = self.client.get('/api/quizzes/' + response.json['id']).json
+        self.assertEqual(result['status'], 'succeeded', result)
+        design = result['context']['lecture']['design']
+        self.assertEqual([(o['number'], o['text'], o['level'], o['checked_by']) for o in design['objectives']],
+                         [(1, '能用贝叶斯公式求后验', '基础', ['练1']), (2, '能说明先验变化的影响', '提高', ['练3', '作业1'])])
+        self.assertEqual([q['objective'] for q in result['result']['questions']], [1, 1, 2])   # each objective, 提高 last
+        self.assertEqual([p['name'] for p in design['used']], ['例1', '例2', '练1', '练2', '练3', '作业1'])
+        self.assertEqual(design['notation'], [{'symbol': '$D$', 'meaning': '抽到次品'}])
+        self.assertEqual([version[:2] for version in seen], [('quiz-v1+lecture-v2+json-v1', 'quiz-context-lecture-v2'),
+                                                              ('quiz-v1+lecture-v2+json-v1+repair-v1', 'quiz-context-lecture-v2')])
+        system = seen[0][2][0]['content']
+        self.assertIn('quiz-lecture-v2', system)
+        self.assertNotIn('quiz-lecture-v1', system)
+        self.assertIn('几乎照抄了学生已经做过的「例1」', seen[1][2][-1]['content'])
+        first = result['result']['questions'][0]
+        self.assertEqual(first['stem'], '两条产线的产量占比为 0.7、0.3，次品率为 0.01、0.04。抽到一件次品，求 $P(A_1\\mid D)$，并说明 $A_2$ 的后验为何更大。')
+        self.assertEqual(first['analysis'], '对应学习目标 1。$P(A_1\\mid D) = \\frac{0.007}{0.019}$，与例1同类。')
+        self.assertTrue(result['result']['questions'][1]['analysis'].startswith('对应学习目标 1。'))   # added when missing
+        docx = self.client.get(f"/api/quizzes/{result['id']}/download?format=docx&version=teacher").data
+        xml = ZipFile(BytesIO(docx)).read('word/document.xml').decode()
+        self.assertIn('<m:oMath', xml)   # the formulas are Word equations, not dollar signs
+        self.assertNotIn('$A_2$', xml)
+        teacher = self.client.get(f"/api/quizzes/{result['id']}/download?format=txt&version=teacher").data.decode()
+        self.assertIn('学习目标：1. 能用贝叶斯公式求后验', teacher)
+        self.assertIn('P(A₁ | D)', teacher)   # plain files get Unicode, not LaTeX
+        student = self.client.get(f"/api/quizzes/{result['id']}/download?format=md&version=student").data.decode()
+        self.assertNotIn('学习目标', student)
+        self.assertEqual(student.count('____________________________'), 3 * 3)   # short answers get three lines
+
+    def designed(self):
+        from test_lesson_design import design_reply
+        with self.fixture_db() as conn:
+            conn.execute('UPDATE lectures SET context=context||%s WHERE id=%s',
+                         (Jsonb({'lesson_design': design_reply()}), self.lecture_id))
+
+    def finished_quiz(self, edit=None):
+        def model(prepared, attempted):
+            ctx = json.loads(json.loads(prepared.body)['messages'][1]['content'])['context']
+            result = fixture_result(ctx)
+            for q in result['questions']:
+                q['stem'] = f"第 {q['number']} 题：先验 0.{q['number']} 时后验怎样变化？"
+                q['analysis'] = '$0.3 \\times 0.2 = 0.08$' if q['number'] == 2 else q['analysis']
+            return module.ModelResult(json.dumps(result, ensure_ascii=False))
+        with patch.object(module, 'call_qwen', model):
+            response = self.client.post('/api/quizzes', json=self.lecture_payload(count=4, types=['short_answer', 'single_choice']))
+            self.assertTrue(self.queue.wait_idle(5))
+        return self.client.get('/api/quizzes/' + response.json['id']).json
+
+    def test_the_plan_is_shown_before_generating_and_arithmetic_is_rechecked(self):
+        self.designed()
+        plan = self.client.post('/api/quizzes/plan', json=self.lecture_payload(count=4)).json
+        self.assertEqual([(p['number'], p['objective']) for p in plan['plan']], [(1, 1), (2, 1), (3, 2), (4, 2)])
+        self.assertEqual([o['text'] for o in plan['objectives']], ['能用贝叶斯公式求后验', '能说明先验变化的影响'])
+        self.assertEqual(self.client.post('/api/quizzes/plan', json={'topic': 'linear'}).status_code, 400)
+        self.assertEqual(self.client.get('/api/quizzes').json['quizzes'], [])   # a preview creates nothing
+        quiz = self.finished_quiz()
+        self.assertEqual(quiz['status'], 'succeeded', quiz)
+        self.assertEqual(quiz['checks'], [{'number': 2, 'details': ['0.3 * 0.2 计算得 0.06，与所写的 0.08 不一致。']}])
+        teacher = self.client.get(f"/api/quizzes/{quiz['id']}/download?format=md&version=teacher").data.decode()
+        self.assertIn('算式复算提醒（可能误报）：0.3 * 0.2 计算得 0.06', teacher)
+
+    def test_one_question_is_replaced_or_edited_as_a_new_record(self):
+        self.designed()
+        quiz = self.finished_quiz()
+        calls = []
+        def model(prepared, attempted):
+            payload = json.loads(prepared.body)
+            ctx = json.loads(payload['messages'][1]['content'])['context']
+            calls.append((prepared.prompt_version, ctx, payload['messages'][0]['content']))
+            q = {**fixture_result(ctx)['questions'][0]}
+            # The first try repeats a question the set keeps; the second is new.
+            q['stem'] = ctx['replace']['keep'][0] if len(calls) == 1 else '某检测灵敏度 0.9，患病率 0.01，阳性时患病的概率？'
+            return module.ModelResult(json.dumps({'questions': [q]}, ensure_ascii=False))
+        with patch.object(module, 'call_qwen', model):
+            response = self.client.post(f"/api/quizzes/{quiz['id']}/questions/3/replace", json={'note': '换成医学检测情境'})
+            self.assertEqual(response.status_code, 202, response.json)
+            self.assertTrue(self.queue.wait_idle(5))
+        replaced = self.client.get('/api/quizzes/' + response.json['id']).json
+        self.assertEqual(replaced['status'], 'succeeded', replaced)
+        self.assertEqual(replaced['parent_id'], quiz['id'])
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0][0], 'quiz-v1+lecture-v2+json-v1+replace-v1')
+        self.assertEqual([p['number'] for p in calls[0][1]['question_plan']], [3])
+        self.assertNotIn('replace_base', calls[0][1])   # the model sees only the kept stems
+        self.assertEqual(calls[0][1]['replace']['note'], '换成医学检测情境')
+        self.assertIn('换题规则 replace-v1', calls[0][2])
+        before, after = quiz['result']['questions'], replaced['result']['questions']
+        self.assertEqual(after[2]['stem'], '某检测灵敏度 0.9，患病率 0.01，阳性时患病的概率？')
+        self.assertEqual([after[i] for i in (0, 1, 3)], [before[i] for i in (0, 1, 3)])
+        self.assertEqual(self.client.post(f"/api/quizzes/{quiz['id']}/questions/9/replace", json={}).status_code, 404)
+
+        bad = self.client.post(f"/api/quizzes/{replaced['id']}/questions/2/edit", json={'options': ['甲', '乙', '甲', '丁']})
+        self.assertEqual(bad.status_code, 400)
+        edited = self.client.post(f"/api/quizzes/{replaced['id']}/questions/2/edit",
+                                  json={'stem': '教师改写的题干', 'answer': ' B ', 'options': ['甲', '乙', '丙', '丁']})
+        self.assertEqual(edited.status_code, 201, edited.json)
+        record = edited.json
+        self.assertEqual((record['status'], record['parent_id'], record['context']['edits']),
+                         ('succeeded', replaced['id'], [{'quiz_id': replaced['id'], 'number': 2}]))
+        self.assertEqual((record['result']['questions'][1]['stem'], record['result']['questions'][1]['answer']), ('教师改写的题干', 'B'))
+        self.assertTrue(record['integrity_valid'])
+        self.assertEqual(self.client.post(f"/api/quizzes/{quiz['id']}/questions/1/edit", json={'stem': ''}).status_code, 400)
+
     def test_retry_of_lecture_quiz_keeps_its_prompt_versions(self):
         failed = self.submit(self.lecture_payload(), failure=True)
         self.assertEqual(failed['status'], 'failed')
@@ -252,3 +382,119 @@ class LectureQuizTests(QuizFixture):
             self.assertTrue(self.queue.wait_idle(5))
         self.assertEqual(seen, [('quiz-v1+lecture-v1+json-v1', 'quiz-context-lecture-v1')])
         self.assertEqual(self.stored(response.json['id'])['request_sha256'], self.stored(failed['id'])['request_sha256'])
+
+
+class DesignedQuizChecks(unittest.TestCase):
+    """What the program checks in a quiz written for a designed lesson; correctness stays with the teacher."""
+    def setUp(self):
+        from test_lesson_design import design_reply
+        import design as D
+        self.view = D.quiz_view(design_reply())
+        self.plan = [{'number': 1, 'type': 'short_answer', 'difficulty': 'basic', 'knowledge_id': 13},
+                     {'number': 2, 'type': 'single_choice', 'difficulty': 'basic', 'knowledge_id': 13}]
+
+    def context(self, designed=True):
+        lecture = {'id': 1, 'content': '讲义'} | ({'design': self.view} if designed else {})
+        return {'question_plan': self.plan, 'materials': [{'id': 13}], 'lecture': lecture}
+
+    def reply(self, first_stem, option='A1 与 A2 的产量之比'):
+        questions = [{**self.plan[0], 'stem': first_stem, 'options': [], 'answer': '变大', 'analysis': '对应学习目标 2。',
+                      'common_mistake': '把 P(D|A1) 当成 P(A1|D)', 'source_ids': ['M13']},
+                     {**self.plan[1], 'stem': '下列哪一项是全概率公式的分母？', 'options': [option, '0.032', '1', '0'],
+                      'answer': 'A', 'analysis': '对应学习目标 1。', 'common_mistake': '只写一项', 'source_ids': []}]
+        return json.dumps({'questions': questions}, ensure_ascii=False)
+
+    def rejected(self, content, designed=True):
+        with self.assertRaises(module.ModelError) as caught:
+            parse_questions(content, self.context(designed))
+        return str(caught.exception)
+
+    def test_a_problem_the_students_already_did_is_sent_back(self):
+        homework = self.view['used'][-1]['stem']
+        for stem, name in [(self.view['used'][0]['stem'], '例1'),
+                           ('两条生产线甲、乙的产量占比为 0.6、0.4，次品率为 0.02、0.05。抽到一件次品，求它来自甲的概率。', '例1'),
+                           ('先验从 0.6 降到 0.2，后验怎样变化？说明理由。', '练3'),
+                           (homework.replace('，', ', '), '作业1')]:
+            self.assertIn(f'「{name}」', self.rejected(self.reply(stem)))
+        # New numbers, a new question or a new situation is a variant, not a copy.
+        for stem in ['两条产线 $A_1$、$A_2$ 的产量占比为 0.7、0.3，次品率为 0.01、0.04。抽到一件次品，求它来自 $A_1$ 的概率。',
+                     '先验从 0.5 降到 0.1，后验怎样变化？说明理由。',
+                     '某检测的灵敏度为 0.9，人群患病率为 0.01，检测阳性时真正患病的概率是多少？']:
+            parse_questions(self.reply(stem), self.context())
+        # A lecture without a design keeps the earlier rules: no copy check, no rewriting.
+        plain = parse_questions(self.reply(self.view['used'][0]['stem']), self.context(designed=False))
+        self.assertEqual(plain['questions'][1]['options'][0], 'A1 与 A2 的产量之比')
+
+    def test_formulas_follow_the_handout_notation(self):
+        result = parse_questions(self.reply('若先验 P(A1) 变大，P(A1|D) 怎样变化？'), self.context())
+        first, second = result['questions']
+        self.assertEqual(first['stem'], '若先验 $P(A_1)$ 变大，$P(A_1\\mid D)$ 怎样变化？')
+        self.assertEqual(first['common_mistake'], '把 $P(D\\mid A_1)$ 当成 $P(A_1\\mid D)$')
+        self.assertEqual((second['options'][0], second['answer']), ('$A_1$ 与 $A_2$ 的产量之比', 'A'))
+        # A backslash the model did not double comes back as the command it meant; a broken one is sent back.
+        restored = parse_questions(self.reply('若 $\\frac{a}{b}$ 变大呢？').replace('\\\\frac', '\\frac'), self.context())
+        self.assertEqual(restored['questions'][0]['stem'], '若 $\\frac{a}{b}$ 变大呢？')
+        self.assertIn('损坏的公式', self.rejected(self.reply('若 $x \x08yz$ 呢？')))   # "\\byz" is no command
+
+    def test_questions_are_shared_out_over_the_learning_objectives(self):
+        objectives = [dict(number=1, text='一', level='基础', knowledge_ids=[11], checked_by=[]),
+                      dict(number=2, text='二', level='提高', knowledge_ids=[12], checked_by=[]),
+                      dict(number=3, text='三', level='基础', knowledge_ids=[13], checked_by=[])]
+        options = dict(count=5, difficulty='mixed', student_level='profile', types=['single_choice', 'calculation'],
+                       knowledge_ids=[11, 12, 13])
+        states = [{'id': 13, 'state': 'needs_support'}, {'id': 11, 'state': 'mastered'}]
+        plan = question_plan(options, states, {'objectives': objectives})
+        # Every objective once; the extra questions go to the weakest knowledge first (13, then 12);
+        # the 提高 objective takes the hardest slots.
+        self.assertEqual([(p['objective'], p['knowledge_id'], p['difficulty']) for p in plan],
+                         [(1, 11, 'basic'), (3, 13, 'basic'), (3, 13, 'basic'), (2, 12, 'medium'), (2, 12, 'advanced')])
+        self.assertEqual([p['type'] for p in plan], ['single_choice', 'calculation'] * 2 + ['single_choice'])
+        # Fewer questions than objectives: the earlier objectives; a knowledge-point filter keeps only matching ones.
+        self.assertEqual([p['objective'] for p in question_plan({**options, 'count': 2}, [], {'objectives': objectives})], [1, 2])
+        self.assertEqual({p['objective'] for p in question_plan({**options, 'knowledge_ids': [12]}, [], {'objectives': objectives})}, {2})
+        # Without a design the plan is the knowledge-point plan it always was.
+        self.assertNotIn('objective', question_plan(options, states)[0])
+
+    def test_the_planned_objective_and_distinct_options_are_kept(self):
+        self.plan = [{**entry, 'objective': number} for number, entry in enumerate(self.plan, 1)]
+        def reply(analysis='对应学习目标 1。先算全概率。', options=('A1 与 A2 的产量之比', '0.032', '1', '0')):
+            data = json.loads(self.reply('全新的题目：先验变大时后验怎样变化？', option=options[0]))
+            for q, entry in zip(data['questions'], self.plan):
+                q['objective'] = entry['objective']
+            data['questions'][0]['analysis'] = analysis
+            data['questions'][1]['analysis'] = '只写一项会错。'
+            data['questions'][1]['options'] = list(options)
+            return json.dumps(data, ensure_ascii=False)
+        result = parse_questions(reply(), self.context())
+        self.assertEqual([q['objective'] for q in result['questions']], [1, 2])
+        self.assertTrue(result['questions'][1]['analysis'].startswith('对应学习目标 2。'))
+        self.assertIn('解析却写成目标 2', self.rejected(reply('对应学习目标 2。先算全概率。')))
+        self.assertIn('学习目标分配', self.rejected(reply().replace('"objective": 2', '"objective": 1')))
+        self.assertIn('数值相同', self.rejected(reply(options=('0.5', '1/2', '$0.25$', '1'))))
+
+    def test_more_ways_of_writing_symbols_follow_the_handout(self):
+        result = parse_questions(self.reply('已知 P(A₁)=0.6，求 A₂ 的后验；P(X≥2)=1-3e^{-2}'), self.context())
+        self.assertEqual(result['questions'][0]['stem'], '已知 $P(A_1)$=0.6，求 $A_2$ 的后验；P(X≥2)=1-$3e^{-2}$')
+
+    def test_problems_a_revision_adds_count_as_done(self):
+        from quizzes import revised_problems
+        content = ('### 例1 双产线\n\n**题目**　' + self.view['used'][0]['stem'] + '\n\n'
+                   '### 练4（提高） 新加的题\n\n**题目**　三条产线占比 0.5、0.3、0.2，求来自第三条的后验。\n')
+        self.assertEqual(revised_problems(content, self.view['used']),
+                         [dict(name='练4（修订稿）', role='讲义修订稿中的题', level='', answer='',
+                               stem='三条产线占比 0.5、0.3、0.2，求来自第三条的后验。')])
+
+
+class ObjectiveGrading(unittest.TestCase):
+    def test_suggested_scores_are_summed_per_learning_objective(self):
+        from grading import objective_lines, objective_summary
+        reference = {'questions': [dict(number='1', objective=1, objective_text='1. 求后验'),
+                                   dict(number='2', objective=2, objective_text='2. 先验的影响'),
+                                   dict(number='3', objective=1, objective_text='1. 求后验'), dict(number='4')]}
+        result = {'questions': [dict(number='1', score=8, max_score=10), dict(number='2', score=None, max_score=10),
+                                dict(number='3', score=5.5, max_score=10), dict(number='4', score=3, max_score=5)]}
+        summary = objective_summary(result, reference)
+        self.assertEqual([(g['objective'], g['numbers'], g['score'], g['max_score'], g['pending']) for g in summary],
+                         [(1, ['1', '3'], 13.5, 20, 0), (2, ['2'], 0, 10, 1)])
+        self.assertEqual(objective_lines(summary)[1], '学习目标 2. 先验的影响：第 2 题，建议得分 0 / 10（1 题待核对未计分）')
+        self.assertEqual(objective_summary(result, None), [])

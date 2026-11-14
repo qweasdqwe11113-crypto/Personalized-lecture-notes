@@ -26,6 +26,18 @@ class SectionSpliceTests(unittest.TestCase):
             with self.subTest(text=text), self.assertRaises(module.ModelError):
                 replacement(edit, text)
 
+    def test_a_figure_the_program_can_draw_is_kept_and_other_code_blocks_are_not(self):
+        edit = {**split_sections(ORIGINAL)[3], 'base_content': ORIGINAL}
+        figure = ('```figure\n{"type":"bar_chart","title":"各取值概率","unit":"","max":0.5,'
+                  '"bars":[{"label":"x=1","value":0.2},{"label":"x=2","value":0.3}]}\n```')
+        result = replacement(edit, f'## 例题与检验\nx + 3 = 5，x = 2。[M3]\n\n{figure}\n\n检验：2 + 3 = 5。')
+        self.assertIn(figure, result)
+        self.assertIn('## 易错点与小结', result)
+        for text in (f'## 例题与检验\n内容\n\n```python\nprint(1)\n```', '## 例题与检验\n内容\n\n```figure\n{"type":"unknown"}\n```',
+                     '## 例题与检验\n内容\n\n```figure\n## 偷改别节\n```'):
+            with self.subTest(text=text), self.assertRaises(module.ModelError):
+                replacement(edit, text)
+
 
 class TeachingSectionTests(ProfileDatabaseFixture):
     def setUp(self):

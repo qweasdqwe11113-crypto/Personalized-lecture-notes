@@ -2,8 +2,10 @@
 import re
 from teaching import length_range
 from courses import course_family
+import design as lesson_design
 import figures
 import mathcheck
+import style
 
 CHECK_VERSION = 'math-text-check-v1'
 SECTIONS = ['学习目标', '本次学习安排', '核心讲解', '例题与检验', '易错点与小结']
@@ -85,14 +87,22 @@ def check_output(content, context, goal):
     def add(code, label, passed, detail):
         checks.append({'code': code, 'label': label, 'status': 'pass' if passed else 'warning', 'detail': detail})
     add('title', '讲义标题', len(re.findall(r'^#\s+\S', content, re.M)) == 1, '应有一个一级标题。')
-    add('sections', '约定章节', not missing, '缺少：' + '、'.join(missing) if missing else '五个约定章节均已出现；不代表章节内容充分。')
+    designed = context.get('generation_mode') == 'designed-v1'
+    if designed:
+        add('sections', '环节结构', len(headings) >= 3, f'检测到 {len(headings)} 个二级标题（本课要点与各环节）；不代表环节内容充分。')
+    else:
+        add('sections', '约定章节', not missing, '缺少：' + '、'.join(missing) if missing else '五个约定章节均已出现；不代表章节内容充分。')
     minimum, maximum = context['topic'].get('length_range', [600, 900])
     expanded = context.get('lecture_length_policy') == 'expanded-v1'
     if expanded:
         minimum, maximum = 4000, 8000
     if context.get('teaching_options'):
         minimum, maximum = length_range(context['teaching_options'], expanded)
-    add('length', '篇幅', minimum <= chinese <= maximum, f'检测到 {chinese} 个汉字；当前模板建议 {minimum}—{maximum}，含标题，不计标点、数字和字母。')
+    if designed:
+        # Segments are budgeted by their minutes; only a lesson too long to use is worth a reminder.
+        add('length', '篇幅', chinese <= maximum, f'检测到 {chinese} 个汉字；按环节写作不设下限，超过 {maximum} 个汉字时提醒。')
+    else:
+        add('length', '篇幅', minimum <= chinese <= maximum, f'检测到 {chinese} 个汉字；当前模板建议 {minimum}—{maximum}，含标题，不计标点、数字和字母。')
     add('citations', '引用标记', bool(citations), '检测到来源编号。' if citations else '正文未检测到 [M数字] 或 [V数字] 引用。')
     add('citation_ids', '引用编号有效性', not invalid_sources, '不存在的来源编号：' + '、'.join(invalid_sources) if invalid_sources else '未检测到无效编号；仍需检查引用支持关系。')
     add('materials', '知识点资料关联', all(c['has_material'] for c in scope['coverage']), '仅检查所选知识点是否有关联材料，材料内容充分性需人工判断。')
@@ -119,7 +129,20 @@ def check_output(content, context, goal):
         add('visual_citations', '图片解析引用', bool(used) and used <= available,
             '已引用有效图片解析编号；识读与引用支持关系仍需教师核对。' if used and used <= available else
             '未引用图片解析或存在无效图片编号；图片可能与本次目标无关，请核对。')
-    if context.get('personalization_plan'):
+    if designed:
+        if context.get('lesson_design'):
+            for code, label, passed, detail in lesson_design.report(context['lesson_design'], context):
+                add(code, label, passed, detail)
+        flagged = [line.strip() for line in content.splitlines() if lesson_design.FLAG in line]
+        if flagged:
+            add('flagged', '写作时标出的待核对之处', False, f'{len(flagged)} 处：' + '；'.join(line[:80] for line in flagged[:3])
+                + '。这是模型写环节时自己指出的前后不一致，请优先核对。')
+        # 本课要点 is the one place that may speak about diagnoses; the reminder looks at the segments.
+        body = content.split('\n## ', 2)[2] if content.count('\n## ') >= 2 else content
+        hint = style.reminder(body)
+        add('style', '表达提醒', not hint, (hint + '。这是词语匹配，可能把引用的错误说法也算进去。') if hint
+            else '未匹配到系统话术、免责声明、旁白或套话；表达是否自然需教师判断。')
+    elif context.get('personalization_plan'):
         planned = {str(p['knowledge_id']) for p in context['personalization_plan']}
         marked = set(re.findall(r'\[K(\d+)\]',content))
         add('plan_locations','讲解安排定位', planned <= marked and not marked-planned,
@@ -133,6 +156,9 @@ def check_output(content, context, goal):
     if context.get('lecture_pipeline') == 'v3':
         # Figure blocks hold JSON, not prose arithmetic; blank them but keep the line numbers.
         prose = figures.FENCE.sub(lambda match: '\n' * match[0].count('\n'), content)
+        if context.get('generation_mode') == 'designed-v1':
+            # These lines quote the mistake a student is expected to make; recomputing them only raises false alarms.
+            prose = re.sub(r'^(?:\*\*易错\*\*|\*\*注意\*\*|- 常见错答：).*$', '', prose, flags=re.M)
         arithmetic = mathcheck.check_text(prose)
         add('arithmetic', '算式复算', not arithmetic['findings'],
             '；'.join(f'第 {f["line"]} 行：{f["detail"]}' for f in arithmetic['findings'][:3])
@@ -151,6 +177,8 @@ def check_output(content, context, goal):
                 else '公式标记成对出现；公式内容是否正确需教师核对。')
             extras['figures'] = drawn
         version += '+pipeline-v3'
+    if designed:
+        version += '+design-v1'
     return {**extras, 'version': version, 'metrics': {'chinese_characters': chinese, 'line_count': len(content.splitlines())}, 'invalid_source_ids': invalid_sources,
             'scope': scope, 'automatic': checks, 'citation_locations': citations,
             'teacher_review': [{'code': key, 'label': label, 'status': 'needs_review'} for key, label in ({**REVIEW_ITEMS, 'math': '学科知识、适用条件与术语', 'examples': '示例与检验过程'} if general else REVIEW_ITEMS).items()],

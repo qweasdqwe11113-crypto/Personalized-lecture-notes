@@ -9,6 +9,7 @@ const kinds = {cover:'封面', concept:'概念讲解', example:'例题', questio
 let source = null, working = false, session = 0;
 let templates = [];
 let currentDeck = null, editWorking = false, editToken = 0, pendingEdit = null;
+let designFor = null;   // the designed lecture whose slides the dialog shows, built from the design without a model
 const editStatus = text => { $('ppt-edit-status').textContent = text; };
 function editBusy(value) {
   editWorking = value;
@@ -49,6 +50,43 @@ async function loadTemplates(selected) {
   showTemplate();
 }
 $('ppt-template').onchange = showTemplate;
+// A lecture written from a lesson design gets its slides laid out from the same design; the model form stays one click away.
+function designLink() {
+  if(designFor) $('ppt-design-download').href = `/api/lectures/${designFor}/lesson-slides/download?` + new URLSearchParams({template:$('ppt-design-template').value});
+}
+function showDesign(lectureId) {
+  designFor = lectureId;
+  $('ppt-design').hidden = !lectureId; $('ppt-form').hidden = Boolean(lectureId);
+  $('ppt-design-model').textContent = '改用模型改编';
+  if(!lectureId) $('ppt-design-outline').replaceChildren();
+}
+function drawOutline(data) {
+  $('ppt-design-outline').replaceChildren(...data.pages.map(page => {
+    const item = el('li', undefined, page.hidden ? 'is-hidden' : '');
+    item.append(el('span', page.hidden ? '最后一页 · 放映时隐藏' : `第 ${page.number} 页 · ${page.heading}`, 'ppt-design-page'), el('strong', page.title));
+    page.body.slice(0, 6).forEach(text => item.append(el('p', text)));
+    if(page.body.length > 6) item.append(el('p', `……另 ${page.body.length - 6} 行`, 'helper'));
+    if(page.notes) { const notes = el('details'); notes.append(el('summary', '演讲者备注'), el('p', page.notes)); item.append(notes); }
+    return item;
+  }));
+}
+async function loadDesign(lectureId, token) {
+  $('ppt-design-status').textContent = '正在按课堂设计排版…';
+  const designTemplates = templates.filter(item => item.semantic);
+  const chosen = $('ppt-design-template').value;
+  $('ppt-design-template').replaceChildren(...designTemplates.map(item => { const option = el('option', item.name); option.value = item.id; return option; }));
+  const data = await api(`/api/lectures/${lectureId}/lesson-slides`);
+  if(token !== session) return;
+  $('ppt-design-template').value = designTemplates.some(t => t.id === chosen) ? chosen : data.default_template;
+  designLink(); drawOutline(data);
+  $('ppt-design-status').textContent = `共 ${data.visible} 页，另有一页放映时隐藏的说明页。教师用书的课堂流程表标出了每个环节用第几页。`;
+}
+$('ppt-design-template').onchange = designLink;
+$('ppt-design-model').onclick = () => {
+  $('ppt-form').hidden = !$('ppt-form').hidden;
+  $('ppt-design-model').textContent = $('ppt-form').hidden ? '改用模型改编' : '收起模型改编';
+  if(!$('ppt-form').hidden) message('模型改编会另存一份课件记录，例题和顺序可能与学案不同。');
+};
 const version = number => number ? 'R' + number : '原稿';
 function message(text) { $('ppt-status').textContent = text; }
 function syncButton() { openButton.disabled = !lastResult || busy; }
@@ -150,6 +188,8 @@ async function watchPresentationJob(id) {
     await loadTemplates(saved.template_id);
     if(token !== session) return;
     source = {id:saved.lecture_id, revision_number:saved.base_revision};
+    if(designFor !== saved.lecture_id) showDesign(null);
+    else { $('ppt-form').hidden = false; $('ppt-design-model').textContent = '收起模型改编'; }
     $('ppt-source').textContent = sourceLabel(saved);
     $('ppt-count').value = saved.slide_count; $('ppt-instruction').value = saved.instruction;
     $('ppt-trace').hidden = false; $('ppt-trace').onclick = () => openTrace(job.run_id);
@@ -191,8 +231,16 @@ openButton.onclick = async () => {
   working = false; $('ppt-submit').disabled = false; resetPreview();
   $('ppt-source').textContent = `依据当前阅读的讲义 #${source.id} / ${version(source.revision_number)}。`;
   message('先设置页数，再生成课件。网页显示内容预览；实际字体与分页请在 PowerPoint 中复核。');
-  $('ppt-history').replaceChildren(); dialog.showModal();
-  try { await loadTemplates(); if(token === session) await refreshList(source.id, token); } catch(e) { if(token === session) message(e.message); }
+  $('ppt-history').replaceChildren();
+  const designed = Boolean(lastResult.context?.lesson_design);
+  showDesign(designed ? source.id : null);
+  if(designed) message('');
+  dialog.showModal();
+  try {
+    await loadTemplates();
+    if(designed && token === session) await loadDesign(source.id, token).catch(e => { $('ppt-design-status').textContent = e.message; });
+    if(token === session) await refreshList(source.id, token);
+  } catch(e) { if(token === session) message(e.message); }
 };
 $('ppt-form').onsubmit = async e => {
   e.preventDefault(); if(working || !source) return;

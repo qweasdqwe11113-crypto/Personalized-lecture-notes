@@ -113,16 +113,26 @@ class RichExportTests(unittest.TestCase):
     CONTENT = ('# 标题\n## 核心讲解\n由 $P(A_1\\mid D)=\\frac{0.012}{0.032}$ 得 **后验** [M1]，花费 $5 和 $8。\n$$\nP(D)=\\sum_{i=1}^{2} P(A_i)\\,P(D\\mid A_i)+\\unknown\n$$\n'
                '| 产线 | 先验 |\n|---|---|\n| A1 | $0.6$ |\n```figure\n' + json.dumps(TREE, ensure_ascii=False) + '\n```\n- 列表 $x^2$\n<script>alert(1)</script>\n')
 
-    def test_html_keeps_formula_source_embeds_figures_and_stays_script_free(self):
+    def test_html_writes_formulas_as_plain_text_embeds_figures_and_stays_script_free(self):
         text = rendering.markdown_html(self.CONTENT)
-        self.assertIn('<span class="math-source">$P(A_1\\mid D)=\\frac{0.012}{0.032}$</span>', text)
+        self.assertIn('由 <span class="math">P(A₁ | D) = 0.012/0.032</span> 得 <strong>后验</strong>', text)
         self.assertIn('花费 $5 和 $8', text)
-        self.assertIn('<div class="math-display">P(D)=', text)
+        self.assertIn('<div class="math-display">P(D) = ∑ᵢ₌₁² P(Aᵢ) P(D | Aᵢ)', text)
+        self.assertIn('<li>列表 <span class="math">x²</span></li>', text)
+        self.assertNotIn('\\frac', text)
         self.assertIn('<table><tr><th>产线</th><th>先验</th></tr>', text)
         self.assertIn('<figure><img alt="概率树', text)
         self.assertIn('data:image/svg+xml;base64,', text)
         self.assertNotIn('<script', text)
         self.assertIn('&lt;script&gt;', text)
+
+    def test_plain_text_export_writes_formulas_as_unicode(self):
+        text = rendering.plain_formulas(self.CONTENT + '$$X \\sim P(4)$$\n')
+        self.assertIn('由 P(A₁ | D) = 0.012/0.032 得 **后验** [M1]，花费 $5 和 $8。', text)
+        self.assertIn('P(D) = ∑ᵢ₌₁² P(Aᵢ) P(D | Aᵢ)', text)
+        self.assertIn('X ∼ P(4)', text)
+        self.assertNotIn('$$', text)
+        self.assertIn('```figure', text, 'figure blocks are left to the figure text')
 
     def test_word_gets_native_formulas_a_table_and_a_picture_or_words(self):
         document = Document()

@@ -26,3 +26,18 @@
 .section-save-actions .primary { width: auto; flex: 1 1 200px; }
 @media (max-width: 650px) { .section-comparison { grid-template-columns: minmax(0, 1fr); } #section-editor { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); } }
 @media print { .section-entry, #section-editor { display: none !important; } }
+
+/* Lesson design review: the design on the left, the few things a teacher usually changes on the right. */
+.design-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 18px; margin-top: 14px; }
+.design-layout > section { min-width: 0; }
+.design-edit fieldset { margin: 0 0 14px; padding: 12px; border: 1px solid #e1e6f0; border-radius: 9px; }
+.design-edit textarea { inline-size: 100%; box-sizing: border-box; }
+.design-edit details { margin-bottom: 14px; }
+.design-minutes-row { display: grid; grid-template-columns: minmax(0, 1fr) 76px; gap: 10px; align-items: center; margin-bottom: 6px; font-size: 14px; }
+.design-minutes-row input { inline-size: 100%; box-sizing: border-box; }
+.design-item { margin-top: 12px; }
+.design-reminders { margin: 0 0 4px; padding: 10px 14px 10px 30px; border: 1px solid #f0d9a8; border-radius: 9px; background: #fffaf0; font-size: 14px; line-height: 1.7; }
+.design-total-off { color: #b45309; font-weight: 600; }
+.check-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; font-weight: 500; }
+.check-row input { inline-size: auto; }
+@media (max-width: 900px) { .design-layout { grid-template-columns: minmax(0, 1fr); } }

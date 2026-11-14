@@ -20,6 +20,13 @@
 .quiz-question:first-child {border-top:0}
 .quiz-question h3 {font-size:14px;margin:0 0 14px;color:#334c78}
 .quiz-question .quiz-text {white-space:pre-wrap}
+.quiz-objective-plan {background:#f7f9fe;border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:6px 0 14px;font-size:13px;line-height:1.7}
+.quiz-objective-plan p {margin:2px 0}
+.quiz-tools {display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.quiz-tools input {flex:1 1 220px;min-width:0}
+.quiz-editor {display:grid;gap:8px;margin-top:12px}
+.quiz-editor label {font-size:13px;color:var(--muted)}
+.quiz-editor textarea {min-height:70px}
 .quiz-answer {background:#f7f9fe;border:1px solid var(--line);border-radius:8px;padding:16px;margin-top:18px}
 .quiz-answer h4 {margin:14px 0 5px;font-size:13px}
 .quiz-answer h4:first-child {margin-top:0}
