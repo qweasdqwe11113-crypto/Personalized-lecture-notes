@@ -26,7 +26,7 @@ async function refreshRuns() {
   $('generation-runs').replaceChildren(...data.runs.map(run => {
     const button = el('button', undefined, 'run-history-item');
     button.type = 'button';
-    button.append(el('span', `#${run.id} ${run.name} · ${run.ppt_generation?(run.status==='succeeded'?'PPT 已生成':'PPT · '+runLabels[run.status]):run.section_rewrite?(run.status==='succeeded'?'章节候选已生成':runLabels[run.status]):runLabels[run.status]}`, 'run-' + run.status),
+    button.append(el('span', `#${run.id} ${run.name} · ${run.ppt_generation?(run.status==='succeeded'?'PPT 已生成':'PPT · '+runLabels[run.status]):run.section_rewrite?(run.status==='succeeded'?'章节候选已生成':runLabels[run.status]):run.design_review?(run.status==='succeeded'?'课堂设计待确认':'课堂设计 · '+runLabels[run.status]):runLabels[run.status]}`, 'run-' + run.status),
                   el('span', run.topic, 'helper'));
     button.onclick = () => openTrace(run.id);
     return button;
@@ -46,6 +46,7 @@ function drawTrace(run) {
   $('trace-status').textContent = run.status === 'running'
     ? '记录尚未结束，可能仍在处理或曾中断，请刷新核查。'
     : run.status === 'succeeded' ? `已关联讲义 #${run.lecture_id}，输入与输出一起留存。` : '此记录没有进入成功讲义历史。';
+  if(run.response_metadata?.operation==='lesson_design'){$('trace-title').textContent=`生成记录 #${run.id} · 课堂设计已生成`;$('trace-status').textContent='这是一份等待教师确认的课堂设计，还不是讲义；确认后另建一条记录写教师详案。可从“后台任务”重新打开确认窗口。';}
   if(edit&&run.status==='succeeded')$('trace-status').textContent=saved?`本次章节修改已另存讲义 #${edit.lecture_id} / R${saved} 草稿。`:`章节候选尚未采用，可从后台任务恢复预览；原讲义未修改。`;
   if(ppt){$('trace-title').textContent=`PPT 生成记录 #${run.id} · ${run.status==='succeeded'?'课件已生成':runLabels[run.status]}`;$('trace-status').textContent=`来源：讲义 #${ppt.lecture_id} / ${ppt.base_revision?'R'+ppt.base_revision:'原稿'} · ${ppt.slide_count} 页；课件需单独教师复核，可从后台任务恢复预览。`;}
   traceError(!run.integrity_valid ? '输入校验值不匹配，请核查存储记录。' : run.error_message);

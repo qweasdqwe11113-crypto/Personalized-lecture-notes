@@ -14,17 +14,15 @@ const {Runtime, STEPS} = require('./runtime');
 const pkg = require('../package.json');
 
 const packaged = app.isPackaged;
-const edition = paths.edition(packaged ? pkg.zhiye && pkg.zhiye.edition : process.env.ZHIYE_DESKTOP_EDITION);
-const editionLabel = paths.EDITIONS[edition].label;
-const productName = edition === 'demo' ? '知页测试版' : '知页';
+const productName = '知页';
 // A fixed port keeps the page's origin, and the preferences it remembers, the same between runs.
-const PREFERRED_PORT = (edition === 'demo' ? 38661 : 38660) + (packaged ? 0 : 10);
+const PREFERRED_PORT = 38660 + (packaged ? 0 : 10);
 const REPOSITORY = 'qweasdqwe11113-crypto/Personalized-lecture-notes';
 const LAUNCHER = path.join(__dirname, 'launcher', 'index.html');
 const LAUNCHER_URL = pathToFileURL(LAUNCHER).href;
 const ICON = path.join(__dirname, '..', 'assets', 'icon.png');
 
-// Run from source, each edition keeps its own settings instead of sharing the installed 知页's.
+// Run from source, the client keeps its own settings instead of sharing the installed 知页's.
 if (!packaged) app.setPath('userData', path.join(app.getPath('appData'), `${productName}-Dev`));
 
 let settings = config.DEFAULTS;
@@ -37,7 +35,7 @@ let busy = false;
 let noSandbox = false;
 
 const configFile = () => path.join(app.getPath('userData'), 'desktop.json');
-const dataDir = () => settings.dataDir || paths.defaultDataDir(paths.dataFolderName(edition, !packaged));
+const dataDir = () => settings.dataDir || paths.defaultDataDir(paths.dataFolderName(!packaged));
 const appOrigin = () => (runtime && runtime.url ? policy.origin(runtime.url) : null);
 
 function resources() {
@@ -48,7 +46,7 @@ function resources() {
 // ---------------------------------------------------------------- start-up screen state
 
 function info() {
-  return {version: app.getVersion(), edition, editionLabel, productName, dataDir: dataDir(), platform: process.platform};
+  return {version: app.getVersion(), productName, dataDir: dataDir(), platform: process.platform};
 }
 
 function freshState(phase, lead) {
@@ -89,7 +87,7 @@ function failure(error, title = '启动没有完成') {
 // ---------------------------------------------------------------- runtime lifecycle
 
 function makeRuntime() {
-  const next = new Runtime({resources: resources(), dataDir: dataDir(), edition, packaged, preferredPort: PREFERRED_PORT});
+  const next = new Runtime({resources: resources(), dataDir: dataDir(), packaged, preferredPort: PREFERRED_PORT});
   if (noSandbox) next.log.line('client', '本系统限制了 Chromium 沙箱（Ubuntu 24.04 起的 AppArmor 规则），本次不使用沙箱运行。');
   next.on('step', step => {
     if (!state || !state.steps) return;
@@ -176,7 +174,7 @@ async function chooseDataDir() {
     properties: ['openDirectory', 'createDirectory'],
   });
   if (canceled || !filePaths[0]) return false;
-  const chosen = path.join(filePaths[0], paths.dataFolderName(edition, !packaged));
+  const chosen = path.join(filePaths[0], paths.dataFolderName(!packaged));
   const {response} = await dialog.showMessageBox(win, {
     type: 'question', buttons: ['使用新目录', '取消'], defaultId: 0, cancelId: 1, title: '更换数据目录',
     message: `之后的数据将保存在：\n${chosen}`,
@@ -205,7 +203,7 @@ async function backupData() {
   await withServiceStopped('正在备份数据…', async () => {
     // The version the data belongs to: still the older one while an upgrade has not finished.
     const version = upgrade.dataVersion(dataDir()) || app.getVersion();
-    try { folder = backup.createBackup(dataDir(), filePaths[0], {version, edition}); } catch (error) { failed = error; }
+    try { folder = backup.createBackup(dataDir(), filePaths[0], {version}); } catch (error) { failed = error; }
   });
   if (failed) return dialog.showErrorBox('备份失败', failed.message);
   const done = await dialog.showMessageBox(win, {type: 'info', buttons: ['打开备份文件夹', '完成'], defaultId: 1, title: '备份完成', message: '备份已保存。', detail: folder});
@@ -222,7 +220,7 @@ async function restoreData() {
   if (canceled || !filePaths[0]) return;
   let manifest;
   try {
-    manifest = backup.checkBackup(filePaths[0], dataDir(), edition);
+    manifest = backup.checkBackup(filePaths[0], dataDir());
     upgrade.checkRestore(manifest, pkg.version);
   } catch (error) { return dialog.showErrorBox('无法恢复', error.message); }
   const {response} = await dialog.showMessageBox(win, {
@@ -235,7 +233,7 @@ async function restoreData() {
   await withServiceStopped('正在从备份恢复…', async () => {
     try { aside = backup.restoreBackup(filePaths[0], dataDir()); } catch (error) { failed = error; }
     if (failed) return;
-    try { upgrade.recordRestore(dataDir(), {version: pkg.version, edition, from: filePaths[0]}); } catch (error) {
+    try { upgrade.recordRestore(dataDir(), {version: pkg.version, from: filePaths[0]}); } catch (error) {
       if (runtime) runtime.log.line('client', `恢复后记录客户端版本失败：${error.message}`);
     }
   });
@@ -247,7 +245,7 @@ async function restoreData() {
 
 function showAbout() {
   dialog.showMessageBox(win, {
-    type: 'info', title: `关于${productName}`, message: `${productName} ${app.getVersion()}（${editionLabel}）`,
+    type: 'info', title: `关于${productName}`, message: `${productName} ${app.getVersion()}`,
     detail: [`个性化讲义、出题与阅卷的教师备课工具。`, '', `数据目录：${dataDir()}`,
       `Electron ${process.versions.electron} · Chromium ${process.versions.chrome} · Node ${process.versions.node}`].join('\n'),
   });
@@ -288,15 +286,11 @@ function createWindow() {
     ...bounds, minWidth: 960, minHeight: 640, show: false, title: productName, icon: ICON,
     backgroundColor: '#f5f7fa', autoHideMenuBar: false,
     webPreferences: {preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true,
-      nodeIntegration: false, spellcheck: false, devTools: !packaged || edition === 'demo'},
+      nodeIntegration: false, spellcheck: false, devTools: !packaged},
   });
   if (settings.bounds && settings.bounds.maximized) win.maximize();
   win.once('ready-to-show', () => win.show());
   win.on('close', event => { if (!stopped) { event.preventDefault(); requestQuit(); } });
-  win.on('page-title-updated', (event, title) => {
-    event.preventDefault();
-    win.setTitle(edition === 'demo' && !title.includes('测试版') ? `${title}（测试版）` : title);
-  });
   const contents = win.webContents;
   contents.on('will-navigate', (event, url) => {
     if (policy.isAppUrl(url, appOrigin()) || policy.isLauncherUrl(url, LAUNCHER_URL)) return;
@@ -345,7 +339,7 @@ function buildMenu() {
       {label: '实际大小', role: 'resetZoom'}, {label: '放大', role: 'zoomIn'}, {label: '缩小', role: 'zoomOut'},
       {type: 'separator'},
       {label: '全屏', role: 'togglefullscreen'},
-      ...(!packaged || edition === 'demo' ? [{label: '开发者工具', role: 'toggleDevTools'}] : []),
+      ...(!packaged ? [{label: '开发者工具', role: 'toggleDevTools'}] : []),
     ]},
     {label: '服务', submenu: [
       {label: '重启服务', click: restartService},
@@ -430,7 +424,7 @@ if (!app.requestSingleInstanceLock()) {
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => requestQuit());
 
   app.whenReady().then(async () => {
-    app.setAppUserModelId(edition === 'demo' ? 'cn.zhiye.desktop.test' : 'cn.zhiye.desktop');
+    app.setAppUserModelId('cn.zhiye.desktop');
     settings = config.load(configFile());
     fs.mkdirSync(path.dirname(configFile()), {recursive: true});
     hardenSession();

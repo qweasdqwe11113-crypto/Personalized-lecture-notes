@@ -16,7 +16,7 @@ from repair import POLICY as REPAIR_POLICY, merged_usage, retry_request
 from reviews import ReviewError, STATUS_LABELS, lecture_row, version_row
 from runs import mark_attempt, run_detail
 from pptx_export import build_pptx as build_legacy_pptx
-from pptkit_export import build_pptx as build_kit_pptx, EXPORT_VERSION
+from pptkit_export import build_pptx as build_kit_pptx, build_lesson_pptx, EXPORT_VERSION
 from ppt_story import DESIGN_VERSION, validate_visual, visual_texts
 from ppt_templates import DEFAULT_TEMPLATE, available_templates, template_record
 from ppt_aesthetics import register_aesthetics, AestheticError
@@ -322,6 +322,34 @@ def presentation_pptx(db, run_id):
     return run, deck, build_pptx(deck, {**source, 'run_id': run_id}, run['context'])
 
 
+def lesson_deck(lecture):
+    """Slides of a lecture written from a lesson design, planned from the saved design. No model call."""
+    import lesson_slides
+    design = lecture['context'].get('lesson_design')
+    if not design:
+        raise ReviewError('这份讲义不是按课堂设计生成的，没有可直接排版的课件；可以用「生成授课 PPT」让模型改编。', 409)
+    topic = lecture['context'].get('topic') or {}
+    course = ' · '.join(filter(None, [topic.get('stage'), topic.get('course'), topic.get('chapter')]))
+    return lesson_slides.plan(design, label=design['title'], lines=[course] if course else [])
+
+
+def lesson_pptx(lecture, template_id):
+    """(deck, template, bytes) of the design-built slides on a template; the template id is checked here."""
+    import lesson_slides
+    try:
+        template = template_record(template_id)
+    except ValueError as exc:
+        raise ReviewError(str(exc)) from exc
+    deck = lesson_deck(lecture)
+    provenance = [f'依据：讲义 #{lecture["id"]} 的课堂设计（{lecture["context"]["lesson_design"].get("version", "lesson-design-v1")}）；'
+                  f'排版 {lesson_slides.VERSION}；模板 {template["name"]}（{template["id"]}）。']
+    try:
+        payload = build_lesson_pptx(deck, template['id'], provenance)
+    except ValueError as exc:
+        raise ReviewError(str(exc), 500) from exc
+    return deck, template, payload
+
+
 def register_presentations(app, db, queue):
     @app.get('/api/presentation-templates')
     def presentation_templates():
@@ -369,6 +397,27 @@ def register_presentations(app, db, queue):
         context = {**lecture['context'], 'ppt_export': edit}
         prepared = prepare_slides(context, os.environ.get('QWEN_MODEL', 'qwen3.8-27b'))
         return jsonify(queue().submit(lecture['student_id'], 'ppt_export', lecture['goal'], context, prepared)), 202
+
+    def designed_lecture(lecture_id):
+        with db() as conn:
+            conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
+            return lecture_row(conn, lecture_id)
+
+    @app.get('/api/lectures/<int:lecture_id>/lesson-slides')
+    def lesson_slides_outline(lecture_id):
+        import lesson_slides
+        deck = lesson_deck(designed_lecture(lecture_id))
+        return jsonify(title=deck['title'], version=deck['version'], visible=deck['visible'],
+                       pages=lesson_slides.outline(deck), segments=deck['pages'], default_template=DEFAULT_TEMPLATE)
+
+    @app.get('/api/lectures/<int:lecture_id>/lesson-slides/download')
+    def lesson_slides_download(lecture_id):
+        from urllib.parse import quote
+        _, _, payload = lesson_pptx(designed_lecture(lecture_id), request.args.get('template', DEFAULT_TEMPLATE))
+        response = Response(payload, mimetype=MIME)
+        response.headers['Content-Disposition'] = (
+            f"attachment; filename=lecture-{lecture_id}-slides.pptx; filename*=UTF-8''{quote(f'授课课件-讲义{lecture_id}.pptx')}")
+        return response
 
     @app.get('/api/lectures/<int:lecture_id>/presentations')
     def list_presentations(lecture_id):

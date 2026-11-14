@@ -8,12 +8,8 @@
   "license": "MIT",
   "homepage": "https://github.com/qweasdqwe11113-crypto/Personalized-lecture-notes",
   "main": "src/main.js",
-  "zhiye": {
-    "edition": "release"
-  },
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "dev:test": "node scripts/dev.mjs --edition demo",
     "test": "node --test \"test/*.test.js\"",
     "stage": "node scripts/stage.mjs",
     "smoke": "node scripts/smoke.mjs",

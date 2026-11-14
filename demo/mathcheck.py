@@ -8,6 +8,7 @@ Anything the small parser does not understand is skipped, never guessed. A findi
 "the written numbers do not agree", which a teacher still has to read in context.
 """
 from fractions import Fraction
+import math
 import re
 
 VERSION = 'arithmetic-v1'
@@ -18,7 +19,8 @@ class MathError(ValueError):
     pass
 
 
-_LATEX = [(r'\\(?:dfrac|tfrac|frac)\s*\{([^{}]*)\}\s*\{([^{}]*)\}', r'((\1)/(\2))'),
+_LATEX = [(r'\\(?:dbinom|tbinom|binom)\s*\{\s*(\d{1,4})\s*\}\s*\{\s*(\d{1,4})\s*\}', lambda m: f'({math.comb(int(m[1]), int(m[2]))})'),
+          (r'\\(?:dfrac|tfrac|frac)\s*\{([^{}]*)\}\s*\{([^{}]*)\}', r'((\1)/(\2))'),
           (r'\\(?:left|right|,|;|!|quad|qquad|displaystyle)', ' '),
           (r'\\times|\\cdot|\\ast', '*'), (r'\\div', '/'), (r'\\%', '%'),
           (r'\\approx', '≈'), (r'\\neq|\\ne', '≠'), (r'\\(?:text|mathrm)\s*\{([^{}]*)\}', r'\1')]
@@ -178,8 +180,18 @@ def _numeric_chains(line):
             continue
         pieces = re.split(r'(=|≈)', text)
         segments, relations = pieces[0::2], pieces[1::2]
+        before, after = flat[:run.start()], flat[run.end():]
+        # "2x + 5 - 5 = 17 - 5" or "p_1 = 0.2": the numbers beside a letter continue an algebraic
+        # expression or name a symbol, so that end of the run is not a number to recompute.
+        latin = lambda char: bool(re.fullmatch(r'[A-Za-z]', char))   # Chinese text beside a number is prose, not algebra
+        open_start = (latin(before[-1:]) or before[-1:] == '_'
+                      or (latin(before.rstrip()[-1:]) and text.lstrip()[:1] in tuple('+-*/^')))
+        open_end = latin(after.lstrip()[:1]) and text.rstrip()[-1:] in tuple('+-*/^(')
         values = []
         for index, segment in enumerate(segments):
+            if (index == 0 and open_start) or (index == len(segments) - 1 and open_end):
+                values.append(None)
+                continue
             candidate = segment.strip()
             if index == 0:
                 # "1. 0.6 × 0.02 = …": a list number is not part of the expression.

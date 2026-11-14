@@ -23,7 +23,7 @@ function dataFolder(root, version, marker = 'old data') {
   fs.writeFileSync(path.join(root, 'database', 'postmaster.pid'), '123');
   fs.writeFileSync(path.join(root, 'workspace', '.runtime', 'uploads.sqlite3'), marker);
   fs.writeFileSync(path.join(root, 'database-secret.json'), JSON.stringify({password: 'x'.repeat(32)}));
-  if (version) upgrade.writeRecord(root, {version, edition: 'release'});
+  if (version) upgrade.writeRecord(root, {version});
   return root;
 }
 
@@ -51,7 +51,7 @@ test('first start in a new data folder records the version and makes no backup',
   const data = path.join(temp(t), 'zhiye');
   fs.mkdirSync(data);
   const spy = calls();
-  const result = await upgrade.prepare({dataDir: data, version: '0.2.0', edition: 'release', ...spy, now: at(13)});
+  const result = await upgrade.prepare({dataDir: data, version: '0.2.0', ...spy, now: at(13)});
   assert.equal(result.kind, 'fresh');
   assert.deepEqual(spy.seen, [], 'nothing stopped, nothing copied');
   assert.deepEqual(names(data), []);
@@ -64,7 +64,7 @@ test('first start in a new data folder records the version and makes no backup',
 test('the same version starts without a backup', async t => {
   const data = dataFolder(path.join(temp(t), 'zhiye'), '0.2.0');
   const spy = calls();
-  const result = await upgrade.prepare({dataDir: data, version: '0.2.0', edition: 'release', ...spy, now: at(13)});
+  const result = await upgrade.prepare({dataDir: data, version: '0.2.0', ...spy, now: at(13)});
   assert.deepEqual(result, {kind: 'same', previous: '0.2.0'});
   assert.deepEqual(spy.seen, []);
   assert.deepEqual(names(data), []);
@@ -74,8 +74,8 @@ test('an upgrade copies the stopped data first and keeps the newest three copies
   const data = dataFolder(path.join(temp(t), 'zhiye'), '0.1.0');
   // Look-alikes that pruning must leave alone: no manifest, a manual backup, a link to a backup.
   fs.mkdirSync(path.join(data, '升级前备份-手工-20200101-000000'));
-  const manual = backup.createBackup(data, data, {version: '0.1.0', edition: 'release', now: at(1)});
-  const outside = backup.createBackup(data, temp(t), {version: '0.0.1', edition: 'release', now: at(2),
+  const manual = backup.createBackup(data, data, {version: '0.1.0', now: at(1)});
+  const outside = backup.createBackup(data, temp(t), {version: '0.0.1', now: at(2),
     name: '升级前备份-0.0.1-20200102-000000'});
   if (process.platform !== 'win32') fs.symlinkSync(outside, path.join(data, '升级前备份-0.0.2-20200103-000000'));
 
@@ -84,25 +84,25 @@ test('an upgrade copies the stopped data first and keeps the newest three copies
     spy.seen.push('stopped');
     assert.deepEqual(upgrade.listUpgradeBackups(data), [], 'the database is stopped before anything is copied');
   };
-  const first = await upgrade.prepare({dataDir: data, version: '0.2.0', edition: 'release', ...spy, now: at(13, 9)});
+  const first = await upgrade.prepare({dataDir: data, version: '0.2.0', ...spy, now: at(13, 9)});
   assert.equal(first.kind, 'upgrade');
   assert.equal(path.basename(first.backup), '升级前备份-0.1.0-20261113-090000');
   assert.deepEqual(spy.seen, [['backup', '0.1.0', '0.2.0'], 'stopped']);
 
   // The copy is an ordinary backup of the old data that 「从备份恢复」 accepts.
   const manifest = backup.checkBackup(first.backup, data, 'release');
-  assert.deepEqual([manifest.version, manifest.edition, manifest.postgres], ['0.1.0', 'release', '17']);
+  assert.deepEqual([manifest.version, manifest.postgres], ['0.1.0', '17']);
   assert.equal(fs.readFileSync(path.join(first.backup, 'workspace', '.runtime', 'uploads.sqlite3'), 'utf8'), 'old data');
   assert.equal(fs.existsSync(path.join(first.backup, 'database', 'postmaster.pid')), false);
   assert.equal(fs.existsSync(path.join(first.backup, 'logs')), false, 'only the backup parts are copied');
   assert.deepEqual(upgrade.readRecord(data).pending, {from: '0.1.0', to: '0.2.0', backup: '升级前备份-0.1.0-20261113-090000',
     created_at: at(13, 9).toISOString()});
 
-  upgrade.recordStart(data, {version: '0.2.0', edition: 'release'});
+  upgrade.recordStart(data, {version: '0.2.0'});
   for (const [version, day] of [['0.3.0', 14], ['0.4.0', 15], ['0.5.0', 16]]) {
-    const result = await upgrade.prepare({dataDir: data, version, edition: 'release', now: at(day)});
+    const result = await upgrade.prepare({dataDir: data, version, now: at(day)});
     assert.equal(result.kind, 'upgrade');
-    upgrade.recordStart(data, {version, edition: 'release'});
+    upgrade.recordStart(data, {version});
   }
   assert.deepEqual(upgrade.listUpgradeBackups(data).map(b => b.version), ['0.4.0', '0.3.0', '0.2.0'], 'the oldest one is gone');
   assert.ok(fs.existsSync(path.join(data, '升级前备份-手工-20200101-000000')), 'a folder without a manifest stays');
@@ -114,10 +114,10 @@ test('an upgrade copies the stopped data first and keeps the newest three copies
 test('the backup just made is kept even when the clock was turned back', async t => {
   const data = dataFolder(path.join(temp(t), 'zhiye'), '0.1.0');
   for (const [version, day] of [['0.2.0', 20], ['0.3.0', 21], ['0.4.0', 22]]) {
-    await upgrade.prepare({dataDir: data, version, edition: 'release', now: at(day)});
-    upgrade.recordStart(data, {version, edition: 'release'});
+    await upgrade.prepare({dataDir: data, version, now: at(day)});
+    upgrade.recordStart(data, {version});
   }
-  const result = await upgrade.prepare({dataDir: data, version: '0.5.0', edition: 'release', now: at(1)});
+  const result = await upgrade.prepare({dataDir: data, version: '0.5.0', now: at(1)});
   assert.ok(fs.existsSync(result.backup));
   assert.deepEqual(upgrade.listUpgradeBackups(data).map(b => b.version).sort(), ['0.2.0', '0.3.0', '0.4.0']);
   assert.equal(path.basename(result.backup), '升级前备份-0.4.0-20261101-090000');
@@ -125,11 +125,11 @@ test('the backup just made is kept even when the clock was turned back', async t
 
 test('a failed backup stops the upgrade and leaves the data and the record as they were', async t => {
   const data = dataFolder(path.join(temp(t), 'zhiye'), '0.1.0');
-  const kept = (await upgrade.prepare({dataDir: data, version: '0.1.5', edition: 'release', now: at(10)})).backup;
-  upgrade.recordStart(data, {version: '0.1.5', edition: 'release'});
+  const kept = (await upgrade.prepare({dataDir: data, version: '0.1.5', now: at(10)})).backup;
+  upgrade.recordStart(data, {version: '0.1.5'});
   for (const day of [11, 12]) {
     const name = `升级前备份-0.1.${day - 10}-202611${day}-090000`;
-    backup.createBackup(data, data, {version: `0.1.${day - 10}`, edition: 'release', now: at(day), name});
+    backup.createBackup(data, data, {version: `0.1.${day - 10}`, now: at(day), name});
   }
   const record = fs.readFileSync(path.join(data, upgrade.RECORD), 'utf8');
   t.mock.method(backup, 'createBackup', (dataDir, parent, {name}) => {
@@ -139,7 +139,7 @@ test('a failed backup stops the upgrade and leaves the data and the record as th
   });
   const lines = [];
   await assert.rejects(
-    upgrade.prepare({dataDir: data, version: '0.2.0', edition: 'release', log: line => lines.push(line), now: at(13)}),
+    upgrade.prepare({dataDir: data, version: '0.2.0', log: line => lines.push(line), now: at(13)}),
     error => /升级前备份没有完成：磁盘空间不足（ENOSPC）/.test(error.message) && error.title === '升级前备份没有完成' && Boolean(error.hint));
   assert.equal(fs.existsSync(path.join(data, '升级前备份-0.1.5-20261113-090000')), false, 'the half copy is removed');
   assert.equal(fs.readFileSync(path.join(data, upgrade.RECORD), 'utf8'), record, 'still the old version, nothing pending');
@@ -149,34 +149,34 @@ test('a failed backup stops the upgrade and leaves the data and the record as th
 
   // The database stays stopped when the copy cannot even begin.
   t.mock.restoreAll();
-  await assert.rejects(upgrade.prepare({dataDir: data, version: '0.2.0', edition: 'release', now: at(13),
+  await assert.rejects(upgrade.prepare({dataDir: data, version: '0.2.0', now: at(13),
     ensureStopped: async () => { throw new Error('数据库仍在运行'); }}), /升级前备份没有完成：数据库仍在运行/);
   assert.equal(upgrade.decide(data, '0.2.0').kind, 'upgrade');
 });
 
 test('a retry after a failed upgrade reuses the backup instead of copying half-upgraded data', async t => {
   const data = dataFolder(path.join(temp(t), 'zhiye'), '0.1.0');
-  const first = await upgrade.prepare({dataDir: data, version: '0.2.0', edition: 'release', now: at(13, 9)});
+  const first = await upgrade.prepare({dataDir: data, version: '0.2.0', now: at(13, 9)});
   // init_db.py failed: the start did not finish, so nothing was recorded.
   const spy = calls();
-  const again = await upgrade.prepare({dataDir: data, version: '0.2.0', edition: 'release', ...spy, now: at(13, 10)});
+  const again = await upgrade.prepare({dataDir: data, version: '0.2.0', ...spy, now: at(13, 10)});
   assert.deepEqual(again, {kind: 'upgrade', previous: '0.1.0', backup: first.backup, reused: true});
   assert.deepEqual(spy.seen, []);
   assert.equal(names(data).length, 1);
 
   // A pending entry that points elsewhere is not trusted.
   upgrade.writeRecord(data, {...upgrade.readRecord(data), pending: {from: '0.1.0', to: '0.2.0', backup: '../zhiye'}});
-  const third = await upgrade.prepare({dataDir: data, version: '0.2.0', edition: 'release', now: at(13, 11)});
+  const third = await upgrade.prepare({dataDir: data, version: '0.2.0', now: at(13, 11)});
   assert.equal(third.reused, false);
 });
 
 test('data without a recorded version is backed up as 未知版本', async t => {
   const data = dataFolder(path.join(temp(t), 'zhiye'), null);
-  const result = await upgrade.prepare({dataDir: data, version: '0.2.0', edition: 'release', now: at(13)});
+  const result = await upgrade.prepare({dataDir: data, version: '0.2.0', now: at(13)});
   assert.equal(path.basename(result.backup), '升级前备份-未知版本-20261113-090000');
   assert.equal(backup.readManifest(result.backup).version, null);
   // A damaged or tampered record counts as unknown; its text never becomes part of a path.
-  upgrade.recordStart(data, {version: '0.2.0', edition: 'release'});
+  upgrade.recordStart(data, {version: '0.2.0'});
   fs.writeFileSync(path.join(data, upgrade.RECORD), JSON.stringify({version: '../../etc'}));
   assert.deepEqual(upgrade.decide(data, '0.2.0').previous, null);
   fs.writeFileSync(path.join(data, upgrade.RECORD), '{');
@@ -186,7 +186,7 @@ test('data without a recorded version is backed up as 未知版本', async t => 
 test('data last run by a newer client is refused without touching it', async t => {
   const data = dataFolder(path.join(temp(t), 'zhiye'), '0.3.0');
   const spy = calls();
-  await assert.rejects(upgrade.prepare({dataDir: data, version: '0.2.0', edition: 'release', ...spy, now: at(13)}),
+  await assert.rejects(upgrade.prepare({dataDir: data, version: '0.2.0', ...spy, now: at(13)}),
     error => error.code === 'ZHIYE_DOWNGRADE' && /上次由知页 0\.3\.0 打开，比当前的 0\.2\.0 新/.test(error.message) &&
       /从备份恢复/.test(error.hint));
   assert.deepEqual(spy.seen, []);
@@ -201,13 +201,13 @@ test('restoring: backups from newer clients are refused, and the restored data s
   for (const ok of ['0.3.0', '0.1.0', null, 'smoke']) upgrade.checkRestore({version: ok}, '0.3.0');
 
   // Back on 0.2.0 after trying 0.3.0: restore the copy made before that upgrade.
-  const old = backup.createBackup(dataFolder(path.join(dir, 'old'), null), data, {version: '0.2.0', edition: 'release', now: at(1),
+  const old = backup.createBackup(dataFolder(path.join(dir, 'old'), null), data, {version: '0.2.0', now: at(1),
     name: '升级前备份-0.2.0-20261101-090000'});
   upgrade.checkRestore(backup.checkBackup(old, data, 'release'), '0.2.0');
   backup.restoreBackup(old, data, {now: at(13)});
-  upgrade.recordRestore(data, {version: '0.2.0', edition: 'release', from: old});
+  upgrade.recordRestore(data, {version: '0.2.0', from: old});
   assert.equal(upgrade.readRecord(data).restored_from, '升级前备份-0.2.0-20261101-090000');
-  const result = await upgrade.prepare({dataDir: data, version: '0.2.0', edition: 'release', now: at(13)});
+  const result = await upgrade.prepare({dataDir: data, version: '0.2.0', now: at(13)});
   assert.equal(result.kind, 'same');
   assert.equal(fs.readFileSync(path.join(data, 'workspace', '.runtime', 'uploads.sqlite3'), 'utf8'), 'old data');
 });
@@ -218,8 +218,8 @@ test('paths with Chinese characters: data folder, backup names and file names', 
   fs.writeFileSync(path.join(data, 'workspace', '资料', '第一章', '数列极限.txt'), '内容');
   let latest;
   for (const [version, day] of [['0.2.0', 13], ['0.3.0', 14], ['0.4.0', 15], ['0.5.0', 16]]) {
-    latest = await upgrade.prepare({dataDir: data, version, edition: 'release', now: at(day)});
-    upgrade.recordStart(data, {version, edition: 'release'});
+    latest = await upgrade.prepare({dataDir: data, version, now: at(day)});
+    upgrade.recordStart(data, {version});
   }
   assert.equal(fs.readFileSync(path.join(latest.backup, 'workspace', '资料', '第一章', '数列极限.txt'), 'utf8'), '内容');
   assert.deepEqual(names(data), ['升级前备份-0.2.0-20261114-090000', '升级前备份-0.3.0-20261115-090000', '升级前备份-0.4.0-20261116-090000']);
@@ -246,7 +246,7 @@ function fakeServices(runtime, order) {
 }
 
 function makeRuntime(data, version) {
-  return new Runtime({resources: {python: 'python', backend: 'backend', postgres: 'postgres'}, dataDir: data, edition: 'release',
+  return new Runtime({resources: {python: 'python', backend: 'backend', postgres: 'postgres'}, dataDir: data,
     packaged: true, version});
 }
 
@@ -262,7 +262,7 @@ test('the client backs up before the database starts, shows it, and records the 
   assert.deepEqual(order, ['正在备份升级前的数据…', 'ensureCluster', 'postgres', 'migrate', 'service']);
   assert.deepEqual(progress, ['正在备份升级前的数据…', null]);
   assert.equal(upgrade.listUpgradeBackups(data).length, 1);
-  assert.deepEqual(Object.keys(upgrade.readRecord(data)).sort(), ['edition', 'updated_at', 'version']);
+  assert.deepEqual(Object.keys(upgrade.readRecord(data)).sort(), ['updated_at', 'version']);
   assert.equal(upgrade.readRecord(data).version, '0.2.0');
   await runtime.stop();
   const log = fs.readFileSync(path.join(data, 'logs', 'client.log'), 'utf8');

@@ -1,6 +1,7 @@
 'use strict';
-/* The Python service (demo/init_db.py, then demo/app.py) with its data folder, edition and the
-   database address passed through the environment. */
+/* The Python service (demo/init_db.py, then demo/app.py) with its data folder and the database
+   address passed through the environment. ZHIYE_EDITION=release tells it that it runs in the client:
+   the database starts empty, without the demonstration data the development setup carries. */
 const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
@@ -8,12 +9,12 @@ const {spawn} = require('node:child_process');
 const {EventEmitter} = require('node:events');
 const {cleanEnv, run, killTree} = require('./processes');
 
-function serviceEnv({workspace, edition, databaseUrl, port, packaged}) {
+function serviceEnv({workspace, databaseUrl, port, packaged}) {
   return cleanEnv({
     DATABASE_URL: databaseUrl,
     PORT: String(port),
     ZHIYE_DATA_DIR: workspace,
-    ZHIYE_EDITION: edition === 'release' ? 'release' : 'demo',
+    ZHIYE_EDITION: 'release',
     PYTHONUTF8: '1',
     PYTHONIOENCODING: 'utf-8',
     PYTHONUNBUFFERED: '1',
@@ -36,16 +37,16 @@ function get(url, timeout = 3000) {
 }
 
 class Backend extends EventEmitter {
-  constructor({python, root, workspace, edition, packaged, log}) {
+  constructor({python, root, workspace, packaged, log}) {
     super();
-    Object.assign(this, {python, root, workspace, edition, packaged, log});
+    Object.assign(this, {python, root, workspace, packaged, log});
     this.child = null;
     this.port = null;
     this.stopping = false;
   }
 
   settings() {
-    return {workspace: this.workspace, edition: this.edition, packaged: this.packaged};
+    return {workspace: this.workspace, packaged: this.packaged};
   }
 
   get url() {
@@ -58,7 +59,7 @@ class Backend extends EventEmitter {
     fs.mkdirSync(this.workspace, {recursive: true});
   }
 
-  /** Create or upgrade the tables (and, in the test edition, the demonstration rows). */
+  /** Create or upgrade the tables. */
   async migrate(databaseUrl) {
     this.check();
     const env = serviceEnv({...this.settings(), databaseUrl, port: 0});

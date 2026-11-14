@@ -12,21 +12,22 @@ const {isFree, pickPort} = require('../src/ports');
 
 test('settings from the user shell do not reach the service or PostgreSQL', () => {
   const base = {PATH: '/usr/bin', HOME: '/home/a', LANG: 'zh_CN.UTF-8', DATABASE_URL: 'postgresql://elsewhere', PORT: '80',
-    QWEN_API_KEY: 'k', VLM_MODEL: 'm', ZHIYE_EDITION: 'demo', PGPASSWORD: 'p', PGDATA: '/x', PYTHONPATH: '/x',
+    QWEN_API_KEY: 'k', VLM_MODEL: 'm', ZHIYE_EDITION: 'x', PGPASSWORD: 'p', PGDATA: '/x', PYTHONPATH: '/x',
     LD_LIBRARY_PATH: '/x', FLASK_DEBUG: '1', MODEL_CONCURRENCY: '9', PPT_AESTHETIC_MODEL: 'm'};
   assert.deepEqual(cleanEnv({EXTRA: '1'}, base), {PATH: '/usr/bin', HOME: '/home/a', LANG: 'zh_CN.UTF-8', EXTRA: '1'});
 });
 
-test('the service gets its database, port, data folder and edition from the client', () => {
-  const env = serviceEnv({workspace: '/data/workspace', edition: 'release', databaseUrl: 'postgresql://x', port: 38660, packaged: true});
+test('the service gets its database, port and data folder from the client and knows it runs there', () => {
+  const env = serviceEnv({workspace: '/data/workspace', databaseUrl: 'postgresql://x', port: 38660, packaged: true});
   assert.equal(env.DATABASE_URL, 'postgresql://x');
   assert.equal(env.PORT, '38660');
   assert.equal(env.ZHIYE_DATA_DIR, '/data/workspace');
   assert.equal(env.ZHIYE_EDITION, 'release');
   assert.equal(env.PYTHONUTF8, '1');
   assert.equal(env.PYTHONDONTWRITEBYTECODE, '1');
-  assert.equal(serviceEnv({workspace: 'w', edition: 'demo', databaseUrl: 'd', port: 1, packaged: false}).ZHIYE_EDITION, 'demo');
-  assert.equal(serviceEnv({workspace: 'w', edition: 'demo', databaseUrl: 'd', port: 1, packaged: false}).PYTHONDONTWRITEBYTECODE, undefined);
+  const source = serviceEnv({workspace: 'w', databaseUrl: 'd', port: 1, packaged: false});
+  assert.equal(source.ZHIYE_EDITION, 'release', 'runs from source start empty too');
+  assert.equal(source.PYTHONDONTWRITEBYTECODE, undefined);
 });
 
 test('the database cluster is private: password login, local address only, UTF-8', () => {

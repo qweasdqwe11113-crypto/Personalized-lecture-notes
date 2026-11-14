@@ -27,6 +27,20 @@
 .ppt-page-tools { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px; color:#708198; font-size:12px; }
 .ppt-page-tools button { font-size:12px; padding:6px 12px; }
 .ppt-page.is-edit-target { outline:2px solid #c0c7f5; outline-offset:7px; border-radius:4px; }
+.ppt-design { margin:0 0 18px; }
+.ppt-design h3 { margin:0 0 6px; font-size:17px; color:#172e50; }
+.ppt-design-actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:12px 0; }
+.ppt-design-actions label { font-weight:600; }
+.ppt-design-actions select { width:auto; min-width:200px; }
+.ppt-design-actions .primary { width:auto; flex:0 0 auto; }
+.ppt-design-outline { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; max-height:56vh; overflow:auto; }
+.ppt-design-outline li { border:1px solid #d9e2ef; border-radius:10px; padding:10px 12px; background:#fff; font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
+.ppt-design-outline li.is-hidden { background:#f6f7f9; color:#6b7686; }
+.ppt-design-outline .ppt-design-page { color:#708198; font-size:12px; }
+.ppt-design-outline strong { display:block; color:#143f88; margin:2px 0 4px; }
+.ppt-design-outline p { margin:2px 0; white-space:pre-wrap; }
+.ppt-design-outline details { margin-top:6px; color:#4b5a6e; font-size:12px; }
+#ppt-form[hidden],.ppt-design[hidden] { display:none; }
 .ppt-settings { display:grid; grid-template-columns:140px 1fr; gap:16px; align-items:start; }
 .ppt-instruction-label { grid-column:1 / -1; }
 #ppt-template-preview { display:block; max-width:220px; max-height:140px; object-fit:contain; margin:12px 0; border:1px solid #d5e0e7; }

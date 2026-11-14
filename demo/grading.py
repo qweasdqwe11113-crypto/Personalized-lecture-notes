@@ -154,6 +154,34 @@ def draft(record, questions, title=None):
                 score=round(sum(q['score'] for q in scored), 2), max_score=round(sum(q['max_score'] for q in questions), 2))
 
 
+def objective_summary(result, reference):
+    """Suggested scores per learning objective of the lesson the quiz was written for; [] when the quiz has none."""
+    if not result or not reference:
+        return []
+    targets = {number_key(q['number']): q for q in reference.get('questions', []) if q.get('objective')}
+    groups = {}
+    for q in result['questions']:
+        target = targets.get(number_key(q['number']))
+        if not target:
+            continue
+        group = groups.setdefault(target['objective'], dict(objective=target['objective'], text=target['objective_text'],
+                                                            numbers=[], score=0, max_score=0, pending=0))
+        group['numbers'].append(str(q['number']))
+        group['max_score'] += q['max_score']
+        if q['score'] is None:
+            group['pending'] += 1
+        else:
+            group['score'] += q['score']
+    for group in groups.values():
+        group['score'], group['max_score'] = round(group['score'], 2), round(group['max_score'], 2)
+    return [groups[key] for key in sorted(groups)]
+
+
+def objective_lines(summary):
+    return [f"学习目标 {g['text']}：第 {'、'.join(g['numbers'])} 题，建议得分 {g['score']} / {g['max_score']}"
+            + (f"（{g['pending']} 题待核对未计分）" if g['pending'] else '') for g in summary]
+
+
 def evidence_drafts(record):
     result = json.loads(record['result'])
     reference = json.loads(record['quiz_reference']) if record['quiz_reference'] else None
@@ -286,6 +314,7 @@ def register_grading(app, root, call_model, generation_lock, quiz_reference=None
         value = dict(row)
         value['result'] = json.loads(value['result']) if value['result'] else None
         value['quiz_reference'] = json.loads(value['quiz_reference']) if value['quiz_reference'] else None
+        value['objectives'] = objective_summary(value['result'], value['quiz_reference'])
         return jsonify(value)
 
     @app.get('/api/grading/<identity>/evidence-drafts')
@@ -307,6 +336,9 @@ def register_grading(app, root, call_model, generation_lock, quiz_reference=None
         provided = f"题组「{quiz['title']}」的教师版答案" if quiz else '提供的答案'
         lines = [row['filename'], 'AI建议评分，需教师复核。',
                  f"已评得分 {result['score']} / 全卷 {result['max_score']}；待核对 {result['pending']} 题"]
+        summary = objective_lines(objective_summary(result, quiz))
+        if summary:
+            lines.append('按学习目标（建议分）：\n' + '\n'.join(summary))
         for q in result['questions']:
             lines.extend([f"\n第{q['number']}题：{q['stem']}", '学生作答：' + q['student_answer'],
                           '参考答案：' + q['reference_answer'],

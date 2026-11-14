@@ -1,16 +1,51 @@
-"""Conservative HTML export: Unicode formula blocks stay text, never executable HTML."""
+"""Conservative HTML export: formulas become plain Unicode text, never executable HTML."""
 import html
 import re
 
+import mathtext
 import richdoc
+
+_FORMULA = re.compile(r'(?<!\\)\$(?!\s)(?:\\.|[^$\\])+?(?<!\s)\$')
+
+
+def formula_text(source):
+    """$P(A_1\\mid D)$ as P(A₁ | D): the export carries no script, and LaTeX source is hard to read.
+    The plain form of a formula mathtext cannot read is the source itself."""
+    try:
+        return mathtext.plain(source)
+    except Exception:  # noqa: BLE001 - a formula must never break the export
+        return source
 
 
 def inline(text):
+    # Formulas are marked with private-use characters first, so bold and citations around them still work.
+    text = _FORMULA.sub(lambda match: '\ue000' + formula_text(match.group(0)) + '\ue001',
+                        text.replace('\ue000', '').replace('\ue001', ''))
     escaped = html.escape(text)
     escaped = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', escaped)
-    # The export carries no script, so a formula stays as readable LaTeX source in its own span.
-    escaped = re.sub(r'(?<!\\)(\$(?!\s)(?:\\.|[^$\\])+?(?<!\s)\$)', r'<span class="math-source">\1</span>', escaped)
+    escaped = escaped.replace('\ue000', '<span class="math">').replace('\ue001', '</span>')
     return re.sub(r'\[([MV]\d+)\]', r'<span class="citation">[\1]</span>', escaped)
+
+
+def plain_formulas(content):
+    """The plain-text export: every $…$ and $$…$$ formula as Unicode text, the rest unchanged."""
+    lines, display = [], False
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped == '$$':
+            display = not display
+            continue
+        if display:
+            lines.append(formula_text('$' + stripped + '$') if stripped else line)
+        elif len(stripped) > 4 and stripped.startswith('$$') and stripped.endswith('$$'):
+            lines.append(formula_text('$' + stripped[2:-2].strip() + '$'))
+        else:
+            lines.append(_FORMULA.sub(lambda match: formula_text(match.group(0)), line))
+    return '\n'.join(lines)
+
+
+def display_html(source):
+    return '<div class="math-display">' + html.escape(formula_text('$' + source.strip() + '$')) + '</div>'
 
 
 def table_html(rows):
@@ -52,7 +87,7 @@ def markdown_html(content):
         if math is not None:
             math.append(line[:-2] if line.endswith('$$') else raw)
             if line.endswith('$$'):
-                parts.append('<div class="math-display">' + html.escape('\n'.join(math).strip()) + '</div>')
+                parts.append(display_html('\n'.join(math)))
                 math = None
             continue
         if fence is None and re.fullmatch(r'```figure\s*', line):
@@ -65,7 +100,7 @@ def markdown_html(content):
             close_table()
             rest = line[2:]
             if len(rest) > 2 and rest.endswith('$$'):
-                parts.append('<div class="math-display">' + html.escape(rest[:-2].strip()) + '</div>')
+                parts.append(display_html(rest[:-2]))
             else:
                 math = [rest]
             continue

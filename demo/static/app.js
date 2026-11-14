@@ -45,7 +45,7 @@ async function refreshWorkspaceCatalog(preferredTopic, preferredStudent){
 }
 // Uploaded sources link to the stored file; a PDF segment opens at its first cited page.
 function sourceHref(url){if(!url.startsWith('upload:'))return url;const [id,part]=url.slice(7).split('#');const page=/^p(\d+)-/.exec(part||'');return '/api/uploads/'+encodeURIComponent(id)+'/download'+(page?'?inline=1#page='+page[1]:'');}
-async function api(url, options){const r=await fetch(url, options);let d;try{d=await r.json();}catch{throw new Error('服务未返回有效响应，请确认本地服务仍在运行。');}if(!r.ok){const err=new Error(d.error||'请求失败，请重试。');err.status=r.status;err.runId=d.generation_run_id;throw err;}return d;}
+async function api(url, options){const r=await fetch(url, options);let d;try{d=await r.json();}catch{throw new Error('服务未返回有效响应，请确认本地服务仍在运行。');}if(!r.ok){const err=new Error(d.error||'请求失败，请重试。');err.status=r.status;err.runId=d.generation_run_id;err.problems=d.problems;throw err;}return d;}
 function drawContext(ctx, snapshot=false){
  current=ctx; if(typeof drawLecturePlan==='function')drawLecturePlan(ctx,snapshot); $('student-profile').textContent=ctx.student.profile; drawPreparation(ctx); if(snapshot){if(typeof restoreVisualSelection==='function')restoreVisualSelection(ctx.visual_evidence||[]);if(typeof restoreTeachingOptions==='function')restoreTeachingOptions({...ctx.teaching_options,requirements:[...new Set([ctx.teaching_options?.requirements,ctx.learner_note].filter(Boolean))].join('\n\n')});$('retrieval-note').textContent=ctx.retrieval?.mode==='vector'?'本讲义按目标检索材料片段；再次生成会检查并更新索引。':'直接读取当前知识点的全部关联材料。';}
 

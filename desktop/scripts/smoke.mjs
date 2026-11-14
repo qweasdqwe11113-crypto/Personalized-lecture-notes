@@ -1,6 +1,6 @@
 // Headless end-to-end check of the bundled runtime: start PostgreSQL and the service from a
 // staged resources folder (or the repository with --dev), exercise the API, restart, and stop.
-// Usage: node scripts/smoke.mjs [--dev] [--resources build/resources] [--edition release|demo]
+// Usage: node scripts/smoke.mjs [--dev] [--resources build/resources]
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -21,7 +21,6 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const desktop = path.resolve(here, '..');
 const args = process.argv.slice(2);
 const option = (name, fallback) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : fallback; };
-const edition = option('--edition', 'release') === 'demo' ? 'demo' : 'release';
 const resources = args.includes('--dev') ? developmentResources(desktop)
   : stagedResources(path.resolve(desktop, option('--resources', 'build/resources')));
 // A folder name outside ASCII, as a Chinese user name would give on Windows.
@@ -35,7 +34,7 @@ async function json(url, init) {
 }
 
 async function startAndCheck(round) {
-  const runtime = new Runtime({resources, dataDir, edition, packaged: !args.includes('--dev')});
+  const runtime = new Runtime({resources, dataDir, packaged: !args.includes('--dev')});
   runtime.on('step', s => console.log(`[${round}] ${s.label}: ${s.state}${s.detail ? ' · ' + s.detail : ''}`));
   try {
     const url = await runtime.start();
@@ -57,13 +56,9 @@ try {
   ({runtime, url: globalThis.url} = await startAndCheck('first start'));
   const url = globalThis.url;
   const courses = (await json(url + '/api/courses')).body.courses;
-  if (edition === 'release') {
-    assert.deepEqual(courses, [], 'release starts without courses');
-    assert.deepEqual((await json(url + '/api/course-tasks')).body.topics, {}, 'release lists no built-in lesson');
-    assert.doesNotMatch((await get(url + '/')).body, /record-tab-experiments/);
-  } else {
-    assert.ok(courses.length >= 2, 'test edition carries the demonstration courses');
-  }
+  assert.deepEqual(courses, [], 'the client starts without courses');
+  assert.deepEqual((await json(url + '/api/course-tasks')).body.topics, {}, 'the client lists no built-in lesson');
+  assert.doesNotMatch((await get(url + '/')).body, /record-tab-experiments/);
   const created = await json(url + '/api/courses', {method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({name: '冒烟测试课程', stage: '大学'})});
   assert.equal(created.status, 201, JSON.stringify(created.body));
@@ -72,31 +67,31 @@ try {
   await runtime.stop();
 
   const backups = fs.mkdtempSync(path.join(os.tmpdir(), 'zhiye-backup-'));
-  const folder = createBackup(dataDir, backups, {version: 'smoke', edition});
-  checkBackup(folder, dataDir, edition);
+  const folder = createBackup(dataDir, backups, {version: 'smoke'});
+  checkBackup(folder, dataDir);
   fs.rmSync(backups, {recursive: true, force: true});
 
   // The second start acts as an upgrade: the data was last run by an older client.
   assert.equal(upgrade.readRecord(dataDir).version, version, 'the first start records its version');
-  upgrade.writeRecord(dataDir, {version: '0.0.1', edition});
+  upgrade.writeRecord(dataDir, {version: '0.0.1'});
   ({runtime} = await startAndCheck('second start'));
   assert.equal((await json(runtime.url + '/api/courses')).body.courses.some(c => c.name === '冒烟测试课程'), true, 'data survives a restart');
   const before = upgrade.listUpgradeBackups(dataDir);
   assert.deepEqual(before.map(b => b.version), ['0.0.1'], 'an upgrade backup was made before the upgrade');
-  checkBackup(before[0].path, dataDir, edition);
-  assert.deepEqual(Object.keys(upgrade.readRecord(dataDir)).sort(), ['edition', 'updated_at', 'version']);
+  checkBackup(before[0].path, dataDir);
+  assert.deepEqual(Object.keys(upgrade.readRecord(dataDir)).sort(), ['updated_at', 'version']);
   assert.equal(upgrade.readRecord(dataDir).version, version);
   await runtime.stop();
 
   // 「从备份恢复」 with that upgrade backup, then start again: PostgreSQL accepts the restored folder.
-  upgrade.checkRestore(checkBackup(before[0].path, dataDir, edition), version);
+  upgrade.checkRestore(checkBackup(before[0].path, dataDir), version);
   restoreBackup(before[0].path, dataDir);
-  upgrade.recordRestore(dataDir, {version, edition, from: before[0].path});
+  upgrade.recordRestore(dataDir, {version, from: before[0].path});
   ({runtime} = await startAndCheck('after restore'));
   assert.equal((await json(runtime.url + '/api/courses')).body.courses.some(c => c.name === '冒烟测试课程'), true, 'restored data is there');
   assert.equal(upgrade.listUpgradeBackups(dataDir).length, 1, 'no second upgrade backup after a restore');
   await runtime.stop();
-  console.log(`smoke check passed (${edition}, ${process.platform})`);
+  console.log(`smoke check passed (${process.platform})`);
 } finally {
   if (runtime && runtime.state !== 'stopped') await runtime.stop().catch(() => {});
   if (!args.includes('--keep')) fs.rmSync(dataDir, {recursive: true, force: true});
