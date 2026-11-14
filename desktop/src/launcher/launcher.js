@@ -37,9 +37,7 @@
     }
     const info = state.info || {};
     document.title = info.productName || '知页';
-    $('product').textContent = info.productName === '知页测试版' ? '知页' : info.productName || '知页';
-    $('edition').hidden = info.edition !== 'demo';
-    $('edition').textContent = info.editionLabel || '';
+    $('product').textContent = info.productName || '知页';
     $('version').textContent = info.version ? `版本 ${info.version}` : '';
     $('data-dir').textContent = info.dataDir ? `数据目录 ${info.dataDir}` : '';
     $('data-dir').title = info.dataDir || '';

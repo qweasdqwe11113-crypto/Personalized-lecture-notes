@@ -119,26 +119,25 @@ To try everything without calling a real model, start the offline sandbox. All m
 
 Teachers: see the step-by-step [user guide](docs/user-guide.md) (Chinese), from installation and model setup to daily use. The client's 帮助 → 使用说明 menu opens it.
 
-Two editions are built from the same code and can be installed side by side:
+Only the release edition is published:
 
-| | 知页 (release) | 知页测试版 (test) |
-| --- | --- | --- |
-| Starts with | An empty workspace: no courses, classes, students, materials or built-in lessons, and no comparison-experiment page. On first start a short tour highlights the main areas, and a getting-started guide on the workbench walks through the first steps | The demonstration courses, classes and fictional students, as in the development setup |
-| Data folder | `%LOCALAPPDATA%\Zhiye` · `~/.local/share/zhiye` | `%LOCALAPPDATA%\Zhiye-Test` · `~/.local/share/zhiye-test` |
-| Installer | `zhiye-<version>-win-x64.exe` · `zhiye-<version>-linux-amd64.deb` (Ubuntu / Debian) · `zhiye-<version>-linux-x86_64.AppImage` / `zhiye-<version>-linux-x64.tar.gz` | `zhiye-test-…` with the same suffixes |
-| Linux package | `zhiye`, installed in `/opt/知页`, started as `zhiye` | `zhiye-test`, in `/opt/知页测试版`, started as `zhiye-test` |
+| | 知页 |
+| --- | --- |
+| Starts with | An empty workspace: no courses, classes, students, materials or built-in lessons, and no comparison-experiment page. On first start a short tour highlights the main areas, and a getting-started guide on the workbench walks through the first steps |
+| Data folder | `%LOCALAPPDATA%\Zhiye` · `~/.local/share/zhiye` |
+| Installer | `zhiye-<version>-win-x64.exe` · `zhiye-<version>-linux-amd64.deb` (Ubuntu / Debian) · `zhiye-<version>-linux-x86_64.AppImage` / `zhiye-<version>-linux-x64.tar.gz` |
+| Linux package | `zhiye`, installed in `/opt/知页`, started as `zhiye` |
 
 Model keys are entered in Settings (系统设置) and saved in the data folder; a button there restarts the service. The 服务 menu restarts the service, opens the page in a browser, makes and restores backups (a copy of the stopped database and workspace; restoring moves the current data aside rather than deleting it), and opens the data folder or the log. Uninstalling or upgrading keeps the data folder. The installers are not code-signed, and there is no automatic update; 知页 → 检查更新 looks up the latest GitHub release. On Ubuntu 24.04 and later, AppArmor blocks Chromium's sandbox for programs without a profile (AppImage, tar.gz, a development checkout), so the client starts without it there instead of failing. The `.deb` (`sudo apt install ./zhiye-<version>-linux-amd64.deb`) keeps the sandbox on: its install script makes `chrome-sandbox` root-owned with the setuid bit and loads an AppArmor profile (`/etc/apparmor.d/zhiye`) that allows user namespaces, so Chromium uses its namespace sandbox where the profile is loaded and the setuid helper otherwise ([desktop/scripts/deb-after-install.tpl](desktop/scripts/deb-after-install.tpl)). For the tar.gz, `sudo chown root:root chrome-sandbox && sudo chmod 4755 chrome-sandbox` in its folder brings the sandbox back.
 
-**Releases** are built by GitHub Actions ([.github/workflows/desktop.yml](.github/workflows/desktop.yml)). Push a tag `vX.Y.Z` that matches the version in `desktop/package.json`: for each system and edition the workflow runs the unit tests, stages the runtime, runs a smoke test (start the database and service, restart, back up, start again) and builds the installers, then drafts a GitHub Release with all eight files (two `.exe`; an AppImage, a tar.gz and a `.deb` per edition on Linux). Publish the draft by hand once it looks right. Pull requests that touch the client or the service build and test the same packages and attach them as artifacts, without a release; once the workflow is on `main`, *Run workflow* on the Actions page does the same.
+**Releases** are built by GitHub Actions ([.github/workflows/desktop.yml](.github/workflows/desktop.yml)). Push a tag `vX.Y.Z` that matches the version in `desktop/package.json`: for each system the workflow runs the unit tests, stages the runtime, runs a smoke test (start the database and service, restart, back up, start again) and builds the installers, then drafts a GitHub Release with the four files (the Windows `.exe`; an AppImage, a tar.gz and a `.deb` on Linux). Only the release edition is built. Publish the draft by hand once it looks right. Pull requests that touch the client or the service build and test the same packages and attach them as artifacts, without a release; once the workflow is on `main`, *Run workflow* on the Actions page does the same.
 
 **Developing the client** (Node.js 22+; the repository's `.venv` must exist):
 
 ```bash
 cd desktop
 npm install
-npm run dev        # release edition, empty, from the repository code (data in ~/.local/share/zhiye-dev)
-npm run dev:test   # test edition with the demonstration data
+npm run dev        # empty, from the repository code (data in ~/.local/share/zhiye-dev)
 npm test           # client unit tests
 ```
 
@@ -146,12 +145,12 @@ Building an installer locally, for the current system only:
 
 ```bash
 cd desktop
-node scripts/stage.mjs --flavor release      # portable Python + requirements, service code, PostgreSQL → build/resources
-node scripts/smoke.mjs --resources build/resources --edition release
-node scripts/dist.mjs --flavor release       # → dist/release/ (Linux: AppImage, tar.gz and .deb)
+node scripts/stage.mjs      # portable Python + requirements, service code, PostgreSQL → build/resources
+node scripts/smoke.mjs --resources build/resources
+node scripts/dist.mjs       # → dist/ (Linux: AppImage, tar.gz and .deb)
 ```
 
-Use `--flavor demo` / `--edition demo` for the test edition. The web setup above is unchanged: `./run_demo.sh` still serves the demonstration data from your own PostgreSQL.
+The web setup above is unchanged: `./run_demo.sh` still serves the demonstration data from your own PostgreSQL.
 
 ## Configuration
 
@@ -168,7 +167,7 @@ All settings live in the local `.env` (ignored by git); see [.env.example](.env.
 | `MODEL_CONCURRENCY` | Language-model calls allowed at the same time, 1–8, default 3. Used by sectioned writing and class batches; `1` restores strictly serial calls |
 | `QWEN_EMBEDDING_BATCH_SIZE` | Texts per embedding request, default 10 (the Model Studio limit); long documents are embedded in batches |
 | `PORT` | Service port, default 5055; listens on localhost only |
-| `ZHIYE_EDITION` | `release` starts a new database empty (no demonstration data, preset courses or built-in lessons) and hides the comparison experiments; anything else keeps the demonstration data. Existing data is never deleted. The desktop client sets it |
+| `ZHIYE_EDITION` | `release` starts a new database empty (no demonstration data, preset courses or built-in lessons) and hides the comparison experiments. The desktop client always sets it; the development setup and the tests leave it unset and keep the demonstration data. Existing data is never deleted |
 | `ZHIYE_DATA_DIR` | Folder holding `.env` and `.runtime/`; defaults to the repository root. The desktop client points it at its data folder |
 
 ## Project Structure
@@ -184,7 +183,7 @@ All settings live in the local `.env` (ignored by git); see [.env.example](.env.
 ├── .github/workflows/       # desktop.yml builds the Windows and Linux installers
 ├── demo/                    # The Flask application
 │   ├── app.py               # Entry point: lecture context and generation, exports, module registration
-│   ├── edition.py           # Release or test edition, and the data folder (ZHIYE_EDITION, ZHIYE_DATA_DIR)
+│   ├── edition.py           # Desktop client or development setup, and the data folder (ZHIYE_EDITION, ZHIYE_DATA_DIR)
 │   ├── schema.sql           # PostgreSQL schema; init_db.py creates it and loads seed data
 │   ├── prompts.py, prompts/ # Prompt assembly and versioned prompt files (lectures, quizzes, slides)
 │   ├── quizzes.py           # Quizzes and lecture-linked quizzes
@@ -219,7 +218,7 @@ Runtime data is written to `.runtime/` (ignored; below `ZHIYE_DATA_DIR` when set
 .venv/bin/python -m unittest discover -s demo/tests -v
 ```
 
-Tests create a temporary schema in the dedicated database and drop it afterwards; they never touch production data or call a real model. With Node.js installed, frontend behaviour regressions run as well. The desktop client has its own unit tests (`cd desktop && npm test`) and a smoke test of the bundled runtime (see [Desktop Client](#desktop-client-windows--linux)). All 385 Python tests pass as of 2026-11-13, and all 35 desktop unit tests as of 2026-11-14.
+Tests create a temporary schema in the dedicated database and drop it afterwards; they never touch production data or call a real model. With Node.js installed, frontend behaviour regressions run as well. The desktop client has its own unit tests (`cd desktop && npm test`) and a smoke test of the bundled runtime (see [Desktop Client](#desktop-client-windows--linux)). All 385 Python tests pass as of 2026-11-13, and all 50 desktop unit tests as of 2026-11-14.
 
 ## Documentation
 
@@ -253,6 +252,6 @@ Third-party material keeps its own terms and is not relicensed:
 
 - **Implemented**: lecture generation and review, matching quizzes, classroom slides, lesson packages, grading into profiles, and batch import of student data. All are covered by automated tests and have been run end to end once with a real model (qwen3.8-max).
 - **Added on 2026-11-10, covered by automated tests and exercised in the offline sandbox, not yet run against a real model**: sectioned writing with automatic rewrite, streaming preview, LaTeX formulas and program-drawn figures, arithmetic recomputation, class batches with bounded model concurrency, automatic single retry for invalid quiz and slide output, an installable (PWA) shell, and the scale corpus with its benchmarks.
-- **Desktop client (2026-11-13)**: the Linux packages were built and run on Linux: first start on an empty data folder, the getting-started guide, restarting the service, backup, and a clean shutdown. The `.deb` packages of both editions were installed side by side in an Ubuntu 24.04 virtual machine (with the AppArmor user-namespace restriction on) and both started with Chromium's sandbox; they have not been tried on Debian or older Ubuntu releases. The Windows installer is built and smoke-tested on GitHub Actions and has been installed and tested on a real Windows computer.
+- **Desktop client (2026-11-13)**: the Linux packages were built and run on Linux: first start on an empty data folder, the getting-started guide, restarting the service, backup, and a clean shutdown. The `.deb` package was installed in an Ubuntu 24.04 virtual machine (with the AppArmor user-namespace restriction on) and started with Chromium's sandbox; they have not been tried on Debian or older Ubuntu releases. The Windows installer is built and smoke-tested on GitHub Actions and has been installed and tested on a real Windows computer.
 - **Known issues**: single-call lectures came back at about a third of the requested length (1,177 of 3,600–5,400 characters in the one qwen3.8-max run). Sectioned writing is meant to fix this, but whether it does has to be measured with `demo/scale/bench.py --real`. It costs about six model calls per lecture and roughly six times the input tokens. Lectures and quizzes still contain occasional math errors from the model; the arithmetic check only catches numbers that disagree, so teachers still need to check every question.
 - **Not yet done**: a with/without-profile comparison on the current version, ablations of the vision and retrieval components with a real embedding model, and independent teacher review. Until then, no claims can be made about saving preparation time or improving learning. Slides still use plain-text formulas and carry no figures; exported HTML keeps formulas as LaTeX source.

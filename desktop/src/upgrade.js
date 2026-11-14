@@ -70,8 +70,8 @@ function dataVersion(dataDir) {
 }
 
 /** After every successful start: this version has opened (and upgraded) the data. */
-function recordStart(dataDir, {version, edition, now = new Date()}) {
-  writeRecord(dataDir, {version, edition, updated_at: now.toISOString()});
+function recordStart(dataDir, {version, now = new Date()}) {
+  writeRecord(dataDir, {version, updated_at: now.toISOString()});
 }
 
 /**
@@ -79,8 +79,8 @@ function recordStart(dataDir, {version, edition, now = new Date()}) {
  * backup it came from is itself the copy an upgrade backup would make, so the next start does not
  * make another one; it still upgrades the tables as usual.
  */
-function recordRestore(dataDir, {version, edition, from, now = new Date()}) {
-  writeRecord(dataDir, {version, edition, updated_at: now.toISOString(), restored_from: from ? path.basename(from) : null});
+function recordRestore(dataDir, {version, from, now = new Date()}) {
+  writeRecord(dataDir, {version, updated_at: now.toISOString(), restored_from: from ? path.basename(from) : null});
 }
 
 /** Refuse to restore a backup from a newer client: this client would then open newer data. */
@@ -198,15 +198,15 @@ function downgradeRefused(previous, current) {
  * Run before PostgreSQL starts. Returns {kind, previous, backup?, reused?}; throws when the backup
  * fails (nothing has been changed then) or when the data belongs to a newer client.
  *
- * @param {{dataDir: string, version: string, edition: string,
+ * @param {{dataDir: string, version: string,
  *          ensureStopped?: () => Promise<void>, onBackup?: (info: {previous: string|null, version: string}) => void,
  *          log?: (text: string) => void, now?: Date, keep?: number}} options
  */
-async function prepare({dataDir, version, edition, ensureStopped = async () => {}, onBackup = () => {}, log = () => {}, now = new Date(), keep = KEEP}) {
+async function prepare({dataDir, version, ensureStopped = async () => {}, onBackup = () => {}, log = () => {}, now = new Date(), keep = KEEP}) {
   const {kind, previous, record} = decide(dataDir, version);
   if (kind === 'fresh') {
     // Recorded at once: a first start that fails after creating the database is not an upgrade.
-    recordStart(dataDir, {version, edition, now});
+    recordStart(dataDir, {version, now});
     return {kind, previous};
   }
   if (kind === 'same') return {kind, previous};
@@ -233,14 +233,14 @@ async function prepare({dataDir, version, edition, ensureStopped = async () => {
     throw backupFailed(error);
   }
   try {
-    backup.createBackup(dataDir, dataDir, {version: previous, edition, now, name});
+    backup.createBackup(dataDir, dataDir, {version: previous, now, name});
   } catch (error) {
     log(`升级前备份失败：${error.stack || error.message}`);
     try { backup.removeTree(target); } catch (cleanup) { log(`清理未完成的备份 ${name} 失败：${cleanup.message}`); }
     throw backupFailed(error);
   }
   // Until this start succeeds the data still belongs to `previous`; a retry reuses this backup.
-  writeRecord(dataDir, {version: previous, edition, updated_at: record && record.updated_at || null,
+  writeRecord(dataDir, {version: previous, updated_at: record && record.updated_at || null,
     pending: {from: previous, to: version, backup: name, created_at: now.toISOString()}});
   log(`升级前备份完成：${target}`);
   pruneUpgradeBackups(dataDir, {keep, current: name, log});

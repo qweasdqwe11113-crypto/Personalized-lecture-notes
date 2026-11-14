@@ -4,15 +4,6 @@
 const path = require('node:path');
 const os = require('node:os');
 
-const EDITIONS = {
-  release: {label: '正式版', folder: 'Zhiye'},
-  demo: {label: '测试版', folder: 'Zhiye-Test'},
-};
-
-function edition(value) {
-  return value === 'demo' ? 'demo' : 'release';
-}
-
 function pythonIn(root, platform = process.platform) {
   return platform === 'win32' ? path.join(root, 'python.exe') : path.join(root, 'bin', 'python3');
 }
@@ -51,8 +42,9 @@ function defaultDataDir(name, {platform = process.platform, env = process.env, h
   return path.posix.join(env.XDG_DATA_HOME || path.posix.join(home, '.local', 'share'), name.toLowerCase());
 }
 
-function dataFolderName(kind, development = false) {
-  return EDITIONS[edition(kind)].folder + (development ? '-Dev' : '');
+/** Runs from source keep their data apart from the installed client's. */
+function dataFolderName(development = false) {
+  return development ? 'Zhiye-Dev' : 'Zhiye';
 }
 
 /** Everything the client writes, below one data folder. */
@@ -66,4 +58,4 @@ function layout(dataDir) {
   };
 }
 
-module.exports = {EDITIONS, edition, stagedResources, developmentResources, platformKey, defaultDataDir, dataFolderName, layout, pythonIn};
+module.exports = {stagedResources, developmentResources, platformKey, defaultDataDir, dataFolderName, layout, pythonIn};

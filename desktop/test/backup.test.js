@@ -21,13 +21,13 @@ test('a backup copies the stopped data and can be restored into a folder with ot
   try {
     const data = dataFolder(path.join(temp, 'Zhiye'), 'before');
     const now = new Date(2026, 10, 13, 9, 5, 7);
-    const folder = backup.createBackup(data, temp, {version: '0.1.0', edition: 'release', now});
+    const folder = backup.createBackup(data, temp, {version: '0.1.0', now});
     assert.equal(path.basename(folder), '知页备份-20261113-090507');
     assert.equal(fs.existsSync(path.join(folder, 'database', 'postmaster.pid')), false, 'lock file is not copied');
     assert.throws(() => backup.createBackup(data, temp, {now}), /同名备份/);
 
-    const manifest = backup.checkBackup(folder, data, 'release');
-    assert.deepEqual([manifest.version, manifest.edition, manifest.postgres], ['0.1.0', 'release', '17']);
+    const manifest = backup.checkBackup(folder, data);
+    assert.deepEqual([manifest.version, manifest.postgres], ['0.1.0', '17']);
 
     fs.writeFileSync(path.join(data, 'workspace', '.runtime', 'uploads.sqlite3'), 'after');
     const aside = backup.restoreBackup(folder, data, {now: new Date(2026, 10, 14, 8, 0, 0)});
@@ -41,16 +41,13 @@ test('folders that are not a matching backup are refused before anything is touc
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'zhiye-backup-'));
   try {
     const data = dataFolder(path.join(temp, 'Zhiye'), 'x');
-    assert.throws(() => backup.checkBackup(path.join(temp, 'random'), data, 'release'), /不是知页备份/);
+    assert.throws(() => backup.checkBackup(path.join(temp, 'random'), data), /不是知页备份/);
 
-    const test = backup.createBackup(dataFolder(path.join(temp, 'Zhiye-Test'), 'y'), temp, {version: '0.1.0', edition: 'demo', now: new Date(2026, 0, 1)});
-    assert.throws(() => backup.checkBackup(test, data, 'release'), /测试版/);
-
-    const old = backup.createBackup(dataFolder(path.join(temp, 'Old'), 'z', '16'), temp, {version: '0.0.9', edition: 'release', now: new Date(2026, 0, 2)});
-    assert.throws(() => backup.checkBackup(old, data, 'release'), /PostgreSQL 16/);
+    const old = backup.createBackup(dataFolder(path.join(temp, 'Old'), 'z', '16'), temp, {version: '0.0.9', now: new Date(2026, 0, 2)});
+    assert.throws(() => backup.checkBackup(old, data), /PostgreSQL 16/);
 
     fs.rmSync(path.join(old, 'database'), {recursive: true});
-    assert.throws(() => backup.checkBackup(old, data, 'release'), /缺少数据库文件/);
+    assert.throws(() => backup.checkBackup(old, data), /缺少数据库文件/);
   } finally { fs.rmSync(temp, {recursive: true, force: true}); }
 });
 
@@ -75,7 +72,7 @@ test('folder permissions survive a backup and a restore, so PostgreSQL accepts t
     fs.mkdirSync(path.join(data, 'workspace', '只读'));
     fs.writeFileSync(path.join(data, 'workspace', '只读', 'a.txt'), 'a');
     fs.chmodSync(path.join(data, 'workspace', '只读'), 0o555);
-    const folder = backup.createBackup(data, temp, {version: '0.1.0', edition: 'release', now: new Date(2026, 0, 1)});
+    const folder = backup.createBackup(data, temp, {version: '0.1.0', now: new Date(2026, 0, 1)});
     const mode = p => fs.statSync(p).mode & 0o777;
     assert.equal(mode(path.join(folder, 'database')), 0o700);
     assert.equal(mode(path.join(folder, 'workspace', '只读')), 0o555, 'a read-only folder is copied and stays read-only');

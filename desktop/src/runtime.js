@@ -22,13 +22,12 @@ const STEPS = [
 class Runtime extends EventEmitter {
   /**
    * @param {{resources: {python: string, backend: string, postgres: string}, dataDir: string,
-   *          edition: 'release'|'demo', packaged: boolean, preferredPort?: number, version?: string}} options
+   *          packaged: boolean, preferredPort?: number, version?: string}} options
    *        version: the client version, package.json "version" unless a test says otherwise.
    */
-  constructor({resources, dataDir, edition, packaged, preferredPort, version = pkg.version}) {
+  constructor({resources, dataDir, packaged, preferredPort, version = pkg.version}) {
     super();
     this.resources = resources;
-    this.edition = edition;
     this.version = version;
     this.upgrade = null;
     this.preferredPort = preferredPort;
@@ -37,7 +36,7 @@ class Runtime extends EventEmitter {
     this.postgres = new Postgres({root: resources.postgres, dataDir: this.dirs.database, secretFile: this.dirs.secret,
       logFile: path.join(this.dirs.logs, 'postgres.log'), log: this.log});
     this.backend = new Backend({python: resources.python, root: resources.backend, workspace: this.dirs.workspace,
-      edition, packaged, log: this.log});
+      packaged, log: this.log});
     this.backend.on('exit', info => {
       this.log.line('client', `服务意外退出（${info.signal || '退出码 ' + info.code}）。`);
       this.emit('service-exit', info);
@@ -97,7 +96,7 @@ class Runtime extends EventEmitter {
   async checkVersion() {
     let copying = false;
     this.upgrade = await upgrade.prepare({
-      dataDir: this.dirs.root, version: this.version, edition: this.edition,
+      dataDir: this.dirs.root, version: this.version,
       ensureStopped: () => this.ensureDatabaseStopped(),
       log: text => this.log.line('client', text),
       onBackup: () => {
@@ -122,7 +121,7 @@ class Runtime extends EventEmitter {
   recordVersion() {
     const {kind, previous, backup} = this.upgrade || {};
     try {
-      upgrade.recordStart(this.dirs.root, {version: this.version, edition: this.edition});
+      upgrade.recordStart(this.dirs.root, {version: this.version});
       if (kind === 'upgrade') this.log.line('client', `已从 ${previous || '未记录的版本'} 升级到 ${this.version}；升级前的数据在 ${backup}`);
     } catch (error) {
       this.log.line('client', `记录客户端版本失败：${error.message}`);
