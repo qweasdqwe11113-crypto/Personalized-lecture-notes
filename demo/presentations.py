@@ -25,7 +25,7 @@ from edition import data_dir
 _aesthetic_reviews = None
 
 MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-PROMPT_VERSION = 'lecture-ppt-v3'
+PROMPT_VERSION = 'lecture-ppt-v4'
 PROMPT = (Path(__file__).with_name('prompts') / f'{PROMPT_VERSION}.md').read_text(encoding='utf-8').strip()
 
 
@@ -91,7 +91,8 @@ def parse_deck(content, context):
         invalid('缺少有效课程标题')
     slides = deck.get('slides')
     if not isinstance(slides, list) or len(slides) != context['ppt_export']['slide_count']:
-        invalid('实际页数与设置不一致')
+        actual = len(slides) if isinstance(slides, list) else '非数组'
+        invalid(f'实际页数与设置不一致：要求 {context["ppt_export"]["slide_count"]} 页，收到 {actual}')
     allowed = {f'M{m["id"]}' for m in context.get('materials', [])}
     allowed |= {v['citation_id'] for v in context.get('visual_evidence', [])}
     result = []
@@ -99,9 +100,22 @@ def parse_deck(content, context):
     for index, slide in enumerate(slides):
         if not isinstance(slide, dict):
             invalid(f'第{index+1}页结构错误')
-        if (not field(slide.get('title'), 34) or not isinstance(slide.get('kind'), str)
+        if not field(slide.get('title'), 34):
+            invalid(f'第{index+1}页标题须为 1—34 字符的文字')
+        # Only resolve an explicit layout alias confirmed by the visual contract.
+        # The complete visual, source and boundary checks still apply below.
+        aliases = dict(explain='concept', definition='concept', comparison='concept',
+                       table='concept', process='concept', metrics='concept',
+                       steps='example', practice='question', recap='summary')
+        kind = slide.get('kind')
+        visual_input = slide.get('visual')
+        if (semantic and isinstance(kind, str) and kind in aliases
+                and isinstance(visual_input, dict) and visual_input.get('type') == kind):
+            slide = {**slide, 'kind': aliases[kind]}
+        if (not isinstance(slide.get('kind'), str)
                 or slide['kind'] not in {'cover', 'concept', 'example', 'question', 'summary'}):
-            invalid(f'第{index+1}页标题或类型错误')
+            invalid(f'第{index+1}页 kind={json.dumps(slide.get("kind"), ensure_ascii=False)} 不受支持；'
+                    '只允许 cover/concept/example/question/summary，版式请填 visual.type')
         bullets = slide.get('bullets')
         if (not isinstance(bullets, list) or not 1 <= len(bullets) <= 4
                 or any(not field(b, 64) for b in bullets) or sum(map(len, bullets)) > 180):

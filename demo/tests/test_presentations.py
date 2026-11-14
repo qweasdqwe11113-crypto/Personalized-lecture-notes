@@ -45,6 +45,54 @@ def fixture_context():
 
 
 class PresentationUnitTests(unittest.TestCase):
+    def test_layout_kind_alias_is_normalized_without_changing_content(self):
+        ctx = fixture_context()
+        ctx['ppt_export']['export_version'] = DESIGN_VERSION
+        deck = fixture_deck()
+        slide = deck['slides'][1]
+        slide['kind'] = 'comparison'
+        slide['visual'] = dict(type='comparison',
+                              left=dict(title='综合属性', items=['由子节点计算']),
+                              right=dict(title='继承属性', items=['由父节点或兄弟节点传入']))
+        original = copy.deepcopy(deck)
+        parsed = parse_deck(json.dumps(deck), ctx)
+        self.assertEqual(parsed['slides'][1], {**slide, 'kind': 'concept'})
+        self.assertEqual(deck, original)
+        payload = build_versioned_pptx(parsed, ctx['ppt_export'], ctx)
+        prs = Presentation(BytesIO(payload))
+        self.assertEqual(len(prs.slides), 6)
+        visible = '\n'.join(s.text for s in prs.slides[1].shapes if s.has_text_frame)
+        self.assertIn('综合属性', visible)
+        self.assertIn('继承属性', visible)
+
+    def test_layout_alias_still_requires_valid_visual_sources_and_boundaries(self):
+        ctx = fixture_context()
+        ctx['ppt_export']['export_version'] = DESIGN_VERSION
+        for case in ['mismatch', 'missing', 'malformed', 'source', 'first', 'last', 'unknown', 'legacy']:
+            deck = fixture_deck()
+            target = 0 if case == 'first' else -1 if case == 'last' else 1
+            slide = deck['slides'][target]
+            slide['kind'] = 'definition'
+            slide['visual'] = dict(type='definition', term='概念', definition='说明',
+                                   formula='', conditions=[])
+            current = copy.deepcopy(ctx)
+            if case == 'mismatch': slide['kind'] = 'comparison'
+            if case == 'missing': slide.pop('visual')
+            if case == 'malformed': slide['visual'].pop('term')
+            if case == 'source': slide['sources'] = ['M999']
+            if case == 'unknown': slide['kind'] = 'unknown'
+            if case == 'legacy': current['ppt_export'].pop('export_version')
+            with self.subTest(case=case), self.assertRaises(module.ModelError):
+                parse_deck(json.dumps(deck), current)
+
+    def test_new_prompt_distinguishes_kind_from_visual_type(self):
+        ctx = fixture_context()
+        ctx['ppt_export']['export_version'] = DESIGN_VERSION
+        prepared = prepare_slides(ctx, 'fixture')
+        self.assertTrue(prepared.prompt_version.startswith('lecture-ppt-v4'))
+        system = json.loads(prepared.body)['messages'][0]['content']
+        self.assertIn('kind=concept、visual.type=comparison', system)
+
     def test_kit_preserves_maximum_classroom_content_notes_and_sources(self):
         ctx = fixture_context()
         ctx['ppt_export']['slide_count'] = 20
