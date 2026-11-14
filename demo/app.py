@@ -44,7 +44,7 @@ from knowledge import KnowledgeQueue, register_knowledge
 from grading import register_grading
 from evaluation import register_evaluation
 from edition import data_dir, release
-from rendering import markdown_html, visual_appendix
+from rendering import markdown_html, plain_formulas, visual_appendix
 import richdoc
 from uploads import ImportError as UploadError, read_upload, register_uploads
 from embed import EmbeddingError, OllamaEmbedder, QwenEmbedder
@@ -1061,7 +1061,7 @@ def build_export_text(row):
     content = build_reference_text({**row, 'content': richdoc.plain_text(row['content'])}
                                    if '```figure' in row['content'] else row)
     lines = []
-    for line in content.splitlines():
+    for line in plain_formulas(content).splitlines():
         stripped = line.strip()
         if stripped.startswith('#'):
             stripped = stripped.lstrip('#').strip()
@@ -1104,7 +1104,7 @@ h1 {{ font-size: 28px; }}
 h2 {{ font-size: 20px; margin-top: 32px; border-bottom: 1px solid #e4e8ef; padding-bottom: 8px; }}
 .citation {{ color: #2858dc; font-size: 13px; font-weight: 600; }}
 .formula-block {{ white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.7; padding:12px; background:#f6f7fb; }}
-.math-source, .math-display {{ font-family: ui-monospace, monospace; font-size: .95em; }}
+.math {{ white-space: nowrap; }}
 .math-display {{ white-space:pre-wrap; padding:12px 16px; background:#f6f8ff; border-left:3px solid #365bd6; }}
 table {{ border-collapse:collapse; margin:14px 0; }} th,td {{ border:1px solid #d7dfe9; padding:8px 12px; text-align:left; }} th {{ background:#edf2ff; }}
 figure {{ margin:18px 0; text-align:center; }} figure img {{ max-width:100%; height:auto; }} figcaption {{ font-size:12px; color:#68758a; }}
