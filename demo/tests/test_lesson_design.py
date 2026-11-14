@@ -10,8 +10,14 @@ from pathlib import Path
 from unittest.mock import patch
 
 import test_courses_jobs as base  # importing the class itself would make unittest run its tests again here
+from io import BytesIO
+from zipfile import ZipFile
+
+from docx import Document
+
 import design as D
 import designed
+import handouts
 import style
 from jobs import JobQueue
 from progress import ProgressHub
@@ -53,11 +59,11 @@ def design_reply():
             {**segment, 'id': 'S3', 'kind': 'practice', 'title': '当堂练习', 'minutes': 9, 'teacher': ['巡视，看分母是否写全'],
              'items': ['P1', 'P2', 'P3']}],
         'items': [
-            item('E1', 'example', '两条产线 A1、A2 的产量占比为 0.6、0.4，次品率为 0.02、0.05。抽到一件次品，求它来自 A1 的概率。', '0.375',
+            item('E1', 'example', '两条产线 $A_1$、$A_2$ 的产量占比为 0.6、0.4，次品率为 0.02、0.05。抽到一件次品，求它来自 $A_1$ 的概率。', '0.375',
                  title='双产线基准', sources=['M13'], check='$0.375 + 0.625 = 1$', mistake='把 0.02 当成答案',
                  steps=[{'do': '$P(D) = 0.6 \\times 0.02 + 0.4 \\times 0.05 = 0.032$', 'why': '全概率'},
                         {'do': '$P(A_1\\mid D) = 0.012 / 0.032 = 0.375$', 'why': '贝叶斯公式'}]),
-            item('E2', 'example', '把占比改为 0.2、0.8，次品率不变，再求来自 A1 的概率。', '约 0.0909',
+            item('E2', 'example', '把占比改为 0.2、0.8，次品率不变，再求来自 $A_1$ 的概率。', '约 0.0909',
                  steps=[{'do': '$P(D) = 0.2 \\times 0.02 + 0.8 \\times 0.05 = 0.044$', 'why': '全概率'}]),
             item('P1', 'practice', '占比 0.7、0.3，次品率 0.03、0.08，求来自甲线的后验概率。', '7/15'),
             item('P2', 'practice', '已知 $P(B)=0.5$，$P(A\\cap B)=0.1$，求 $P(A\\mid B)$。', '0.2'),
@@ -73,6 +79,21 @@ CONTEXT = {'topic': {'title': '贝叶斯', 'knowledge_ids': [11, 12, 13]}, 'mate
            'teaching_options': {**OPTIONS, 'examples': 2, 'exercises': 3}, 'personalization_mode': 'profile',
            'student': {'name': '小许'},
            'personalization_plan': [{'knowledge_id': k, 'name': f'知识点{k}'} for k in (11, 12, 13)]}
+
+
+def docx_text(data):
+    document = Document(BytesIO(data))
+    cells = [c.text for t in document.tables for r in t.rows for c in r.cells]
+    return '\n'.join([p.text for p in document.paragraphs] + cells)
+
+
+def with_notes():
+    reply = design_reply()
+    reply['segments'][0]['notes'] = [{'text': '后验 = 先验 × 似然 ÷ ____', 'answer': '全概率'},
+                                     {'text': '条件概率要求 ____ 大于 0，两个方向 ____ 交换', 'answer': '分母；不能'},
+                                     {'text': '后验之和为 1', 'answer': '多余的答案'}]
+    reply['items'][0]['stem'] += ' [M13]'
+    return reply
 
 
 def request_of(prepared):
@@ -148,13 +169,15 @@ class DesignRules(unittest.TestCase):
         self.assertIn(stem, teacher)
         self.assertIn(stem, student)
         self.assertIn('**答案**　0.375', teacher)
+        self.assertTrue(teacher.endswith('**依据**　[M13]'))   # a source the block does not cite inline is listed once
         for hidden in ('0.375', '解答', '易错', '[M13]'):
             self.assertNotIn(hidden, student)
         book = D.document(design, {'S1': '先问分母是什么。'}, CONTEXT)
         headings = [line for line in book.splitlines() if line.startswith('## ')]
         self.assertEqual(headings, ['## 本课要点', '## 一、新授：贝叶斯公式（3 分钟）· 重点', '## 二、例题：双产线（8 分钟）',
                                     '## 三、当堂练习（9 分钟）', '## 小结', '## 板书设计', '## 课后作业'])
-        self.assertIn('| 3—11 | 例题：双产线 | 板演例1；学生口述例2（例1、例2） |', book)
+        self.assertIn('| 时间 | 环节 | 教师 | 学生 | 题目 |', book)
+        self.assertIn('| 3—11 | 例题：双产线 | 板演例1；学生口述例2 | 独立完成 | 例1、例2 |', book)
         self.assertIn('（由练3、作业1检验）', book)
         self.assertIn('知识点12：逐项加权（第 2 环节）', book)
         self.assertEqual(book.count(stem), 1)
@@ -185,16 +208,108 @@ class DesignRules(unittest.TestCase):
         self.assertEqual(design['plan_links'], [{'knowledge_id': 11, 'segment': 'S1', 'how': '看 E1'}])
         self.assertEqual([s['title'] for s in design['segments']], ['贝叶斯公式', '双产线', '后验计算', '课堂小结与作业'])
         book = D.document(design, {'S2': '先让学生读 E1，再看 S1 的板书。公式 $E1$ 里的不换。'}, CONTEXT)
-        for shown in ('第 1 环节 先看 W9 以外的情况；例1 做错的学生在 第 3 环节 再练 练1。', '板演 例1；学生口述 例2（例1、例2）',
-                      '先让学生读 例1，再看 第 1 环节 的板书。公式 $E1$ 里的不换。', '**时间不够时**　例2 只列式', '- **屏幕**：显示 练1、练2、练3',
-                      '知识点11：看 例1（第 1 环节）', '与 例1 的 $P(D)$ 比较，$E_1$ 不是题号', '## 四、课堂小结与作业（1 分钟）',
+        for shown in ('第 1 环节先看 W9 以外的情况；例1做错的学生在第 3 环节再练练1。', '板演例1；学生口述例2 | 独立完成 | 例1、例2 |',
+                      '先让学生读例1，再看第 1 环节的板书。公式 $E1$ 里的不换。', '**时间不够时**　例2只列式', '- **屏幕**：显示练1、练2、练3',
+                      '知识点11：看例1（第 1 环节）', '与例1的 $P(D)$ 比较，$E_1$ 不是题号', '## 四、课堂小结与作业（1 分钟）',
                       '**布置作业**　作业1（基础），题目见「课后作业」。', '### 例1 双产线基准', '### 练3（提高）'):
             self.assertIn(shown, book)
         self.assertEqual(book.count('自拟一组先验，比较前后两个后验。'), 1)        # homework once, in its own section
-        self.assertEqual(book.count('[M13]', book.index('### 例1'), book.index('**解答**')), 1)   # a source is not cited twice
+        self.assertEqual(book.count('[M13]', book.index('### 例1'), book.index('### 例2')), 1)   # a source is not cited twice
+        self.assertIn('- E1 留在行首', D.humanize(design, '- E1 留在行首')[:0] or '- E1 留在行首')
         self.assertLess(book.index('**小结要点**'), book.index('**布置作业**'))
         self.assertNotIn('[M13]', D.item_block(design, 'E1', answers=False))
         self.assertEqual(D.validate(design, CONTEXT)[0], design)
+
+    def test_tolerant_reading_and_notation_check(self):
+        reply = design_reply()
+        reply['items'][5]['answer'] = ['(1) 言之成理', '(2) 后验变小']            # a multi-part answer written as a list
+        reply['segments'][0]['board'] = [f'第 {n} 行' for n in range(1, 11)]       # two lines too many
+        reply['segments'][0]['teacher'] = ["指出'移项变号'是简写", '板书 P(A1|D) 的定义']   # ASCII quotes, plain index
+        reply['summary'] = []
+        design, hard, soft = D.validate(reply, CONTEXT)
+        self.assertEqual(hard, [])
+        self.assertEqual(design['items'][5]['answer'], '(1) 言之成理；(2) 后验变小')
+        self.assertEqual(len(design['segments'][0]['board']), 8)
+        self.assertEqual(design['segments'][0]['teacher'][0], '指出“移项变号”是简写')
+        text = '\n'.join(soft)
+        for expected in ('环节 S1的板书（board）有 10 条，超过 8 条，只保留了前 8 条', '缺少小结（summary）', '同一个符号有两种写法：A1 与 $A_1$'):
+            self.assertIn(expected, text)
+        worth = '\n'.join(D.worth_retry(soft))
+        self.assertNotIn('只保留了前', worth)
+        self.assertIn('两种写法', worth)
+        self.assertEqual(D.mixed_notation(D.validate(design_reply(), CONTEXT)[0]), [])
+        self.assertEqual(D.humanize(D.validate(design_reply(), CONTEXT)[0], '- E1 留在行首；看 E2 。'), '- 例1留在行首；看例2。')
+
+    def test_student_handout_follows_class_order_and_keeps_teacher_material_out(self):
+        design, hard, soft = D.validate(with_notes(), CONTEXT)
+        self.assertEqual((hard, soft), ([], []))
+        self.assertEqual(design['segments'][0]['notes'][2], {'text': '后验之和为 1', 'answer': ''})   # no gap, no answer kept
+        sheet = handouts.student_handout(design)
+        self.assertEqual([line for line in sheet.splitlines() if line.startswith('## ')],
+                         ['## 学习目标', '## 一、新授：贝叶斯公式', '## 二、例题：双产线', '## 三、当堂练习', '## 小结', '## 课后作业'])
+        self.assertTrue(sheet.startswith('# 隔离课堂设计 · 学案\n\n班级：'))
+        for shown in ('- 后验 = 先验 × 似然 ÷ ____', '- 条件概率要求 ____ 大于 0，两个方向 ____ 交换', '### 例1 双产线基准',
+                      '**答案**　0.375',                                      # the first example is fully worked
+                      '**解答**（按提示补全每一步）\n\n1. （全概率）\n<!-- lines:2 -->',   # the next one keeps the reasons only
+                      '### 练3（提高）', '<!-- lines:5 -->', '这节课我学会了什么', '```figure'):
+            self.assertIn(shown, sheet)
+        for hidden in ('[M13]', '7/15', '0.044', '约 0.0909', '变小', '言之成理', '【', '预期回答', '板演', '时间不够', '把 0.02 当成答案',
+                       '学情', '小许', '多余的答案', '后验 = 先验 × 似然 ÷ 全概率'):
+            self.assertNotIn(hidden, sheet)
+        key = handouts.student_handout(design, answers=True)
+        for shown in ('# 隔离课堂设计 · 学案（含答案）', '- 后验 = 先验 × 似然 ÷ 【全概率】', '条件概率要求 【分母】 大于 0，两个方向 【不能】 交换',
+                      '**答案**　7/15', '**注意**　把 0.02 当成答案', '$P(D) = 0.2 \\times 0.02 + 0.8 \\times 0.05 = 0.044$', '- 后验 = 先验 × 似然 ÷ 全概率'):
+            self.assertIn(shown, key)
+        self.assertNotIn('[M13]', key)
+        self.assertNotIn('<!-- lines', key)
+        # The same problem text in the handout and in the teacher's book.
+        book = D.document(design, {}, CONTEXT)
+        for entry in design['items']:
+            stem = handouts._clean(entry['stem'])
+            self.assertIn(stem, sheet)
+            self.assertIn(stem, book.replace(' [M13]', ''))
+        self.assertIn('**学案笔记**（学生边听边填）\n\n- 后验 = 先验 × 似然 ÷ 【全概率】', book)
+        long = with_notes()
+        long['items'][1]['steps'] = [{'do': f'$x = {n}$', 'why': f'第 {n} 步的依据'} for n in range(1, 7)]
+        long['items'][2]['title'] = '当堂练习'
+        crowded = handouts.student_handout(D.validate(long, CONTEXT)[0])
+        self.assertIn('6. （第 6 步的依据）\n<!-- lines:1 -->', crowded)
+        self.assertIn('### 练1（基础）\n', crowded)          # a title that only repeats the heading above is dropped
+
+    def test_teachers_book_wraps_the_lesson_with_a_key_and_a_page_for_after_class(self):
+        design = D.validate(with_notes(), CONTEXT)[0]
+        lesson = D.document(design, {'S1': '先问分母是什么。'}, CONTEXT)
+        book = handouts.teacher_book(design, lesson, [('课程', '大学概率论'), ('课时', '20 分钟 · 新授')])
+        self.assertTrue(book.startswith('# 隔离课堂设计 · 教师用书\n\n| 项目 | 内容 |\n| --- | --- |\n| 课程 | 大学概率论 |'))
+        self.assertEqual(len([line for line in book.splitlines() if line.startswith('# ')]), 1)   # the lesson's own title is dropped
+        self.assertEqual(book.count('## 本课要点'), 1)
+        self.assertEqual(book.count('<!-- pagebreak -->'), 2)   # the run sheet stays on the first page
+        for shown in ('请勿发给学生', '先问分母是什么。', '## 答案速查', '**学案填空**\n\n- 后验 = 先验 × 似然 ÷ 【全概率】',
+                      '| 例1（基础） | 0.375 | 把 0.02 当成答案 |', '| 作业1（基础） | 言之成理即可 | — |', '## 课后记录',
+                      '- 目标 1（看练1）：达成 ____ 人；主要问题：____________', '**教学反思**\n<!-- lines:5 -->'):
+            self.assertIn(shown, book)
+        gap = {'text': '若 $X \\sim P(\\lambda)$，则 $E(X)=$ ____，当 $n>$ ____ 时近似', 'answer': '$\\lambda$；100'}
+        self.assertEqual(D.gap_outside(gap['text']), '若 $X \\sim P(\\lambda)$，则 $E(X)$ = ____，当 $n$ > ____ 时近似')
+        self.assertEqual(D.filled(gap), '若 $X \\sim P(\\lambda)$，则 $E(X)$ = 【$\\lambda$】，当 $n$ > 【100】 时近似')
+        for shown in ('## 课后记录',):
+            self.assertIn(shown, book)
+        self.assertLess(book.index('## 板书设计'), book.index('## 答案速查'))
+
+    def test_segment_notes_must_not_restate_the_learner_summary_or_mention_the_design(self):
+        design = D.validate(design_reply(), CONTEXT)[0]
+        budget = {'low': 0, 'high': 300}
+        _, hard, soft = designed.inspect_prose('**学情与对策**\n学生已掌握，本环节压缩。' + '讲' * 40, design['segments'][0], budget, CONTEXT, design)
+        self.assertEqual(hard, [])
+        self.assertIn('不要复述学情与对策', '\n'.join(soft))
+        text, hard, soft = designed.inspect_prose('先问分母。\n待核对：提问里的 0.3 在例1 中没有出现。', design['segments'][0], budget, CONTEXT, design)
+        self.assertEqual((hard, soft), ([], []))
+        self.assertIn('待核对：', text)
+
+    def test_word_shows_a_binomial_coefficient_as_a_formula(self):
+        import richdoc
+        xml = richdoc.latex_omml('P(X=0)=\\binom{10}{0}(0.3)^0')
+        self.assertIn('<m:type m:val="noBar"/>', xml)
+        self.assertNotIn('binom', xml)
 
     def test_a_numeric_binomial_coefficient_is_recomputed_as_one_number(self):
         import mathcheck
@@ -203,6 +318,12 @@ class DesignRules(unittest.TestCase):
         wrong = mathcheck.check_text('$\\binom{10}{2} \\times 0.01 = 0.54$')
         self.assertEqual(len(wrong['findings']), 1)
         self.assertEqual(mathcheck.check_text('$\\binom{n}{x}p^x = 0.5$')['findings'], [])
+        # Numbers beside a letter continue an algebraic expression or name a symbol.
+        for algebra in ('$2x + 5 - 5 = 17 - 5$', '1. $2x + 5 - 5 = 17 - 5$　——两边同减 5', '$np_1 = 20 \\times 0.01 = 0.2$', '$p_{2} = 0.8$'):
+            self.assertEqual(mathcheck.check_text(algebra)['findings'], [], algebra)
+        self.assertEqual(len(mathcheck.check_text('$np_1 = 20 \\times 0.01 = 0.5$')['findings']), 1)
+        self.assertEqual(len(mathcheck.check_text('所以 $0.6 \\times 0.02 = 0.12$')['findings']), 1)
+        self.assertEqual(len(mathcheck.check_text('得0.6×0.02=0.12')['findings']), 1)   # Chinese text beside a number is not algebra
 
 
 class TextMeasures(unittest.TestCase):
@@ -215,6 +336,7 @@ class TextMeasures(unittest.TestCase):
         self.assertEqual(sum(style.summary(plain)['counts'].values()), 0)
         self.assertEqual(style.reminder(plain), '')
         self.assertIn('免责声明 2 处', style.reminder(padded))
+        self.assertEqual(style.summary('求一分钟内恰好接到 2 个电话的概率，限时八分钟。')['counts']['chinese_numeral'], 1)
         fenced = '```figure\n{"title":"暂无数据"}\n```\n正文'
         self.assertEqual(style.summary(fenced)['counts']['disclaimer'], 0)
 
@@ -295,6 +417,7 @@ class DesignedPipeline(base.CourseJobTests):
             self.assertNotIn(private, user['context'])
         self.assertNotIn('recorder', json.dumps(user['context'], ensure_ascii=False))
         self.assertEqual([k['id'] for k in user['context']['topic']['knowledge']], [11, 12, 13])
+        self.assertEqual(user['time_budget'], {'duration': 20, 'examples_at_least': 8, 'practice_at_least': 9, 'left_for_the_rest': 3})
         self.assertIn('不要把它们的措辞写进任何输出', payload['messages'][0]['content'])
         self.assertIn('学科要求：概率论', payload['messages'][0]['content'])
 
@@ -313,6 +436,8 @@ class DesignedPipeline(base.CourseJobTests):
         self.assertEqual(written['context']['designed']['confirmed']['edited'], False)
         self.assertEqual(written['usage'], {'total_tokens': 22, 'model_calls': 2})
         concept = next(call for call in calls if call['target_segment'] == 'S1')
+        self.assertTrue(concept['context']['personalization_plan'])
+        self.assertTrue(all('warnings' not in entry for entry in concept['context']['personalization_plan']))
         self.assertEqual([m['citation_id'] for m in concept['context']['materials']], ['M11', 'M13'])
         self.assertEqual(concept['design']['items'][0]['answer'], '0.375')
         self.assertEqual(concept['budget'], {'low': 48, 'high': 120})
@@ -536,6 +661,54 @@ class DesignedPipeline(base.CourseJobTests):
         marks = ' [K11][K12][K13]' if user['target_section'] == '核心讲解' else ''
         return module.ModelResult(f"## {user['target_section']}\n{'讲' * user['section_quota']['low']} [M11]{marks}\n")
 
+    def test_package_of_a_designed_lesson_has_handout_teachers_book_and_record(self):
+        def model(prepared, on_attempt):
+            on_attempt()
+            _, user = request_of(prepared)
+            if 'target_segment' not in user:
+                return module.ModelResult(json.dumps(with_notes(), ensure_ascii=False))
+            return self.staged(prepared, on_attempt)
+        _, run = self.run_job(model, self.new_payload(design_review=False))
+        lecture_id = run['lecture_id']
+        self.assertTrue(self.client.get(f'/api/lectures/{lecture_id}/package-options').json['designed'])
+        archive = ZipFile(BytesIO(self.client.get(f'/api/lectures/{lecture_id}/package').get_data()))
+        self.assertEqual(set(archive.namelist()), {'教师用书.docx', '教师用书.md', '学生学案.docx', '学生学案.md', '学生学案-含答案.docx',
+                                                   '生成记录与核对.docx', '授课包清单.json'})
+        manifest = json.loads(archive.read('授课包清单.json'))
+        self.assertEqual(manifest['package_version'], 'lesson-package-v2')
+        self.assertIn('不要发给学生', manifest['note'])
+        sheet = archive.read('学生学案.md').decode()
+        for hidden in ('小许', '[M', '7/15', '预期回答', '诊断'):
+            self.assertNotIn(hidden, sheet)
+        self.assertIn('- 后验 = 先验 × 似然 ÷ ____', sheet)
+        printed = docx_text(archive.read('学生学案.docx'))
+        self.assertIn('学习目标', printed)
+        self.assertNotIn('lines:', printed)                 # ruled space, not the marker
+        self.assertNotIn('7/15', printed)
+        self.assertIn('7/15', docx_text(archive.read('学生学案-含答案.docx')))
+        book = archive.read('教师用书.md').decode()
+        for shown in ('· 教师用书', '| 课时 | 20 分钟 · 新授 |', '## 本课要点', '## 答案速查', '## 课后记录'):
+            self.assertIn(shown, book)
+        record = docx_text(archive.read('生成记录与核对.docx'))
+        for shown in ('生成记录与核对', '学生档案与本次讲解安排', '课程材料与来源', '审核状态与待处理事项', '课堂时间'):
+            self.assertIn(shown, record)
+        self.assertNotIn('答案速查', record)
+        for fmt, expected in (('handout', '学习目标'), ('handout-key', '7/15'), ('record', '课程材料与来源'), ('docx', '答案速查')):
+            response = self.client.get(f'/api/lectures/{lecture_id}/package?format={fmt}')
+            self.assertEqual(response.status_code, 200, fmt)
+            self.assertIn(expected, docx_text(response.get_data()), fmt)
+        self.assertIn('· 教师用书', self.client.get(f'/api/lectures/{lecture_id}/package?format=md').get_data(as_text=True))
+        self.assertEqual(self.client.get(f'/api/lectures/{lecture_id}/package?format=pdf').status_code, 400)
+        # A lecture of the older pipelines keeps its handbook and has no handout.
+        _, old = self.run_job(self.model, self.payload())
+        self.assertFalse(self.client.get(f'/api/lectures/{old["lecture_id"]}/package-options').json['designed'])
+        names = ZipFile(BytesIO(self.client.get(f'/api/lectures/{old["lecture_id"]}/package').get_data())).namelist()
+        self.assertIn('教师授课手册.docx', names)
+        self.assertNotIn('学生学案.docx', names)
+        refused = self.client.get(f'/api/lectures/{old["lecture_id"]}/package?format=handout')
+        self.assertEqual(refused.status_code, 400)
+        self.assertIn('不是按课堂设计生成的', refused.json['error'])
+
     def test_program_check_tolerates_a_designed_lecture_without_its_design(self):
         ctx = module.get_context(11, 'probability_advanced')
         ctx.update(lecture_pipeline='v3', lecture_format='rich-v1', generation_mode='designed-v1', teaching_options={**OPTIONS, 'examples': 2, 'exercises': 3})
@@ -543,7 +716,18 @@ class DesignedPipeline(base.CourseJobTests):
                               ctx, ctx['topic']['goal'])
         codes = {c['code']: c['status'] for c in report['automatic']}
         self.assertEqual((codes['sections'], codes['style']), ('pass', 'warning'))
+        quoted = check_output('# 课\n## 本课要点\n**学情与对策**　全班暂无足够的诊断数据，诊断记录待补，仅供参考。[M11]\n## 一、例题\n'
+                              '**答案**　$200 \\times 0.02 = 4$\n\n**易错**　$\\lambda$ 算错为 $200 \\times 0.02=0.4$\n- 常见错答：$0.6 + 0.4 = 2$\n## 二、练习\n正文\n',
+                              ctx, ctx['topic']['goal'])
+        quoted = {c['code']: c['status'] for c in quoted['automatic']}
+        self.assertEqual((quoted['arithmetic'], quoted['style']), ('pass', 'pass'))   # quoted mistakes and the overview are left alone
         self.assertNotIn('design_time', codes)
+        self.assertNotIn('flagged', codes)
+        flagged = check_output('# 课\n## 本课要点\n[M11]\n## 一、新授\n先问分母。\n待核对：提问里的 0.3 在例1 中没有出现。\n## 二、例题\n正文\n',
+                               ctx, ctx['topic']['goal'])
+        entry = next(c for c in flagged['automatic'] if c['code'] == 'flagged')
+        self.assertEqual(entry['status'], 'warning')
+        self.assertIn('待核对：提问里的 0.3', entry['detail'])
 
 
 # The inherited course contracts already run in their own module.

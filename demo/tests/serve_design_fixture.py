@@ -9,7 +9,7 @@ from pathlib import Path
 import time
 
 from werkzeug.serving import make_server
-from test_lesson_design import DesignedPipeline, design_reply, module
+from test_lesson_design import DesignedPipeline, module, with_notes
 
 NOTES = {
     'S1': ('- 先问：已知抽到次品，想知道它来自哪条产线，这是在求哪个方向的条件概率？停 10 秒再点人。\n'
@@ -27,7 +27,7 @@ def model(prepared, attempted):
     time.sleep(1.5)
     user = json.loads(json.loads(prepared.body)['messages'][1]['content'])
     if 'target_segment' not in user:
-        reply = design_reply()
+        reply = with_notes()
         reply['title'] = '贝叶斯公式（隔离测试，非真实模型输出）'
         if user.get('teacher_feedback'):
             reply['focus']['not_today'].append('按意见调整：' + user['teacher_feedback'][:40])

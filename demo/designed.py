@@ -73,6 +73,9 @@ def segment_request(frozen_body, context, design, segment, budget):
     wanted = set(segment['knowledge_ids']) | {bank[ref]['knowledge_id'] for ref in segment['items']}
     materials = [m for m in view['materials'] if m.get('knowledge_id') in wanted or m['citation_id'] in cited]
     names = {**{entry['id']: f'第 {n} 环节' for n, entry in enumerate(design['segments'], 1)}, **D.labels(design)}
+    # The design's 学情与对策 already carries the caveats about the evidence; a segment only needs the teaching plan.
+    view = {**view, 'personalization_plan': [{k: v for k, v in entry.items() if k != 'warnings'}
+                                             for entry in view.get('personalization_plan', [])]}
     message = {'goal': user['goal'], 'context': {**view, 'materials': materials or view['materials']},
                'design': design, 'names': names, 'target_segment': segment['id'], 'budget': budget}
     messages = [{'role': 'system', 'content': context['designed']['segment_system']},
@@ -112,6 +115,8 @@ def inspect_prose(output, segment, budget, context, design):
               if len(bank[ref]['stem']) >= 30 and re.sub(r'\s+', '', bank[ref]['stem'])[:30] in squeezed]
     if copied:
         soft.append('重抄了' + '、'.join(copied) + '的题干；题目由程序排版，这里只写怎么讲')
+    if re.search(r'学情与对策|课堂设计|设计中|design', text):
+        soft.append('不要复述学情与对策，也不要提到“设计”：学情已写在本课要点里；发现设计里前后对不上时，只写一行以“待核对：”开头的话')
     hint = style.reminder(text)
     if hint:
         soft.append('表达需要改：' + hint + '。改成教师备课笔记的口吻，用短句和阿拉伯数字，不写旁白、免责声明和套话')
@@ -135,10 +140,12 @@ def settle_design(call_model, prepared, context, on_attempt, record):
             return None, [str(exc)], []
     design, hard, soft = read(first.content)
     record('design', 1, prepared, first, time.monotonic() - begin, hard + soft)
-    # A recomputed formula can be a false alarm; alone it is shown to the teacher, not retried.
-    if not hard and all(D.ARITHMETIC in problem for problem in soft):
+    # Notes such as a recomputed formula (possibly a false alarm) are shown to the teacher, not retried.
+    if not hard and not D.worth_retry(soft):
         return design, soft, first
-    retry = repair_request(prepared, first.content, hard + soft, 'lesson-design-repair-v1')
+    retry = repair_request(prepared, first.content, hard + soft + [
+        '改完后再核对一遍：各环节 minutes 之和等于授课时长，每道例题至少 4 分钟、每道当堂练习至少 3 分钟'],
+        'lesson-design-repair-v1')
     begin = time.monotonic()
     try:
         second = call_model(retry, lambda: None)
@@ -149,7 +156,7 @@ def settle_design(call_model, prepared, context, on_attempt, record):
         return design, soft, first  # the first design is usable; its reminders stay visible
     again, hard2, soft2 = read(second.content)
     record('design', 2, retry, second, time.monotonic() - begin, hard2 + soft2)
-    if not hard2 and (hard or len(soft2) <= len(soft)):
+    if not hard2 and (hard or len(D.worth_retry(soft2)) <= len(D.worth_retry(soft))):
         return again, soft2, second
     if hard:
         raise ModelError('invalid_design', f'课堂设计重试一次后仍未通过检查：{(hard2 or hard)[0]}。未保存，请重试。',

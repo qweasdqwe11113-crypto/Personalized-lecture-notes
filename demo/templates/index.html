@@ -541,7 +541,7 @@
 <dialog id="package-dialog" class="package-dialog" aria-labelledby="package-title">
  <div class="editor-top"><div class="editor-heading"><div><h2 id="package-title">导出授课包</h2><p id="package-source" class="helper"></p></div><button id="close-package" type="button" class="secondary">关闭</button></div></div>
  <div class="dialog-body">
-  <p class="helper">汇总当前阅读的讲义版本、生成时的学生档案与讲解安排、课程材料来源、配套练习和授课课件。只读取已保存记录，不重新调用模型。</p>
+  <p class="helper">汇总当前阅读的讲义版本、生成时的学生档案与讲解安排、课程材料来源、配套练习和授课课件。按课堂设计生成的讲义会排出学生学案和教师用书，题目与讲义逐字相同。只读取已保存记录，不重新调用模型。</p>
   <form id="package-form" class="package-form">
    <label for="package-quiz">配套练习</label><select id="package-quiz"><option value="">不包含练习</option></select>
    <label for="package-deck">授课课件</label><select id="package-deck"><option value="">不包含课件</option></select>
@@ -550,7 +550,7 @@
   <ul class="package-contents"><li><strong>教师授课手册</strong>：授课概览、学生档案与本次讲解安排、讲义正文、配套练习答案解析、材料来源、审核待办</li><li><strong>学生练习</strong>：不含答案和学生信息，可直接打印</li><li><strong>授课课件</strong>与<strong>清单</strong>：可编辑 PPTX，及每个文件的 SHA-256</li></ul>
   <p id="package-status" class="helper" role="status" aria-live="polite"></p>
   <div class="package-actions"><a id="package-download" class="primary" href="#">下载授课包</a><button id="package-new-quiz" type="button" class="secondary">先为这份讲义出题</button></div>
-  <p class="helper">讲义、题目与课件为 AI 生成或修订的待审核内容；学生档案仅供教师参考，请勿与学生练习一起分发。</p>
+  <p class="helper">讲义、题目与课件为 AI 生成或修订的待审核内容；学生档案、教师用书和含答案的学案仅供教师使用，请勿与学生学案、学生练习一起分发。</p>
  </div>
 </dialog>
 <link rel="stylesheet" href="/static/packages.css"><script defer src="/static/packages.js"></script>

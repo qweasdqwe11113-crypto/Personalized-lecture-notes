@@ -131,6 +131,10 @@ class _Reader:
         if name in ('frac', 'dfrac', 'tfrac'):
             top, bottom = self.argument(), self.argument()
             return f'<m:f><m:num>{top}</m:num><m:den>{bottom}</m:den></m:f>'
+        if name in ('binom', 'dbinom', 'tbinom'):
+            top, bottom = self.argument(), self.argument()
+            return ('<m:d><m:dPr><m:begChr m:val="("/><m:endChr m:val=")"/></m:dPr><m:e><m:f><m:fPr><m:type m:val="noBar"/></m:fPr>'
+                    f'<m:num>{top}</m:num><m:den>{bottom}</m:den></m:f></m:e></m:d>')
         if name == 'sqrt':
             degree = ''
             if self.peek() == '[':

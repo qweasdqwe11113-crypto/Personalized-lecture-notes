@@ -71,6 +71,12 @@ def prepare_design(context, goal, model):
     """The frozen request of a designed lesson asks for the lesson design; later calls derive from it."""
     system = designed_system(context, 'plan')
     user = {'goal': goal, 'context': designed_view(context)}
+    options = context.get('teaching_options') or {}
+    if options.get('duration'):
+        # The model kept giving three exercises eight minutes; the sum it has to respect is stated outright.
+        examples, practice = 4 * options.get('examples', 0), 3 * options.get('exercises', 0)
+        user['time_budget'] = dict(duration=options['duration'], examples_at_least=examples, practice_at_least=practice,
+                                   left_for_the_rest=options['duration'] - examples - practice)
     feedback = (context.get('designed') or {}).get('feedback')
     if feedback:
         system += '\n\n' + REVISION_NOTE

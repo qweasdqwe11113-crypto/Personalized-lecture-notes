@@ -109,7 +109,8 @@ flowchart TD
 | `presentations.py` | 课件请求、输出校验、导出、内部视觉审查与单页微调 |
 | `ppt_story.py`、`ppt_templates.py`、`pptkit_export.py`、`pptx_export.py` | 语义页面契约、模板白名单与映射、排版适配与 PPTX 导出 |
 | `ppt_aesthetics.py`、`render_ppt_slides.ps1` | PowerPoint 渲染与本机 Ollama 视觉审查（仅 Windows） |
-| `packages.py` | 授课包：只读已保存记录，组装教师手册、学生练习、课件与清单 |
+| `handouts.py` | 按课堂设计生成的讲义的学生学案（留白版与含答案版）、教师用书（讲义正文加答案速查和课后记录页），由程序从设计排版，不调用模型 |
+| `packages.py` | 授课包：只读已保存记录。有课堂设计时组装学生学案、教师用书、生成记录与核对；否则组装教师手册。另有学生练习、课件与清单；`markdown_docx` 把 Markdown 排成 Word（含作答横线 `<!-- lines:N -->`） |
 | `quizzes.py` | 出题、配套出题、题目校验、独立队列、导出；为阅卷提供题组答案与知识点映射 |
 | `grading.py` | 阅卷任务、识读与评分校验、证据草稿 |
 | `evaluation.py`、`experiment.py` | 当前版本固定对照；历史文件式实验 |
@@ -305,7 +306,7 @@ Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中
 | 公式与图 | `figures.py`、`richdoc.py`、`app.js` 的 `renderMarkdown` | 网页、HTML、Word、纯文本四种输出，`prompts/lecture-format-rich-v1.md` 里的图格式 |
 | 审核与章节调整 | `reviews.py`、`sections.py` | 版本锁、问题记录、引用检查 |
 | PPT | `presentations.py`、`ppt_story.py`、`pptkit_export.py` | 模板版本、视觉审查、单页微调、`test_presentations.py` |
-| 出题 / 阅卷 / 授课包 | `quizzes.py`、`grading.py`、`packages.py` | 冻结版本与 JSON 模式、题号映射、学生练习不含答案 |
+| 出题 / 阅卷 / 授课包 | `quizzes.py`、`grading.py`、`packages.py`、`handouts.py` | 冻结版本与 JSON 模式、题号映射、学生练习与学生学案不含答案和来源编号、`packages.js` 的导出内容列表、`test_packages.py` 与 `test_lesson_design.py` |
 | 模型配置 | `model_settings.py`、`qwen.py`、`vision.py`、`embed.py` | 三个通道的区别、密钥遮蔽、重启生效 |
 | 正式版 / 测试版 | `edition.py`、`init_db.py`、`courses.py` 的预置课程、`index.html` 中的 `release` 分支 | 正式版空库可从零建课（`test_edition.py`）、`desktop/scripts/stage.mjs` 的文件白名单 |
 | 桌面客户端 | `desktop/src/`、`desktop/scripts/` | `npm test`、`node scripts/smoke.mjs --dev`；新增服务环境变量要加进 `processes.cleanEnv` 的清理列表 |

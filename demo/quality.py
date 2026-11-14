@@ -133,7 +133,13 @@ def check_output(content, context, goal):
         if context.get('lesson_design'):
             for code, label, passed, detail in lesson_design.report(context['lesson_design'], context):
                 add(code, label, passed, detail)
-        hint = style.reminder(content)
+        flagged = [line.strip() for line in content.splitlines() if lesson_design.FLAG in line]
+        if flagged:
+            add('flagged', '写作时标出的待核对之处', False, f'{len(flagged)} 处：' + '；'.join(line[:80] for line in flagged[:3])
+                + '。这是模型写环节时自己指出的前后不一致，请优先核对。')
+        # 本课要点 is the one place that may speak about diagnoses; the reminder looks at the segments.
+        body = content.split('\n## ', 2)[2] if content.count('\n## ') >= 2 else content
+        hint = style.reminder(body)
         add('style', '表达提醒', not hint, (hint + '。这是词语匹配，可能把引用的错误说法也算进去。') if hint
             else '未匹配到系统话术、免责声明、旁白或套话；表达是否自然需教师判断。')
     elif context.get('personalization_plan'):
@@ -150,6 +156,9 @@ def check_output(content, context, goal):
     if context.get('lecture_pipeline') == 'v3':
         # Figure blocks hold JSON, not prose arithmetic; blank them but keep the line numbers.
         prose = figures.FENCE.sub(lambda match: '\n' * match[0].count('\n'), content)
+        if context.get('generation_mode') == 'designed-v1':
+            # These lines quote the mistake a student is expected to make; recomputing them only raises false alarms.
+            prose = re.sub(r'^(?:\*\*易错\*\*|\*\*注意\*\*|- 常见错答：).*$', '', prose, flags=re.M)
         arithmetic = mathcheck.check_text(prose)
         add('arithmetic', '算式复算', not arithmetic['findings'],
             '；'.join(f'第 {f["line"]} 行：{f["detail"]}' for f in arithmetic['findings'][:3])

@@ -29,10 +29,14 @@ ROLE_NAMES = {'warmup': '前测题', 'example': '例题', 'practice': '当堂练
 KIND_WORDS = {'warmup': ('前测', '回顾'), 'intro': ('导入',), 'concept': ('新授',), 'example': ('例题', '例'),
               'practice': ('练习',), 'summary': ('小结',), 'homework': ('作业',)}
 _TITLE_PREFIX = re.compile(r'^(?:前测与回顾|前测|回顾|导入|新授|例题?[ \t]*\d*|当堂练习|课堂练习|练习?[ \t]*\d*|课堂小结|小结|布置作业|作业)[ \t]*[:：][ \t]*')
+BLANK = re.compile(r'_{4,}')        # a gap the student fills in on the handout
 ARITHMETIC = '算式复算不一致'   # a possible false alarm: reported, but never the only reason for a retry
+TRIMMED = '只保留了前'          # an over-long list was cut: reported, not worth another model call
+FLAG = '待核对：'               # a line the model wrote to point at something it could not reconcile
 FIELDS = {'title': '标题', 'stem': '题干', 'answer': '答案', 'steps': '解答步骤', 'do': '步骤内容', 'teacher': '教师活动',
           'key_points': '重点', 'difficulties': '难点', 'not_today': '本课不展开', 'summary': '小结', 'text': '内容',
-          'items': '题目', 'segments': '环节', 'objectives': '学习目标', 'ask': '问题', 'minutes': '分钟数'}
+          'items': '题目', 'segments': '环节', 'objectives': '学习目标', 'ask': '问题', 'minutes': '分钟数',
+          'notes': '学案笔记', 'board': '板书', 'questions': '提问', 'notation': '符号表'}
 LIMIT = 24000
 
 # JSON turns an under-escaped LaTeX command into a control character plus the rest of its name
@@ -90,7 +94,7 @@ def _name(key):
 
 class _Reader:
     def __init__(self):
-        self.hard, self.soft = [], []
+        self.hard, self.soft, self.notes = [], [], []   # notes: shown to the teacher, never a reason to retry
 
     def text(self, obj, key, limit, where, required=True):
         value = obj.get(key) if isinstance(obj, dict) else None
@@ -98,10 +102,14 @@ class _Reader:
             return ''
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             value = str(value)
+        if isinstance(value, list) and value and all(isinstance(part, str) for part in value):
+            value = '；'.join(part.strip() for part in value if part.strip())  # a multi-part answer written as a list
         if not isinstance(value, str):
             self.hard.append(f'{where}的{_name(key)}应为文字')
             return ''
         value = re.sub(r'[ \t\r]+', ' ', value).strip()
+        # Quoted speech arrives in ASCII quotes because they need no escaping in JSON.
+        value = re.sub(r"'([^'\n]{0,60}[一-鿿][^'\n]{0,60})'", r'“\1”', value)
         if re.search(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', value):
             self.hard.append(f'{where}的{_name(key)}里有损坏的公式：JSON 字符串中的每个反斜杠要写成两个')
             value = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', value)
@@ -112,7 +120,7 @@ class _Reader:
             value = value[:limit]
         return value
 
-    def lines(self, obj, key, limit, low, high, where):
+    def lines(self, obj, key, limit, low, high, where, strict=False):
         value = obj.get(key) if isinstance(obj, dict) else None
         if value is None:
             value = []
@@ -123,8 +131,11 @@ class _Reader:
             return []
         result = [self.text({'item': item}, 'item', limit, f'{where}的{_name(key)}') for item in value]
         result = [item for item in result if item]
-        if not low <= len(result) <= high:
-            (self.hard if len(result) < low else self.soft).append(f'{where}的{_name(key)}应有 {low}—{high} 条，现在 {len(result)} 条')
+        if len(result) < low:
+            self.hard.append(f'{where}的{_name(key)}应有 {low}—{high} 条，现在 {len(result)} 条')
+        elif len(result) > high:
+            (self.soft if strict else self.notes).append(
+                f'{where}的{_name(key)}有 {len(result)} 条，超过 {high} 条' + ('' if strict else f'，{TRIMMED} {high} 条'))
         return result[:high]
 
     def records(self, obj, key, low, high, where):
@@ -134,8 +145,10 @@ class _Reader:
         if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
             self.hard.append(f'{where}的{_name(key)}应为对象列表')
             return []
-        if not low <= len(value) <= high:
-            (self.hard if len(value) < low else self.soft).append(f'{where}的{_name(key)}应有 {low}—{high} 项，现在 {len(value)} 项')
+        if len(value) < low:
+            self.hard.append(f'{where}的{_name(key)}应有 {low}—{high} 项，现在 {len(value)} 项')
+        elif len(value) > high:
+            self.notes.append(f'{where}的{_name(key)}有 {len(value)} 项，超过 {high} 项，{TRIMMED} {high} 项')
         return value[:high]
 
 
@@ -173,14 +186,16 @@ def validate(raw, context):
         reader.hard.append('缺少 focus（重点、难点、本课不展开的内容）')
     design = dict(
         version=VERSION, title=reader.text(raw, 'title', 60, '课堂设计'),
-        focus=dict(key_points=reader.lines(focus, 'key_points', 60, 1, 2, '课堂设计'),
-                   difficulties=reader.lines(focus, 'difficulties', 60, 0, 2, '课堂设计'),
+        focus=dict(key_points=reader.lines(focus, 'key_points', 80, 1, 2, '课堂设计', strict=True),
+                   difficulties=reader.lines(focus, 'difficulties', 80, 0, 2, '课堂设计'),
                    not_today=reader.lines(focus, 'not_today', 80, 0, 4, '课堂设计')),
         learner=reader.text(raw, 'learner', 400, '学情与对策', required=False),
         notation=[], objectives=[], segments=[], items=[], plan_links=[], figures=[],
         board_plan=dict(main=reader.lines(raw.get('board_plan') or {}, 'main', 120, 0, 10, '主板书'),
                         side=reader.lines(raw.get('board_plan') or {}, 'side', 120, 0, 6, '副板书')),
-        summary=reader.lines(raw, 'summary', 100, 1, 5, '课堂设计'))
+        summary=reader.lines(raw, 'summary', 100, 0, 5, '课堂设计'))
+    if not design['summary']:
+        reader.soft.append('缺少小结（summary）：写 2—4 条学生口吻的要点')
     for entry in reader.records(raw, 'notation', 0, 10, '课堂设计'):
         symbol, meaning = reader.text(entry, 'symbol', 60, '符号表'), reader.text(entry, 'meaning', 80, '符号表')
         if symbol and meaning:
@@ -256,6 +271,14 @@ def validate(raw, context):
                     wrong=reader.text(question, 'wrong', 200, f'环节 {identity} 的提问', required=False),
                     follow_up=reader.text(question, 'follow_up', 200, f'环节 {identity} 的提问', required=False),
                     level=level if isinstance(level, str) and level in LEVELS else 'basic'))
+        notes = []
+        for note in reader.records(entry, 'notes', 0, 5, f'环节 {identity}'):
+            text = reader.text(note, 'text', 240, f'环节 {identity} 的学案笔记')
+            answer = reader.text(note, 'answer', 200, f'环节 {identity} 的学案笔记', required=False)
+            if text:
+                if BLANK.search(text) and not answer:
+                    reader.soft.append(f'环节 {identity} 的学案笔记「{text[:20]}」留了空却没有写答案')
+                notes.append(dict(text=text, answer=answer if BLANK.search(text) else ''))
         ids = entry.get('knowledge_ids') or []
         design['segments'].append(dict(
             id=identity, kind=kind, minutes=minutes,
@@ -263,10 +286,10 @@ def validate(raw, context):
             focus=entry.get('focus') is True,
             knowledge_ids=[k for k in ids if k in known] if isinstance(ids, list) else [],
             screen=reader.text(entry, 'screen', 160, f'环节 {identity}', required=False),
-            board=reader.lines(entry, 'board', 120, 0, 5, f'环节 {identity}'),
-            teacher=reader.lines(entry, 'teacher', 160, 1, 6, f'环节 {identity}'),
+            board=reader.lines(entry, 'board', 120, 0, 8, f'环节 {identity}'),
+            teacher=reader.lines(entry, 'teacher', 160, 1, 8, f'环节 {identity}'),
             students=reader.text(entry, 'students', 120, f'环节 {identity}', required=False),
-            questions=questions, items=chosen,
+            questions=questions, notes=notes, items=chosen,
             if_short=reader.text(entry, 'if_short', 120, f'环节 {identity}', required=False),
             sources=_sources(reader, entry, f'环节 {identity}', allowed)))
     segments = {segment['id']: segment for segment in design['segments']}
@@ -351,9 +374,30 @@ def validate(raw, context):
     for item in design['items']:
         body = '\n'.join([item['stem']] + [step['do'] for step in item['steps']] + [item['answer'], item['check']])
         for finding in mathcheck.check_text(body)['findings'][:2]:
-            reader.soft.append(f'题目 {item["id"]} 的{ARITHMETIC}：{finding["detail"]}')
+            reader.notes.append(f'题目 {item["id"]} 的{ARITHMETIC}：{finding["detail"]}')
+    mixed = mixed_notation(design)
+    if mixed:
+        reader.soft.append('同一个符号有两种写法：' + '、'.join(f'{plain} 与 ${latex}$' for plain, latex in mixed[:4])
+                           + '。所有字段里的数学符号都写成 LaTeX，全课只用一种写法')
     unique = lambda problems: list(dict.fromkeys(problems))
-    return design, unique(reader.hard), unique(reader.soft)
+    return design, unique(reader.hard), unique(reader.soft + reader.notes)
+
+
+def worth_retry(soft):
+    """The reminders that justify asking the model again; the rest are only shown to the teacher."""
+    return [problem for problem in soft if ARITHMETIC not in problem and TRIMMED not in problem]
+
+
+def mixed_notation(design):
+    """Indexed symbols written both as plain text (A1) and as a LaTeX subscript ($A_1$), as [(plain, latex)]."""
+    text = student_text(design) + '\n' + '\n'.join('\n'.join(segment['teacher']) for segment in design['segments'])
+    ids = {entry['id'] for entry in design['items'] + design['segments']}
+    formulas = re.findall(r'\$\$.*?\$\$|\$[^$\n]*\$', text, re.S)
+    outside = re.sub(r'\$\$.*?\$\$|\$[^$\n]*\$', ' ', text, flags=re.S)
+    plain = {match for match in re.findall(r'(?<![A-Za-z0-9_\[\\])[A-Z][0-9](?![A-Za-z0-9_])', outside)} - ids
+    latex = {letter + digit: f'{letter}_{digit}' for formula in formulas
+             for letter, digit in re.findall(r'([A-Z])_\{?([0-9])\}?', formula)}
+    return sorted((name, latex[name]) for name in plain if name in latex)
 
 
 def student_text(design):
@@ -361,7 +405,7 @@ def student_text(design):
     parts = [design['title'], *[o['text'] for o in design['objectives']], *design['summary'],
              *design['board_plan']['main'], *design['board_plan']['side']]
     for segment in design['segments']:
-        parts += [segment['title'], segment['screen'], *segment['board']]
+        parts += [segment['title'], segment['screen'], *segment['board'], *[n['text'] + n['answer'] for n in segment.get('notes', [])]]
     for item in design['items']:
         parts += [item['title'], item['stem'], item['answer'], item['check'], *[s['do'] for s in item['steps']]]
     return '\n'.join(parts)
@@ -405,17 +449,45 @@ def humanize(design, text):
     names = {**{segment['id']: f'第 {n} 环节' for n, segment in enumerate(design['segments'], 1)}, **labels(design)}
     if not names:
         return text
-    pattern = re.compile(r'(?<![A-Za-z0-9_\\\[])(' + '|'.join(sorted(map(re.escape, names), key=len, reverse=True))
-                         + r')(?![A-Za-z0-9_])')
+    pattern = re.compile(r'( ?)(?<![A-Za-z0-9_\\\[])(' + '|'.join(sorted(map(re.escape, names), key=len, reverse=True))
+                         + r')(?![A-Za-z0-9_])( ?)')
+    wide = lambda char: bool(char) and char >= '\u2e80'
+
+    def swap(match, part):
+        # A space between Chinese text and an id is the model's habit, not typography; list markers keep theirs.
+        lead = '' if wide(part[:match.start()][-1:]) else match[1]
+        trail = '' if wide(part[match.end():][:1]) else match[3]
+        return lead + names[match[2]] + trail
     lines, fenced = [], False
     for line in text.split('\n'):
         if line.lstrip().startswith(('```', '~~~')):
             fenced = not fenced
         elif not fenced:
             parts = re.split(r'(\$\$.*?\$\$|\$[^$\n]*\$)', line)  # odd positions are formulas
-            line = ''.join(part if index % 2 else pattern.sub(lambda m: names[m[1]], part) for index, part in enumerate(parts))
+            line = ''.join(part if index % 2 else pattern.sub(lambda m, part=part: swap(m, part), part)
+                           for index, part in enumerate(parts))
         lines.append(line)
     return '\n'.join(lines)
+
+
+def gap_outside(text):
+    """Move a relation sign that ends a formula right before a gap out of the formula:
+    "$E(X)=$ ____" becomes "$E(X)$ = ____". A formula ending in a bare "=" is drawn with an error mark."""
+    signs = {'=': '=', '<': '<', '>': '>', '\\approx': '≈', '\\le': '≤', '\\ge': '≥', '\\neq': '≠'}
+    return re.sub(r'[ \t]*(=|<|>|\\approx|\\le|\\ge|\\neq)[ \t]*\$[ \t]*(?=_{4,}|【)',
+                  lambda match: f'$ {signs[match[1]]} ', text)
+
+
+def filled(note):
+    """A handout note with its gaps filled in: one answer per gap when they pair up, else the answer after the sentence."""
+    text = gap_outside(note['text'])
+    gaps, answers = BLANK.findall(text), [part.strip() for part in re.split(r'[；;]', note['answer']) if part.strip()]
+    if not gaps:
+        return text
+    if len(gaps) == len(answers):
+        parts = iter(answers)
+        return BLANK.sub(lambda _: f'【{next(parts)}】', text)
+    return BLANK.sub(lambda _: f'【{note["answer"]}】', text) if len(gaps) == 1 else f'{text}（答：{note["answer"]}）'
 
 
 def segment_title(segment):
@@ -443,7 +515,7 @@ def item_block(design, identity, answers=True):
     if not answers:
         # Source markers and solutions are the teacher's; the student gets the problem only.
         return humanize(design, '\n'.join([title, '', '**题目**　' + re.sub(r'[ \t]*\[[MV]\d+\]', '', item['stem'])]))
-    lines = [title, '', f'**题目**　{item["stem"]}' + _cite(item['sources'], item['stem'])]
+    lines = [title, '', f'**题目**　{item["stem"]}']
     if item['steps']:
         lines += ['', '**解答**', '']
         lines += [f'{n}. {step["do"]}' + (f'　——{step["why"]}' if step['why'] else '')
@@ -453,20 +525,23 @@ def item_block(design, identity, answers=True):
         lines += ['', f'**检验**　{item["check"]}']
     if item['mistake']:
         lines += ['', f'**易错**　{item["mistake"]}']
+    extra = _cite(item['sources'], '\n'.join(lines)).strip()   # sources the block has not cited inline
+    if extra:
+        lines += ['', f'**依据**　{extra}']
     return humanize(design, '\n'.join(lines))
 
 
 def schedule(design):
     """The one-page run sheet: when, what, who does what, what goes on the board."""
     names = labels(design)
-    rows, clock = ['| 时间 | 环节 | 教师 | 学生 | 板书 |', '| --- | --- | --- | --- | --- |'], 0
+    rows, clock = ['| 时间 | 环节 | 教师 | 学生 | 题目 |', '| --- | --- | --- | --- | --- |'], 0
     cell = lambda text: re.sub(r'\s+', ' ', text).replace('|', '\\|') or '—'
     for segment in design['segments']:
         title = segment_title(segment) + ('（重点）' if segment['focus'] else '')
         used = '、'.join(names[ref] for ref in segment['items'])
-        teacher = '；'.join(segment['teacher']) + (f'（{used}）' if used else '')
+        teacher = '；'.join(move.rstrip('。；;.') for move in segment['teacher'])
         rows.append(f'| {clock}—{clock + segment["minutes"]} | {cell(title)} | {cell(teacher)} | '
-                    f'{cell(segment["students"])} | {cell("；".join(segment["board"]))} |')
+                    f'{cell(segment["students"])} | {cell(used)} |')
         clock += segment['minutes']
     return humanize(design, '\n'.join(rows))
 
@@ -481,7 +556,7 @@ def overview(design, context):
     goals = []
     for number, objective in enumerate(design['objectives'], 1):
         checked = '、'.join(names[ref] for ref in objective['checked_by'])
-        goals.append(f'{number}. {objective["text"]}' + (f'（由{checked}检验）' if checked else ''))
+        goals.append(f'{number}. {objective["text"].rstrip("。；;.")}' + (f'（由{checked}检验）' if checked else ''))
     parts += ['**学习目标**', '\n'.join(goals)]
     if design['notation']:
         parts.append('**符号**　' + '；'.join(f'{n["symbol"]} 表示{n["meaning"]}' for n in design['notation']))
@@ -518,6 +593,8 @@ def segment_block(design, segment, prose=''):
     for figure in design['figures']:
         if figure['segment'] == segment['id']:
             lines += ['', '```figure', json.dumps(figure['spec'], ensure_ascii=False), '```']
+    if segment.get('notes'):
+        lines += ['', '**学案笔记**（学生边听边填）', ''] + [f'- {filled(note)}' for note in segment['notes']]
     for number, question in enumerate(segment['questions'], 1):
         lines += ['', f'**提问 {number}**（{LEVELS[question["level"]]}）{question["ask"]}']
         lines += [f'- {label}：{question[key]}' for key, label in
