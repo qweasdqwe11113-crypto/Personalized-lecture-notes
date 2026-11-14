@@ -197,7 +197,23 @@ class QuickSetupRoutes(unittest.TestCase):
         self.assertEqual(response.json['found']['api_key'], '')
         self.assertIsNone(response.json['models'])
         self.assertIn('没有读到模型列表', response.json['found']['notes'][0])
+        self.assertEqual(response.json['suggested'], {'llm': 'old-model'}, 'no list: the saved model is kept, not blanked')
         self.assertEqual(self.client.post('/api/model-settings/import', json={'text': '随便写的'}).status_code, 400)
+
+    def test_import_keeps_a_model_already_set_on_the_same_service_even_when_its_list_leaves_it_out(self):
+        # Alibaba Cloud's model list has no text-embedding-v4, yet it serves it; a new embedding model would void the indexes.
+        dashscope = 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+        self.path.write_text(f'QWEN_BASE_URL={dashscope}\nQWEN_MODEL=qwen-plus\nQWEN_API_KEY={KEY}\n'
+                             f'QWEN_EMBEDDING_BASE_URL={dashscope}/\nQWEN_EMBEDDING_MODEL=text-embedding-v4\n', encoding='utf-8')
+        listing = (200, {'data': [{'id': 'qwen-plus'}, {'id': 'qwen-vl-plus'}, {'id': 'text-embedding-v3'}]})
+        fetch, _ = canned({f'{dashscope}/models sk-new1234567890abcdefgh': listing, 'https://relay.example.com/v1/models': listing})
+        with patch.object(mi, 'fetch_json', fetch):
+            same = self.client.post('/api/model-settings/import', json={'text': 'sk-new1234567890abcdefgh', 'provider': 'dashscope'})
+            other = self.client.post('/api/model-settings/import', json={'text': 'https://relay.example.com/v1\nsk-new1234567890abcdefgh'})
+        self.assertEqual(same.json['suggested'], {'llm': 'qwen-plus', 'vlm': 'qwen-vl-plus', 'embedding': 'text-embedding-v4'})
+        self.assertIn('嵌入模型保留原来的 text-embedding-v4', ''.join(same.json['found']['notes']))
+        self.assertEqual(other.json['suggested']['embedding'], 'text-embedding-v3', 'another service: its own model')
+        self.assertEqual(other.json['found']['notes'], [])
 
     def test_model_list_uses_the_form_and_the_saved_key_unless_cleared(self):
         fetch, calls = canned({'https://relay.example.com/v1/models ' + KEY: (200, {'data': [{'id': 'old-model'}, {'id': 'bge-m3'}]})})

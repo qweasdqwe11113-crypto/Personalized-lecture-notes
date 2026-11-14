@@ -209,8 +209,9 @@ def register_model_settings(app, env_path):
             found['base_url'] = listing['base_url']
         except ConfigImportError as exc:
             found['notes'].append('没有读到模型列表：' + str(exc))
-        return jsonify(found=found, models=listing['models'] if listing else None,
-                       suggested=listing['suggested'] if listing else {})
+        models, suggested = (listing['models'], listing['suggested']) if listing else (None, {})
+        found['notes'] += model_import.keep_saved(suggested, models, channels, found['base_url'])
+        return jsonify(found=found, models=models, suggested=suggested)
 
     @app.post('/api/model-settings/models')
     def model_list():

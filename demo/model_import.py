@@ -555,6 +555,31 @@ def list_models(base_url, api_key='', current=None, timeout=15.0):
     raise ConfigImportError('这个服务没有提供模型列表。请按服务商文档填写模型名称，再点「测试」。')
 
 
+def keep_saved(suggested, models, channels, base_url):
+    """Models already set up on this same service stay, even when its list leaves them out.
+
+    Some services list only part of what they serve (Alibaba Cloud leaves out text-embedding-v4), and a
+    different embedding model would make every saved knowledge-point index unusable until it is rebuilt.
+    Changes suggested in place and returns the notes to show.
+    """
+    def same(url):
+        try:
+            return normalize_base_url(url) == normalize_base_url(base_url)
+        except ConfigImportError:
+            return False
+    listed, notes = {m['id'] for m in models or []}, []
+    for name, channel in channels.items():
+        model = channel['model']
+        inherited = name == 'embedding' and model == channels['llm']['model']   # unset: it falls back to the language model
+        if not model or inherited or model in listed or not same(channel['base_url']):
+            continue
+        suggested[name] = model
+        if models is not None:
+            notes.append(f'{CHANNEL_NAMES[name]}保留原来的 {model}：这个服务的模型列表里没有它，但原来的配置可能仍然可用'
+                         + ('；换嵌入模型后，知识点索引要重新建立。' if name == 'embedding' else '。'))
+    return notes
+
+
 def detect_local(current=None, timeout=1.5):
     """Model servers answering on this computer's usual ports, with their models; never raises."""
     def look(entry):
