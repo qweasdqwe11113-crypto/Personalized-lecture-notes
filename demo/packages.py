@@ -17,7 +17,8 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 from flask import Response, jsonify, request
 
-from presentations import presentation_pptx
+from presentations import lesson_pptx, presentation_pptx
+from ppt_templates import DEFAULT_TEMPLATE, available_templates
 from profiles import SOURCE_LABELS, STATE_LABELS
 from quality import check_output
 from quizzes import DIFFICULTIES, LEVELS, TYPES, lecture_topic_key, option_lines, quiz_markdown
@@ -77,7 +78,8 @@ def load_quiz(conn, identity, lecture_id, topic_key):
     return row
 
 
-def collect(db, lecture_id, number, quiz_id=None, presentation_id=None):
+def collect(db, lecture_id, number, quiz_id=None, presentation_id=None, slides_template=None):
+    """slides_template: build the slides of a designed lecture from its design on this template (no model call)."""
     with db() as conn:
         conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
         lecture = lecture_row(conn, lecture_id)
@@ -91,6 +93,9 @@ def collect(db, lecture_id, number, quiz_id=None, presentation_id=None):
         if run['context']['ppt_export']['lecture_id'] != lecture_id:
             raise ReviewError('该课件不是由这份讲义生成的，请重新选择。')
         deck = dict(run=run, slides=slides, pptx=payload)
+    elif slides_template is not None:
+        plan, template, payload = lesson_pptx(lecture, slides_template)
+        deck = dict(design=True, plan=plan, template=template, pptx=payload)
     report = lecture['citation_check'].get('quality_report') if number == 0 else version.get('quality_report')
     origin = '生成时留存' if number == 0 else '修订保存时留存'
     if not report:
@@ -129,7 +134,9 @@ def overview(parts):
         rows.append(('配套练习', f"{o['count']} 题 · {DIFFICULTIES[o['difficulty']]} · {LEVELS[o['student_level']]} · {relation}"))
     else:
         rows.append(('配套练习', '未选择题组'))
-    if deck:
+    if deck and deck.get('design'):
+        rows.append(('授课课件', deck_label(deck, version['revision_number'])))
+    elif deck:
         source = deck['run']['context']['ppt_export']
         rows.append(('授课课件', f"#{deck['run']['id']} · {len(deck['slides']['slides'])} 页 · {source.get('template_name', '旧版版式')} · "
                                  f"依据 {version_label(source['base_revision'])}"))
@@ -265,6 +272,22 @@ def handbook_markdown(parts):
     return '\n'.join(lines).rstrip() + '\n'
 
 
+def deck_label(deck, revision=0):
+    """A deck built from the lesson design: how many pages, on which template. The design is the one the
+    lecture was written from, so wording changed in a revision is not on the slides."""
+    label = f"按课堂设计排版 · {deck['plan']['visible']} 页 · {deck['template']['name']}（课件页码见课堂流程表）"
+    return label + ('；修订稿改动的文字不在课件里，请对照修改' if revision else '')
+
+
+def slide_pages(parts):
+    """{segment id: 「第 3—4 页」} of the slides in this package, when they were built from the design."""
+    import lesson_slides
+    deck = parts['deck']
+    if not deck or not deck.get('design'):
+        return None
+    return {segment: lesson_slides.page_range(deck['plan'], segment) for segment in deck['plan']['pages']}
+
+
 def designed(parts):
     """The lesson design this lecture was written from, or None for lectures of the older pipelines."""
     return parts['lecture']['context'].get('lesson_design')
@@ -281,7 +304,7 @@ def book_facts(parts):
             ('课时', f"{options.get('duration')} 分钟 · {LESSON_TYPES.get(options.get('lesson_type'), '—')}" if options else '未记录'),
             ('讲义版本', f"#{lecture['id']} / {version_label(version['revision_number'])} · {VERSION_STATUS.get(version['status'], version['status'])}")]
     if deck:
-        rows.append(('配套课件', f"#{deck['run']['id']} · {len(deck['slides']['slides'])} 页"))
+        rows.append(('配套课件', deck_label(deck, version['revision_number']) if deck.get('design') else f"#{deck['run']['id']} · {len(deck['slides']['slides'])} 页"))
     if quiz:
         rows.append(('配套练习', f"{quiz['options']['count']} 题，另见「学生练习」与「练习-教师版」"))
     return rows
@@ -433,7 +456,7 @@ def markdown_docx(text):
 def documents(parts):
     """Markdown of each document of a designed lesson: teacher's book, handout, handout with answers, record."""
     design = designed(parts)
-    return dict(teacher=handouts.teacher_book(design, parts['version']['content'], book_facts(parts)),
+    return dict(teacher=handouts.teacher_book(design, parts['version']['content'], book_facts(parts), slide_pages(parts)),
                 handout=handouts.student_handout(design), key=handouts.student_handout(design, answers=True),
                 record=record_markdown(parts))
 
@@ -462,8 +485,10 @@ def build_package(parts):
                      content_sha256=sha256(version['content'].encode('utf-8')).hexdigest(), model=lecture['model']),
         quiz=dict(id=quiz['id'], request_sha256=quiz['request_sha256'],
                   lecture=(quiz['context'].get('lecture') or {}).get('id')) if quiz else None,
-        presentation=dict(run_id=deck['run']['id'], request_sha256=deck['run']['request_sha256'],
-                          template=deck['run']['context']['ppt_export'].get('template_id')) if deck else None,
+        presentation=(dict(built_from='lesson_design', version=deck['plan']['version'], template=deck['template']['id'],
+                           pages=deck['plan']['visible']) if deck and deck.get('design') else
+                      dict(run_id=deck['run']['id'], request_sha256=deck['run']['request_sha256'],
+                           template=deck['run']['context']['ppt_export'].get('template_id')) if deck else None),
         files=[dict(name=name, bytes=len(data), sha256=sha256(data).hexdigest()) for name, data in files],
         note='所有内容读取自已保存记录；AI 生成内容须教师复核。学生练习不含答案与学生信息。'
              + ('学生学案与教师用书由同一份课堂设计排版，题目逐字相同；「含答案」的学案和教师用书不要发给学生。' if designed(parts) else ''))
@@ -489,16 +514,22 @@ def package_options(db, lecture_id):
             FROM generation_runs r WHERE r.status='succeeded' AND r.context->'ppt_export'->>'lecture_id'=%s
             AND (NOT (r.context ? 'ppt_slide_edit') OR r.response_metadata->>'edit_state'='accepted')
             ORDER BY r.id DESC LIMIT 30''', (str(lecture_id),)).fetchall()
-    return dict(quizzes=quizzes, presentations=decks, designed=bool(lecture['context'].get('lesson_design')))
+    designed_lecture = bool(lecture['context'].get('lesson_design'))
+    templates = ([dict(id=item['id'], name=item['name']) for item in available_templates() if item['semantic']]
+                 if designed_lecture else [])
+    return dict(quizzes=quizzes, presentations=decks, designed=designed_lecture, slide_templates=templates,
+                default_template=DEFAULT_TEMPLATE)
 
 
 def register_packages(app, db):
     def arguments():
         raw = request.args.get('revision', '0')
         deck = request.args.get('presentation', '')
-        if not re.fullmatch(r'[0-9]{1,9}', raw) or (deck and not re.fullmatch(r'[0-9]{1,18}', deck)):
+        slides = request.args.get('slides') or None
+        if (not re.fullmatch(r'[0-9]{1,9}', raw) or (deck and not re.fullmatch(r'[0-9]{1,18}', deck))
+                or (deck and slides) or (slides and not re.fullmatch(r'[a-z0-9-]{1,40}', slides))):
             raise ReviewError('请选择有效的讲义版本与课件。')
-        return int(raw), request.args.get('quiz') or None, int(deck) if deck else None
+        return int(raw), request.args.get('quiz') or None, int(deck) if deck else None, slides
 
     @app.get('/api/lectures/<int:lecture_id>/package-options')
     def lesson_package_options(lecture_id):
@@ -506,12 +537,13 @@ def register_packages(app, db):
 
     @app.get('/api/lectures/<int:lecture_id>/package')
     def lesson_package(lecture_id):
-        number, quiz, deck = arguments()
+        number, quiz, deck, slides = arguments()
         fmt = request.args.get('format', 'zip')
         single = {'handout': ('handout', '学生学案'), 'handout-key': ('key', '学生学案-含答案'), 'record': ('record', '生成记录与核对')}
         if fmt not in ('zip', 'docx', 'md', *single):
             raise ReviewError('请选择有效的导出内容。')
-        parts = collect(db, lecture_id, number, quiz, deck)
+        # A handout or the record never shows the slides; only the teacher's documents carry their page numbers.
+        parts = collect(db, lecture_id, number, quiz, deck, None if fmt in single else slides)
         label = version_label(number)
         word = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         if fmt in single and not designed(parts):

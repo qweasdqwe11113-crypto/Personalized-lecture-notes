@@ -478,16 +478,59 @@ def gap_outside(text):
                   lambda match: f'$ {signs[match[1]]} ', text)
 
 
+def as_formula(text):
+    """An answer the model wrote as bare LaTeX ("P(B\\mid A_i)", "P(B)>0") put between $ so it is drawn as a formula."""
+    text = text.strip()
+    if '$' in text or re.search(r'[\u4e00-\u9fff]', text) or not re.search(r'\\[A-Za-z]|[_^]|[A-Za-z]\(|[<>=]', text):
+        return text
+    return f'${text}$'
+
+
+def note_answers(note):
+    """The answers of a handout note, one per gap when they are separated by semicolons."""
+    return [as_formula(part) for part in re.split(r'[；;]', note['answer']) if part.strip()]
+
+
+_FORMULA = re.compile(r'(\$\$.*?\$\$|(?<!\\)\$[^$\n]*\$)')
+
+
+def _gaps(text, replace):
+    """Replace every gap with replace(index, inside_formula); a gap may sit inside a formula, as in \\frac{a}{____}."""
+    parts, count = _FORMULA.split(text), 0
+    for index, part in enumerate(parts):
+        def swap(_, inside=bool(index % 2)):
+            nonlocal count
+            count += 1
+            return replace(count - 1, inside)
+        parts[index] = BLANK.sub(swap, part)
+    return ''.join(parts)
+
+
+def open_gaps(text):
+    """The handout's view of a note: a gap inside a formula becomes \\gap, which the Word export draws as a line."""
+    opened = _gaps(gap_outside(text), lambda _, inside: '\\gap ' if inside else '____')
+    # The space only ends the command name before a letter; before $ it would stop Word reading the formula.
+    return re.sub(r'\\gap (?![A-Za-z])', r'\\gap', opened)
+
+
+def _inside(answer):
+    """An answer to be placed inside a formula: its own $ removed, words kept as text."""
+    if re.fullmatch(r'\$[^$]+\$', answer):
+        return answer[1:-1]
+    return f'\\text{{{answer}}}' if '$' not in answer else answer.replace('$', '')
+
+
 def filled(note):
     """A handout note with its gaps filled in: one answer per gap when they pair up, else the answer after the sentence."""
     text = gap_outside(note['text'])
-    gaps, answers = BLANK.findall(text), [part.strip() for part in re.split(r'[；;]', note['answer']) if part.strip()]
+    gaps, answers = len(BLANK.findall(text)), note_answers(note)
     if not gaps:
         return text
-    if len(gaps) == len(answers):
-        parts = iter(answers)
-        return BLANK.sub(lambda _: f'【{next(parts)}】', text)
-    return BLANK.sub(lambda _: f'【{note["answer"]}】', text) if len(gaps) == 1 else f'{text}（答：{note["answer"]}）'
+    if gaps != len(answers):
+        if gaps > 1:
+            return f'{open_gaps(text)}（答：{as_formula(note["answer"])}）'
+        answers = [as_formula(note['answer'])]
+    return _gaps(text, lambda n, inside: f'\\text{{【}}{_inside(answers[n])}\\text{{】}}' if inside else f'【{answers[n]}】')
 
 
 def segment_title(segment):
@@ -531,17 +574,19 @@ def item_block(design, identity, answers=True):
     return humanize(design, '\n'.join(lines))
 
 
-def schedule(design):
-    """The one-page run sheet: when, what, who does what, what goes on the board."""
+def schedule(design, pages=None):
+    """The one-page run sheet: when, what, who does what, what goes on the board.
+    pages: {segment id: 「第 3—4 页」} adds the slides each segment uses."""
     names = labels(design)
-    rows, clock = ['| 时间 | 环节 | 教师 | 学生 | 题目 |', '| --- | --- | --- | --- | --- |'], 0
+    head = ['时间', '环节', '教师', '学生', '题目'] + (['课件'] if pages else [])
+    rows, clock = ['| ' + ' | '.join(head) + ' |', '|' + ' --- |' * len(head)], 0
     cell = lambda text: re.sub(r'\s+', ' ', text).replace('|', '\\|') or '—'
     for segment in design['segments']:
         title = segment_title(segment) + ('（重点）' if segment['focus'] else '')
         used = '、'.join(names[ref] for ref in segment['items'])
         teacher = '；'.join(move.rstrip('。；;.') for move in segment['teacher'])
-        rows.append(f'| {clock}—{clock + segment["minutes"]} | {cell(title)} | {cell(teacher)} | '
-                    f'{cell(segment["students"])} | {cell(used)} |')
+        row = f'| {clock}—{clock + segment["minutes"]} | {cell(title)} | {cell(teacher)} | {cell(segment["students"])} | {cell(used)} |'
+        rows.append(row + (f' {cell(pages.get(segment["id"], ""))} |' if pages else ''))
         clock += segment['minutes']
     return humanize(design, '\n'.join(rows))
 

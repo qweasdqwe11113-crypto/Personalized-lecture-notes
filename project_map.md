@@ -107,7 +107,10 @@ flowchart TD
 | `reviews.py` | 修订版本、问题记录、审核事务与并发冲突检查 |
 | `sections.py`、`comparisons.py` | 章节候选与采用；讲义与版本比较 |
 | `presentations.py` | 课件请求、输出校验、导出、内部视觉审查与单页微调 |
-| `ppt_story.py`、`ppt_templates.py`、`pptkit_export.py`、`pptx_export.py` | 语义页面契约、模板白名单与映射、排版适配与 PPTX 导出 |
+| `ppt_story.py`、`ppt_templates.py`、`pptkit_export.py`、`pptx_export.py` | 语义页面契约、模板白名单与映射、排版适配与 PPTX 导出；`build_lesson_pptx` 把按课堂设计排好的页面套到模板上 |
+| `lesson_slides.py` | 按课堂设计排版的课件（`lesson-slides-v1`）：从设计决定有哪些页、每页放什么、用多大字号、在哪里分页，以及每页的演讲者备注；`page_range` 给教师用书的课堂流程表标页码。不调用模型 |
+| `lesson_layout.py` | 上面那些页面的几何与绘制：文字高度估算、页眉页脚、题目、分步解答、答案、作业、图示页，以及图的原生形状重画 |
+| `mathtext.py` | LaTeX 转成 PowerPoint 里可编辑的文字：上下标、斜体字母、运算符间距、线性分式、学案填空（留空或填上答案） |
 | `ppt_aesthetics.py`、`render_ppt_slides.ps1` | PowerPoint 渲染与本机 Ollama 视觉审查（仅 Windows） |
 | `handouts.py` | 按课堂设计生成的讲义的学生学案（留白版与含答案版）、教师用书（讲义正文加答案速查和课后记录页），由程序从设计排版，不调用模型 |
 | `packages.py` | 授课包：只读已保存记录。有课堂设计时组装学生学案、教师用书、生成记录与核对；否则组装教师手册。另有学生练习、课件与清单；`markdown_docx` 把 Markdown 排成 Word（含作答横线 `<!-- lines:N -->`） |
@@ -195,6 +198,18 @@ flowchart LR
     R -->|否| F["交付课件"]
     V --> F
     F --> E["单页微调候选<br/>采用后成为新版本"]
+```
+
+按课堂设计生成的讲义另有一条不调用模型的路线：
+
+```mermaid
+flowchart LR
+    D["课堂设计<br/>lectures.context.lesson_design"] --> LS["lesson_slides.py<br/>分页与备注"]
+    LS --> LL["lesson_layout.py<br/>绘制"]
+    M["mathtext.py<br/>公式转文字"] --> LL
+    LL --> B["pptkit_export.build_lesson_pptx<br/>套模板与版式检查"]
+    B --> O2["可编辑 PPTX"]
+    LS --> H["handouts.teacher_book<br/>课堂流程表的课件页码"]
 ```
 
 新任务冻结模板 ID、模板 SHA-256、映射版本和完整请求；历史课件按原渲染版本导出。单页微调只让模型返回目标页，服务端合并后校验其他页不变。
@@ -305,7 +320,7 @@ Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中
 | 分章节生成（旧版） | `sectioned.py`、`prompts/lecture-sectioned-*.md` | 冻结上下文里的 `sectioned`、章节配额与篇幅检查一致、`test_pipeline_v3.py` |
 | 公式与图 | `figures.py`、`richdoc.py`、`app.js` 的 `renderMarkdown` | 网页、HTML、Word、纯文本四种输出，`prompts/lecture-format-rich-v1.md` 里的图格式 |
 | 审核与章节调整 | `reviews.py`、`sections.py` | 版本锁、问题记录、引用检查 |
-| PPT | `presentations.py`、`ppt_story.py`、`pptkit_export.py` | 模板版本、视觉审查、单页微调、`test_presentations.py` |
+| PPT | `presentations.py`、`ppt_story.py`、`pptkit_export.py`；按课堂设计排版的课件另有 `lesson_slides.py`、`lesson_layout.py`、`mathtext.py` | 模板版本、视觉审查、单页微调、`test_presentations.py`；按设计排版的页面改动后跑 `test_lesson_slides.py`（每个模板都要过版式检查），并用 LibreOffice 渲染看一遍 |
 | 出题 / 阅卷 / 授课包 | `quizzes.py`、`grading.py`、`packages.py`、`handouts.py` | 冻结版本与 JSON 模式、题号映射、学生练习与学生学案不含答案和来源编号、`packages.js` 的导出内容列表、`test_packages.py` 与 `test_lesson_design.py` |
 | 模型配置 | `model_settings.py`、`qwen.py`、`vision.py`、`embed.py` | 三个通道的区别、密钥遮蔽、重启生效 |
 | 正式版 / 测试版 | `edition.py`、`init_db.py`、`courses.py` 的预置课程、`index.html` 中的 `release` 分支 | 正式版空库可从零建课（`test_edition.py`）、`desktop/scripts/stage.mjs` 的文件白名单 |

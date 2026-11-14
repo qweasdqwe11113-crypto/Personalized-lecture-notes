@@ -709,6 +709,58 @@ class DesignedPipeline(base.CourseJobTests):
         self.assertEqual(refused.status_code, 400)
         self.assertIn('不是按课堂设计生成的', refused.json['error'])
 
+    def test_slides_are_laid_out_from_the_design_and_numbered_in_the_teachers_book(self):
+        from pptx import Presentation
+        import lesson_slides
+        def model(prepared, on_attempt):
+            on_attempt()
+            _, user = request_of(prepared)
+            if 'target_segment' not in user:
+                return module.ModelResult(json.dumps(with_notes(), ensure_ascii=False))
+            return self.staged(prepared, on_attempt)
+        _, run = self.run_job(model, self.new_payload(design_review=False))
+        lecture_id = run['lecture_id']
+        expected = lesson_slides.plan(self.lecture(run)['context']['lesson_design'])
+        outline = self.client.get(f'/api/lectures/{lecture_id}/lesson-slides')
+        self.assertEqual(outline.status_code, 200, outline.json)
+        data = outline.json
+        self.assertEqual((data['version'], data['visible'], data['segments']), ('lesson-slides-v1', expected['visible'], expected['pages']))
+        self.assertEqual((data['default_template'], data['pages'][-1]['hidden'], data['pages'][0]['layout']), ('teaching-blue', True, 'cover'))
+        download = self.client.get(f'/api/lectures/{lecture_id}/lesson-slides/download?template=notebook')
+        self.assertEqual(download.status_code, 200)
+        self.assertIn(f'filename=lecture-{lecture_id}-slides.pptx', download.headers['Content-Disposition'])
+        slides = list(Presentation(BytesIO(download.get_data())).slides)
+        self.assertEqual(len(slides), len(expected['slides']))
+        self.assertEqual(slides[-1]._element.get('show'), '0')
+        self.assertEqual(self.client.get(f'/api/lectures/{lecture_id}/lesson-slides/download?template=nope').status_code, 400)
+        # The package can carry these slides; the run sheet then says which pages each segment uses.
+        options = self.client.get(f'/api/lectures/{lecture_id}/package-options').json
+        self.assertEqual(options['default_template'], 'teaching-blue')
+        self.assertIn('notebook', [item['id'] for item in options['slide_templates']])
+        archive = ZipFile(BytesIO(self.client.get(f'/api/lectures/{lecture_id}/package?slides=teaching-blue').get_data()))
+        self.assertIn('授课课件.pptx', archive.namelist())
+        manifest = json.loads(archive.read('授课包清单.json'))
+        self.assertEqual(manifest['presentation'], {'built_from': 'lesson_design', 'version': 'lesson-slides-v1',
+                                                    'template': 'teaching-blue', 'pages': expected['visible']})
+        book = archive.read('教师用书.md').decode()
+        self.assertIn('| 题目 | 课件 |', book)
+        self.assertIn(lesson_slides.page_range(expected, 'S2') + ' |', book)
+        self.assertIn(f"按课堂设计排版 · {expected['visible']} 页 · 蓝白教学", book)
+        self.assertIn(lesson_slides.page_range(expected, 'S2'),
+                      docx_text(self.client.get(f'/api/lectures/{lecture_id}/package?format=docx&slides=teaching-blue').get_data()))
+        self.assertNotIn('课件', archive.read('学生学案.md').decode())
+        plain = ZipFile(BytesIO(self.client.get(f'/api/lectures/{lecture_id}/package').get_data()))
+        self.assertNotIn('授课课件.pptx', plain.namelist())
+        self.assertNotIn('| 课件 |', plain.read('教师用书.md').decode())
+        for query in ('slides=teaching-blue&presentation=1', 'slides=../x', 'slides=nope'):
+            self.assertEqual(self.client.get(f'/api/lectures/{lecture_id}/package?{query}').status_code, 400, query)
+        # A lecture of the older pipelines has no design to lay out.
+        _, old = self.run_job(self.model, self.payload())
+        refused = self.client.get(f'/api/lectures/{old["lecture_id"]}/lesson-slides')
+        self.assertEqual(refused.status_code, 409)
+        self.assertIn('不是按课堂设计生成的', refused.json['error'])
+        self.assertEqual(self.client.get(f'/api/lectures/{old["lecture_id"]}/package-options').json['slide_templates'], [])
+
     def test_program_check_tolerates_a_designed_lecture_without_its_design(self):
         ctx = module.get_context(11, 'probability_advanced')
         ctx.update(lecture_pipeline='v3', lecture_format='rich-v1', generation_mode='designed-v1', teaching_options={**OPTIONS, 'examples': 2, 'exercises': 3})

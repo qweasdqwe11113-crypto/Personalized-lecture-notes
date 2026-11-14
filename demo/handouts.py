@@ -70,7 +70,7 @@ def student_handout(design, answers=False):
         number = D.ORDINALS[index] if index < len(D.ORDINALS) else str(index + 1)
         block = [f'## {number}、{D.segment_title(segment)}']
         if notes:
-            block.append('\n'.join('- ' + _clean(D.filled(note) if answers else D.gap_outside(note['text'])) for note in notes))
+            block.append('\n'.join('- ' + _clean(D.filled(note) if answers else D.open_gaps(note['text'])) for note in notes))
         elif segment['kind'] in ('concept', 'intro') and segment['board']:
             block.append('\n'.join('- ' + _clean(line) for line in segment['board']))
         for figure in figures:
@@ -127,12 +127,27 @@ def lesson_body(content):
     return re.sub(r'\A\s*#[ \t]+[^\n]*\n+', '', content, count=1).strip()
 
 
-def teacher_book(design, content, facts):
-    """The teacher's book as Markdown. facts: (label, value) rows describing this lesson and version."""
+def with_slide_pages(design, body, pages):
+    """The run sheet with the slides each segment uses. A sheet the teacher edited in a revision is
+    left as written, and the page numbers follow it in a table of their own."""
+    if not pages:
+        return body
+    plain, numbered = D.schedule(design), D.schedule(design, pages)
+    if plain in body:
+        return body.replace(plain, numbered, 1)
+    rows = ['**课件页码**', '', '| 环节 | 课件 |', '| --- | --- |']
+    rows += [f'| {D.segment_title(segment)} | {pages.get(segment["id"]) or "—"} |' for segment in design['segments']]
+    return body + '\n\n' + D.humanize(design, '\n'.join(rows))
+
+
+def teacher_book(design, content, facts, pages=None):
+    """The teacher's book as Markdown. facts: (label, value) rows describing this lesson and version;
+    pages: {segment id: 「第 3—4 页」} when the package carries the slides built from the same design."""
     cell = lambda text: re.sub(r'\s+', ' ', str(text if text not in (None, '') else '—')).replace('|', '\\|')
     table = ['| 项目 | 内容 |', '| --- | --- |'] + [f'| {label} | {cell(value)} |' for label, value in facts]
     return '\n\n'.join([
         f'# {design["title"]} · 教师用书', '\n'.join(table),
         '> 内容由 AI 生成，程序只核对了结构、时间、数量和编号。授课前请核对重点取舍、推导和答案；'
         '来源、学生档案与程序检查见《生成记录与核对》。本书含学情和答案，请勿发给学生。',
-        lesson_body(content), PAGE_BREAK, answer_key(design), PAGE_BREAK, after_class(design)]) + '\n'
+        with_slide_pages(design, lesson_body(content), pages), PAGE_BREAK, answer_key(design), PAGE_BREAK,
+        after_class(design)]) + '\n'

@@ -159,6 +159,8 @@ class _Reader:
         if name in ('begin', 'end'):
             self.group_text()
             return ''
+        if name == 'gap':   # a handout gap inside a formula (design.open_gaps)
+            return _run('＿＿＿＿', plain=True)
         if name in IGNORED:
             return ''
         if name in FUNCTIONS:
