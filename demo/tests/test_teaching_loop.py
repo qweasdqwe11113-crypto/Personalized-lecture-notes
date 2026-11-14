@@ -65,6 +65,24 @@ class TeachingLoopTests(QuizFixture):
         self.assertEqual((latest['source'], latest['decision']), ('quiz', 'retain'))
         self.assertIn('小周作答.txt', latest['task_content'])
 
+    def test_grading_a_designed_lecture_quiz_sums_suggested_scores_per_learning_objective(self):
+        from psycopg.types.json import Jsonb
+        from test_lesson_design import design_reply
+        with self.fixture_db() as conn:
+            conn.execute('UPDATE lectures SET context=context||%s WHERE id=%s',
+                         (Jsonb({'lesson_design': design_reply()}), self.lecture_id))
+        quiz = self.submit(dict(lecture_id=self.lecture_id, lecture_revision=0, student_level='profile', count=3,
+                                difficulty='basic', types=['short_answer'], knowledge_ids=[], requirements=''))
+        self.assertEqual([q['objective'] for q in quiz['result']['questions']], [1, 1, 2])
+        client = self.grading_client([(1, 10), (2, 4), (3, 6)])
+        response = client.post('/api/grading', data={'paper': (BytesIO('学生作答'.encode()), '小周作答.txt'), 'quiz_id': quiz['id']})
+        row = self.wait(client, response.json['id'])
+        self.assertEqual(row['status'], 'completed', row)
+        self.assertEqual([(g['objective'], g['numbers'], g['score'], g['max_score'], g['pending']) for g in row['objectives']],
+                         [(1, ['1', '2'], 14, 20, 0), (2, ['3'], 6, 10, 0)])
+        text = client.get(f"/api/grading/{response.json['id']}/download").data.decode()
+        self.assertIn('学习目标 1. 能用贝叶斯公式求后验：第 1、2 题，建议得分 14 / 20', text)
+
     def test_knowledge_states_resolve_copied_points_to_the_diagnosed_identity(self):
         copied = self.client.post('/api/course-tasks/linear/copy').json['task']
         original = self.states(2, [1, 2, 3])

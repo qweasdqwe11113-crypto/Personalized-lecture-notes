@@ -4,6 +4,7 @@
 #grading-form label span{color:var(--muted);font-weight:400;font-size:12px;margin-left:6px}
 #grading-form input[type=file]{display:block;width:100%;font:inherit;font-size:13px;border:1px dashed var(--line);border-radius:8px;padding:12px;overflow:hidden;background:#fbfcff}
 #grading-status{color:var(--accent);font-size:14px}
+.grading-objectives{border:1px solid var(--line);border-radius:9px;padding:14px 18px;margin:16px 0;background:#f7f9fe}.grading-objectives h3{font-size:15px;margin:0 0 8px}.grading-objectives p{margin:4px 0;font-size:14px}
 .grading-question{border:1px solid var(--line);border-radius:9px;padding:18px;margin:16px 0}
 .grading-question h3{font-size:16px;margin:0 0 12px}
 .grading-question p,#grading-extraction pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:14px}

@@ -19,6 +19,13 @@
     if (!result) { $('grading-summary').textContent = row.filename + ' · ' + labels[row.status]; return; }
     $('grading-download').href = '/api/grading/' + row.id + '/download';
     $('grading-summary').textContent = `${row.filename} · 共 ${result.questions.length} 题 · 已评得分 ${result.score} / 全卷 ${result.max_score} 分 · 待核对 ${result.pending} 题。所有分数均为建议评分。`;
+    if (row.objectives?.length) {
+      // A quiz written for a designed lesson: how each learning objective went, from the same suggested scores.
+      const box = el('section', undefined, 'grading-objectives');
+      box.append(el('h3', '按学习目标（建议分，需复核）'));
+      for (const g of row.objectives) box.append(el('p', `目标 ${g.text}：第 ${g.numbers.join('、')} 题 · ${g.score} / ${g.max_score} 分` + (g.pending ? ` · ${g.pending} 题待核对未计分` : '')));
+      $('grading-results').append(box);
+    }
     for (const q of result.questions) {
       const state = q.status === 'needs_review' ? 'pending' : q.score === q.max_score ? 'correct' : 'incorrect';
       const card = el('article', undefined, 'grading-question grading-' + state);

@@ -1,7 +1,8 @@
 """Disposable UI on 5057 for the lesson-design flow. Touch .runtime/stop-design-fixture to stop and clean up.
 
-Fixed replies stand in for the model: one lesson design, then short notes per segment. Nothing
-here is real model output, and the temporary schema is dropped on exit.
+Fixed replies stand in for the model: one lesson design, short notes per segment, and a companion
+quiz whose first stem writes P(A1|D) the way the handout does not. Nothing here is real model
+output, and the temporary schema is dropped on exit.
 """
 import json
 import os
@@ -22,10 +23,33 @@ NOTES = {
 }
 
 
+def quiz(context):
+    questions = []
+    for p in context['question_plan']:
+        q = {**p, 'stem': f'（隔离测试题 {p["number"]}）先验从 0.3 升到 0.6 时，后验怎样变化？', 'options': [],
+             'answer': '变大', 'analysis': f'对应学习目标 {p.get("objective", 2)}。后验与先验同向变化，与练3同类。',
+             'common_mistake': '把似然当成后验。', 'source_ids': []}
+        if p['number'] == 1:
+            q.update(stem='两条产线的产量占比为 0.7、0.3，次品率为 0.01、0.04。抽到一件次品，求 P(A1|D)。',
+                     answer='$\\frac{7}{19}\\approx 0.368$',
+                     analysis=f'对应学习目标 {p.get("objective", 1)}。$P(D) = 0.7 \\times 0.01 + 0.3 \\times 0.04 = 0.019$，'
+                              '$P(A_1\\mid D) = \\frac{0.007}{0.019}$，与例1同类。')
+        if context.get('replace'):
+            q.update(stem=f'（隔离测试换题 {p["number"]}）某检测的灵敏度为 0.9，患病率为 0.01，检测阳性时真正患病的概率是多少？',
+                     answer='约 0.083', options=[])
+        if p['type'] == 'single_choice':
+            q.update(options=['$P(D\\mid A_1)$', '$P(A_1\\mid D)$', '$P(A_1)$', '$P(D)$'], answer='B',
+                     stem=f'（隔离测试题 {p["number"]}）已知抽到次品，求它来自第一条产线的概率，应求哪一个？')
+        questions.append(q)
+    return {'questions': questions}
+
+
 def model(prepared, attempted):
     attempted()
     time.sleep(1.5)
     user = json.loads(json.loads(prepared.body)['messages'][1]['content'])
+    if 'question_plan' in user.get('context', {}):
+        return module.ModelResult(json.dumps(quiz(user['context']), ensure_ascii=False), {'total_tokens': 900})
     if 'target_segment' not in user:
         reply = with_notes()
         reply['title'] = '贝叶斯公式（隔离测试，非真实模型输出）'

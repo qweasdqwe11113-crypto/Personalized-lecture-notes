@@ -9,11 +9,19 @@
   const option=(value,label)=>{const node=el('option',label);node.value=value;return node;};
   function showError(message){$('quiz-error').textContent=message||'';$('quiz-error').hidden=!message;}
   function setStatus(message){$('quiz-status').textContent=message;}
+  // Questions written for a designed lesson carry $…$ formulas in the handout's notation; app.js inline() typesets them.
+  const rich=(tag,text,cls)=>{const node=el(tag,undefined,cls);if(String(text).includes('$'))inline(node,String(text));else node.textContent=text;return node;};
+  const plainHint='题目依据该讲义版本及其生成时的材料与画像快照出题，与课堂讲法保持一致；选择通用水平时不发送个体诊断。';
+  const designedHint='这节课按课堂设计上课：题目按学习目标分配（下方列出每条目标对应的题号），沿用学案的符号和公式写法，不照抄课上的前测、例题、练习和学案上的课后作业。选择通用水平时不发送个体诊断。';
   const versionLabel=n=>n?'R'+n:'原稿';
   function drawLink(){
     $('quiz-lecture-link').hidden=!linked;
     $('quiz-topic').disabled=Boolean(linked)||!Object.keys(catalog).length;$('quiz-student').disabled=Boolean(linked);
-    if(linked)$('quiz-lecture-label').textContent=`配套讲义 #${linked.id} · ${versionLabel(linked.revision)} · ${linked.student||'无画像对照'}`;
+    if(linked){
+      $('quiz-lecture-label').textContent=`配套讲义 #${linked.id} · ${versionLabel(linked.revision)} · ${linked.student||'无画像对照'}`;
+      $('quiz-lecture-hint').textContent=linked.designed?designedHint:plainHint;
+    }
+    previewPlan();
   }
   const scope=window.workspaceScope;
   // The quiz target: '' (no profile), a student id, or 'class:<id>' for the class profile.
@@ -33,6 +41,31 @@
     const order=[0,1,2].sort((a,b)=>(n*weights[b]%10)-(n*weights[a]%10));
     const remaining=n-counts.reduce((a,b)=>a+b,0);for(const i of order.slice(0,remaining))counts[i]++;
     $('quiz-allocation').textContent=`共 ${n} 题：基础 ${counts[0]} 题、中等 ${counts[1]} 题、拔高 ${counts[2]} 题。`;
+  }
+  ['quiz-count','quiz-difficulty','quiz-level','quiz-student','quiz-knowledge'].forEach(id=>$(id).addEventListener('change',previewPlan));
+  document.querySelectorAll('input[name=quiz-type]').forEach(n=>n.addEventListener('change',previewPlan));
+  $('quiz-count').addEventListener('input',previewPlan);
+  // A designed lecture: show which question checks which learning objective before anything is generated.
+  let planTimer=0,planToken=0;
+  function formData(){
+    const types=Array.from(document.querySelectorAll('input[name=quiz-type]:checked'),n=>n.value);
+    const who=$('quiz-student').value,target=who.startsWith('class:')?{class_id:Number(who.slice(6))}:{student_id:who?Number(who):null};
+    return {topic:$('quiz-topic').value,...target,student_level:$('quiz-level').value,count:Number($('quiz-count').value),difficulty:$('quiz-difficulty').value,types,knowledge_ids:Array.from(document.querySelectorAll('input[name=quiz-point]:checked'),n=>Number(n.value)),requirements:$('quiz-requirements').value,...(linked?{lecture_id:linked.id,lecture_revision:linked.revision}:{})};
+  }
+  function previewPlan(){
+    clearTimeout(planTimer);const box=$('quiz-objective-plan');
+    if(!linked?.designed){box.hidden=true;return;}
+    planTimer=setTimeout(async()=>{
+      const token=++planToken,data=formData();
+      if(!data.types.length||!Number.isInteger(data.count)||data.count<1||data.count>30){box.hidden=true;return;}
+      try{
+        const r=await api('/api/quizzes/plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+        if(token!==planToken)return;
+        const lines=r.objectives.map(o=>{const nums=r.plan.filter(p=>p.objective===o.number).map(p=>p.number);
+          return el('p',`目标 ${o.number}（${o.level}）${o.text}：`+(nums.length?`第 ${nums.join('、')} 题`:'本次题数不够，未安排'));});
+        box.replaceChildren(el('strong','按学习目标分题'),...lines);box.hidden=false;
+      }catch(e){if(token===planToken){box.replaceChildren(el('p',e.message,'check-warning'));box.hidden=false;}}
+    },300);
   }
   function describeStudent(){
     const value=$('quiz-student').value,isClass=value.startsWith('class:'),student=roster.find(s=>String(s.id)===value);
@@ -73,7 +106,7 @@
   function restoreSettings(row){
     const lecture=row.context.lecture;
     const named=row.student_id!=null||row.class_id!=null;
-    linked=lecture?{id:lecture.id,revision:lecture.revision,topic:row.topic_key,student_id:row.student_id,class_id:row.class_id??null,student:named?row.context.student.name:''}:null;
+    linked=lecture?{id:lecture.id,revision:lecture.revision,topic:row.topic_key,student_id:row.student_id,class_id:row.class_id??null,student:named?row.context.student.name:'',designed:Boolean(lecture.design)}:null;
     if(catalog[row.topic_key]){if(!Array.from($('quiz-topic').options).some(o=>o.value===row.topic_key))$('quiz-topic').append(option(row.topic_key,catalog[row.topic_key].title));$('quiz-topic').value=row.topic_key;selectTopic();}
     const sid=targetValue(row);ensureOption(sid,named?row.context.student.name:'');
     $('quiz-student').value=sid;
@@ -97,20 +130,57 @@
     $('quiz-retry').hidden=!['failed','interrupted'].includes(displayed.status);
     $('quiz-preview-title').textContent=displayed.context.topic.title+' · 练习题';
     const d=displayed;
-    $('quiz-preview-note').textContent=`${d.options.count} 题 · ${difficultyLabels[d.options.difficulty]}难度 · ${d.options.student_level==='profile'?'参考 '+d.context.student.name+' 的画像':levelLabels[d.options.student_level]} · ${statusLabels[d.status]}`+(d.status==='succeeded'?'。答案正确性、难度和引用支持仍需教师复核。':'');
+    const lineage=(d.context.replace?` · 由上一版题组换掉第 ${d.context.replace.number} 题而来`:'')+(d.context.edits?.length?` · 教师改过第 ${[...new Set(d.context.edits.map(e=>e.number))].join('、')} 题`:'');
+    $('quiz-preview-note').textContent=`${d.options.count} 题 · ${difficultyLabels[d.options.difficulty]}难度 · ${d.options.student_level==='profile'?'参考 '+d.context.student.name+' 的画像':levelLabels[d.options.student_level]} · ${statusLabels[d.status]}`+lineage+(d.status==='succeeded'?'。答案正确性、难度和引用支持仍需教师复核。':'');
+    const objectives=new Map((d.context.lecture?.design?.objectives||[]).filter(o=>typeof o==='object').map(o=>[o.number,o.text]));
+    const reminders=new Map((d.checks||[]).map(c=>[c.number,c.details]));
     if(d.status!=='succeeded')return;
     for(const q of d.result.questions){
       const card=el('section',undefined,'quiz-question');
-      card.append(el('h3',`第 ${q.number} 题 · ${typeLabels[q.type]} · ${difficultyLabels[q.difficulty]}`),el('p',q.stem,'quiz-text'));
-      for(const [i,text] of q.options.entries())card.append(el('p',optionText(i,text),'quiz-text'));
+      card.append(el('h3',`第 ${q.number} 题 · ${typeLabels[q.type]} · ${difficultyLabels[q.difficulty]}`),rich('p',q.stem,'quiz-text'));
+      for(const [i,text] of q.options.entries())card.append(rich('p',optionText(i,text),'quiz-text'));
       if(!teacher)card.append(el('p','作答：____________________________','quiz-workspace'));
       else{
         const answer=el('div',undefined,'quiz-answer');
-        for(const [label,text] of [['考查知识点',d.context.knowledge_names[String(q.knowledge_id)]],['参考答案',q.answer],['解析',q.analysis],['易错点',q.common_mistake],['材料依据',q.source_ids.join('、')||'自编题目，未标注直接材料依据，请复核。']])answer.append(el('h4',label),el('p',text));
-        card.append(answer);
+        for(const [label,text] of [['考查知识点',d.context.knowledge_names[String(q.knowledge_id)]],...(objectives.has(q.objective)?[['学习目标',`目标 ${q.objective}：${objectives.get(q.objective)}`]]:[]),['参考答案',q.answer],['解析',q.analysis],['易错点',q.common_mistake],['材料依据',q.source_ids.join('、')||'自编题目，未标注直接材料依据，请复核。']])answer.append(el('h4',label),rich('p',text));
+        for(const detail of reminders.get(q.number)||[])answer.append(el('p','算式复算提醒（可能误报）：'+detail,'check-warning'));
+        card.append(answer,questionTools(d,q,card));
       }
       $('quiz-questions').append(card);
     }
+  }
+  // Teacher tools on one question: regenerate it, or reword it by hand. Either way a new record is saved.
+  function questionTools(d,q,card){
+    const tools=el('div',undefined,'quiz-tools'),replace=el('button','换一道','secondary'),change=el('button','修改','secondary');
+    replace.type=change.type='button';
+    replace.onclick=()=>{
+      const note=el('input');note.placeholder='换题要求（选填，如：换成生活情境、降低计算量）';note.maxLength=300;
+      const go=el('button','提交换题','primary'),cancel=el('button','取消','secondary');go.type=cancel.type='button';
+      cancel.onclick=()=>tools.replaceChildren(replace,change);
+      go.onclick=async()=>{go.disabled=true;showError('');
+        try{const row=await api(`/api/quizzes/${d.id}/questions/${q.number}/replace`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:note.value})});
+          await refreshHistory().catch(()=>{});watch(row.id).catch(e=>showError(e.message));}
+        catch(e){showError(e.message);go.disabled=false;}};
+      tools.replaceChildren(note,go,cancel);note.focus();
+    };
+    change.onclick=()=>{
+      const form=el('div',undefined,'quiz-editor'),fields={};
+      const field=(key,label,value,area=true)=>{const input=el(area?'textarea':'input');input.value=value;fields[key]=input;form.append(el('label',label),input);};
+      field('stem','题干',q.stem);
+      if(q.type==='single_choice')q.options.forEach((o,i)=>field('option'+i,'选项 '+'ABCD'[i],o,false));
+      field('answer',q.type==='single_choice'?'答案（A—D）':'参考答案',q.answer,q.type!=='single_choice');
+      field('analysis','解析',q.analysis);field('common_mistake','易错点',q.common_mistake);
+      const save=el('button','保存为新版本','primary'),cancel=el('button','取消','secondary');save.type=cancel.type='button';
+      cancel.onclick=()=>drawResult();
+      save.onclick=async()=>{save.disabled=true;showError('');
+        const body={stem:fields.stem.value,answer:fields.answer.value,analysis:fields.analysis.value,common_mistake:fields.common_mistake.value,...(q.type==='single_choice'?{options:[0,1,2,3].map(i=>fields['option'+i].value)}:{})};
+        try{const row=await api(`/api/quizzes/${d.id}/questions/${q.number}/edit`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+          await refreshHistory().catch(()=>{});watch(row.id).catch(e=>showError(e.message));}
+        catch(e){showError(e.message);save.disabled=false;}};
+      form.append(el('div',undefined,'quiz-tools'));form.lastChild.append(save,cancel);
+      card.replaceChildren(el('h3',`修改第 ${q.number} 题`),form);
+    };
+    tools.append(replace,change);return tools;
   }
   async function refreshHistory(){
     const data=await api('/api/quizzes');
@@ -143,8 +213,7 @@
     if(!types.length){showError('请至少选择一种题型。');return;}
     submitting=true;$('quiz-generate').disabled=true;showError('');setStatus('正在固定出题设置并提交…');
     try{
-      const who=$('quiz-student').value,target=who.startsWith('class:')?{class_id:Number(who.slice(6))}:{student_id:who?Number(who):null};
-      const data={topic:$('quiz-topic').value,...target,student_level:$('quiz-level').value,count:Number($('quiz-count').value),difficulty:$('quiz-difficulty').value,types,knowledge_ids:Array.from(document.querySelectorAll('input[name=quiz-point]:checked'),n=>Number(n.value)),requirements:$('quiz-requirements').value,...(linked?{lecture_id:linked.id,lecture_revision:linked.revision}:{})};
+      const data=formData();
       const row=await api('/api/quizzes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
       await refreshHistory().catch(()=>{});watch(row.id).catch(e=>showError(e.message+' 任务已提交，可在出题记录中重新查看。'));
     }catch(e){showError(e.message);setStatus('提交未完成，请核对设置后重试。');}
@@ -164,7 +233,7 @@
     const r=lastResult,profiled=r.context.personalization_mode!=='none';
     watching++;displayed=null;teacher=false;drawResult();showError('');$('quiz-preview-title').textContent='题组预览';
     await catalogReady.catch(()=>{});
-    linkLecture({id:r.id,revision:r.revision_number||0,topic:r.topic_key,student_id:profiled?r.student_id:null,class_id:profiled?r.class_id??null:null,student:profiled?r.context.student.name:''});
+    linkLecture({id:r.id,revision:r.revision_number||0,topic:r.topic_key,student_id:profiled?r.student_id:null,class_id:profiled?r.class_id??null:null,student:profiled?r.context.student.name:'',designed:Boolean(r.context.lesson_design)});
     setStatus('已关联当前阅读的讲义版本，确认题量与题型后生成。');openWorkspacePage('quizzes');
   };
   $('quiz-student').onchange=()=>{if($('quiz-student').value)$('quiz-level').value='profile';describeStudent();};

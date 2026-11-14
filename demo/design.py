@@ -413,6 +413,29 @@ def student_text(design):
 
 # ---------------------------------------------------------------- derived views
 
+def quiz_view(design):
+    """What a matching quiz needs from the design: the notation, what to check, what not to test, and
+    every problem the students have already met (in class or as homework on the handout), by its reader's name."""
+    names = labels(design)
+    bank = {item['id']: item for item in design['items']}
+    clean = lambda text: humanize(design, re.sub(r'[ \t]*\[[MV]\d+\]', '', text)).strip()
+
+    def objective(number, entry):
+        checked = [bank[ref] for ref in entry.get('checked_by', []) if ref in bank]
+        return dict(number=number, text=clean(entry['text']),
+                    level=LEVELS['advanced' if any(item['level'] == 'advanced' for item in checked) else 'basic'],
+                    knowledge_ids=list(dict.fromkeys(item['knowledge_id'] for item in checked)),
+                    checked_by=[names[item['id']] for item in checked])
+    return dict(
+        notation=[dict(symbol=entry['symbol'], meaning=clean(entry['meaning'])) for entry in design['notation']],
+        objectives=[objective(number, entry) for number, entry in enumerate(design['objectives'], 1)],
+        key_points=[clean(text) for text in design['focus']['key_points']],
+        difficulties=[clean(text) for text in design['focus']['difficulties']],
+        not_today=[clean(text) for text in design['focus']['not_today']],
+        used=[dict(name=names[item['id']], role=ROLE_NAMES[item['role']], level=LEVELS[item['level']],
+                   stem=clean(item['stem']), answer=clean(item['answer'])) for item in design['items']])
+
+
 def labels(design):
     """Display names of the items in classroom order: 例1, 练2, 作业1."""
     bank = {item['id']: item for item in design['items']}

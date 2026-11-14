@@ -114,8 +114,8 @@ flowchart TD
 | `ppt_aesthetics.py`、`render_ppt_slides.ps1` | PowerPoint 渲染与本机 Ollama 视觉审查（仅 Windows） |
 | `handouts.py` | 按课堂设计生成的讲义的学生学案（留白版与含答案版）、教师用书（讲义正文加答案速查和课后记录页），由程序从设计排版，不调用模型 |
 | `packages.py` | 授课包：只读已保存记录。有课堂设计时组装学生学案、教师用书、生成记录与核对；否则组装教师手册。另有学生练习、课件与清单；`markdown_docx` 把 Markdown 排成 Word（含作答横线 `<!-- lines:N -->`） |
-| `quizzes.py` | 出题、配套出题、题目校验、独立队列、导出；为阅卷提供题组答案与知识点映射 |
-| `grading.py` | 阅卷任务、识读与评分校验、证据草稿 |
+| `quizzes.py` | 出题、配套出题、题目校验、独立队列、导出；为阅卷提供题组答案与知识点映射；按课堂设计上的课按学习目标排出题计划（`objective_plan`，`/api/quizzes/plan` 预览）、带设计摘要（`design.quiz_view`）、退回照抄课上题目的题、统一符号写法；单题换题与教师修改另存新记录；答案算式复算提醒 |
+| `grading.py` | 阅卷任务、识读与评分校验、证据草稿、按学习目标汇总建议分 |
 | `evaluation.py`、`experiment.py` | 当前版本固定对照；历史文件式实验 |
 | `rendering.py`、`model_settings.py` | 安全渲染与图片附录；模型配置的查看、测试与保存 |
 | `edition.py` | 正式版 / 测试版（`ZHIYE_EDITION`）与数据目录（`ZHIYE_DATA_DIR`，存放 `.env` 和 `.runtime/`，默认项目根目录）；`app.py`、`init_db.py`、`catalog.py`、`presentations.py` 共用 |

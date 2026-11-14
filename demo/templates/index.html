@@ -99,13 +99,13 @@
    <section class="panel quiz-settings"><div class="section-heading"><h2>出题设置</h2><div class="quiz-actions"><a href="#records/quizzes" class="secondary">出题记录</a><button id="quiz-refresh-catalog" type="button" class="secondary">刷新副本</button></div></div>
     <form id="quiz-form">
      <label for="quiz-topic">备课材料副本</label><select id="quiz-topic" required disabled></select>
-     <div id="quiz-lecture-link" class="quiz-lecture-link" hidden><div><strong id="quiz-lecture-label"></strong><p class="helper">题目依据该讲义版本及其生成时的材料与画像快照出题，与课堂讲法保持一致；选择通用水平时不发送个体诊断。</p></div><button id="quiz-lecture-clear" type="button" class="secondary">取消关联</button></div>
+     <div id="quiz-lecture-link" class="quiz-lecture-link" hidden><div><strong id="quiz-lecture-label"></strong><p id="quiz-lecture-hint" class="helper">题目依据该讲义版本及其生成时的材料与画像快照出题，与课堂讲法保持一致；选择通用水平时不发送个体诊断。</p></div><button id="quiz-lecture-clear" type="button" class="secondary">取消关联</button></div>
      <p id="quiz-goal" class="helper"></p>
      <label for="quiz-student">参考对象 <span>选填 · 全班或学生</span></label><select id="quiz-student"><option value="">通用学生水平</option></select>
      <label for="quiz-level">学生水平</label><select id="quiz-level"><option value="profile">按所选画像（班级或学生）</option><option value="foundation">基础待巩固</option><option value="standard" selected>常规水平</option><option value="advanced">学有余力</option></select>
      <p id="quiz-profile-note" class="helper">学生水平决定题目情境和解析方式，题目难度可另行选择。</p>
      <div class="quiz-form-pair"><div><label for="quiz-count">题目数量</label><input id="quiz-count" type="number" min="1" max="30" step="1" value="10" required></div><div><label for="quiz-difficulty">题目难度</label><select id="quiz-difficulty"><option value="basic">基础难度</option><option value="medium" selected>中等难度</option><option value="advanced">拔高难度</option><option value="mixed">混合 · 基础 / 中等 / 拔高</option></select></div></div>
-     <p id="quiz-allocation" class="helper"></p>
+     <p id="quiz-allocation" class="helper"></p><div id="quiz-objective-plan" class="quiz-objective-plan" hidden></div>
      <fieldset><legend>题型 <span>至少选择一种</span></legend><div class="quiz-checks"><label><input type="checkbox" name="quiz-type" value="single_choice" checked>单项选择</label><label><input type="checkbox" name="quiz-type" value="fill_blank">填空</label><label><input type="checkbox" name="quiz-type" value="short_answer" checked>简答</label><label><input type="checkbox" name="quiz-type" value="calculation">计算</label><label><input type="checkbox" name="quiz-type" value="application">综合应用</label></div></fieldset>
      <details class="quiz-focus"><summary>考查知识点 <span class="helper">默认覆盖副本全部知识点</span></summary><div id="quiz-knowledge" class="quiz-checks"></div></details>
      <label for="quiz-requirements">出题要求 <span>选填</span></label><textarea id="quiz-requirements" maxlength="2000" rows="3" placeholder="例如：重点考查单位换算，增加错例辨析；不出超纲题。"></textarea>
