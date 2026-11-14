@@ -339,6 +339,28 @@
    <p id="model-settings-status" class="model-settings-status helper" role="status" aria-live="polite">正在读取已保存的模型配置…</p>
    <p class="model-restart-row" hidden><button id="model-restart" class="secondary" type="button">立即重启服务</button><span class="helper">重启约需几秒，正在运行的生成任务会中断。</span></p>
    <div id="model-settings-error" class="error" role="alert" hidden></div>
+   <section class="panel model-quick" aria-labelledby="model-quick-title">
+    <div class="section-heading"><h2 id="model-quick-title">快速配置</h2><span class="model-config-badge">自动识别地址、端口和模型名称</span></div>
+    <p class="helper">两种方式任选其一，填好后会自动测试连接；确认无误再点「保存配置」。也可以直接在下面三张卡片里手动填写。</p>
+    <div class="model-quick-grid">
+     <div class="model-quick-item">
+      <h3>本机模型服务</h3>
+      <p class="helper">查找本机正在运行的 Ollama、LM Studio、vLLM、llama.cpp 等服务，读出端口和已下载的模型。</p>
+      <button id="model-detect" class="secondary" type="button" disabled>检测本机服务</button>
+      <div id="model-detect-result" class="model-quick-result" aria-live="polite"></div>
+     </div>
+     <div class="model-quick-item">
+      <h3>云服务或中转站</h3>
+      <label for="model-provider">服务商</label>
+      <select id="model-provider" disabled><option value="">自动识别（从粘贴内容判断）</option></select>
+      <label for="model-import-text">粘贴配置</label>
+      <textarea id="model-import-text" rows="4" maxlength="20000" spellcheck="false" autocomplete="off" disabled placeholder="可以粘贴：一键导入链接（Cherry Studio、CC Switch、NextChat、LobeChat）、curl 命令、环境变量、JSON、代码示例，或「地址 + 密钥」两行文字。选了服务商时只粘贴密钥即可。"></textarea>
+      <label class="model-config-clear"><input id="model-import-all" type="checkbox" checked disabled>服务里有视觉、嵌入模型时，这两项也一起设置</label>
+      <button id="model-import" class="secondary" type="button" disabled>识别并填入</button>
+      <p id="model-import-status" class="helper" role="status" aria-live="polite"></p>
+     </div>
+    </div>
+   </section>
    {% for key, number, title, description, example in [
      ('llm', '01', '语言模型', '负责生成讲义与文字回答。', 'qwen3.5:9b'),
      ('vlm', '02', '视觉模型 · VLM', '识读上传资料中的图片，解析文字可在讲义工作台选用，也用于阅卷。可与语言模型使用同一个多模态模型；连接测试会发送测试图片。', 'qwen3.5:9b'),
@@ -349,7 +371,7 @@
     <p class="helper">{{ description }}</p>
     <div class="model-config-fields">
      <div class="model-config-address"><label for="{{ key }}-base-url">服务地址</label><input id="{{ key }}-base-url" name="{{ key }}-base-url" type="url" maxlength="2048" placeholder="http://127.0.0.1:11434/v1" autocomplete="off" {{ 'required' if key != 'vlm' else '' }} disabled><p class="helper">填写基础地址，通常以 /v1 结尾。</p></div>
-     <div><label for="{{ key }}-model">模型名称</label><input id="{{ key }}-model" name="{{ key }}-model" maxlength="2048" placeholder="{{ example }}" autocomplete="off" {{ 'required' if key != 'vlm' else '' }} disabled></div>
+     <div><label for="{{ key }}-model">模型名称</label><input id="{{ key }}-model" name="{{ key }}-model" list="{{ key }}-models" maxlength="2048" placeholder="{{ example }}" autocomplete="off" {{ 'required' if key != 'vlm' else '' }} disabled><datalist id="{{ key }}-models"></datalist><p class="helper"><button id="{{ key }}-list-models" class="link-button" type="button" disabled>获取模型列表</button> 读出这个服务提供的模型，可在输入框里选择。</p></div>
      <div class="model-config-secret"><label for="{{ key }}-api-key">API 密钥</label><input id="{{ key }}-api-key" name="{{ key }}-api-key" type="password" maxlength="2048" autocomplete="new-password" placeholder="未配置，可填写新密钥" disabled><label class="model-config-clear"><input id="{{ key }}-clear-key" type="checkbox" disabled>清除已保存密钥</label><p class="helper">留空保留原密钥；无鉴权服务可不设置密钥，已有密钥可勾选清除。</p></div>
     </div>
     <div class="model-config-test"><button id="test-{{ key }}" class="secondary" type="button" disabled>测试{{ '图片识别' if key == 'vlm' else '向量接口' if key == 'embedding' else '文本生成' }}</button><p id="{{ key }}-test-status" class="helper" role="status" aria-live="polite">尚未测试</p></div>

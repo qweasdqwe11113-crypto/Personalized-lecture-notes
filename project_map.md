@@ -117,7 +117,7 @@ flowchart TD
 | `quizzes.py` | 出题、配套出题、题目校验、独立队列、导出；为阅卷提供题组答案与知识点映射；按课堂设计上的课按学习目标排出题计划（`objective_plan`，`/api/quizzes/plan` 预览）、带设计摘要（`design.quiz_view`）、退回照抄课上题目的题、统一符号写法；单题换题与教师修改另存新记录；答案算式复算提醒 |
 | `grading.py` | 阅卷任务、识读与评分校验、证据草稿、按学习目标汇总建议分 |
 | `evaluation.py`、`experiment.py` | 当前版本固定对照；历史文件式实验 |
-| `rendering.py`、`model_settings.py` | 安全渲染与图片附录；模型配置的查看、测试与保存 |
+| `rendering.py`、`model_settings.py`、`model_import.py` | 安全渲染与图片附录；模型配置的查看、测试与保存；快速配置（识别粘贴的配置、检测本机模型服务、读取模型列表，只填表单不保存） |
 | `edition.py` | 是否在桌面客户端里运行（`ZHIYE_EDITION=release`：空库、无预置课程）与数据目录（`ZHIYE_DATA_DIR`，存放 `.env` 和 `.runtime/`，默认项目根目录）；`app.py`、`init_db.py`、`catalog.py`、`presentations.py` 共用 |
 | `richdoc.py` | 导出用：LaTeX 转 Word 原生公式、图转图片、表格；`app.py` 与 `packages.py` 共用 |
 | `scale/` | 可选的扩展语料、合成班级装载（`load.py`）、检索评测（`eval_retrieval.py`）、生成基准（`bench.py`）、已保存讲义的文本指标（`quality_baseline.py`，只读）和新旧写作方式对照（`design_compare.py`，加 `--real` 才调用模型） |
@@ -327,7 +327,7 @@ Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中
 | 审核与章节调整 | `reviews.py`、`sections.py` | 版本锁、问题记录、引用检查 |
 | PPT | `presentations.py`、`ppt_story.py`、`pptkit_export.py`；按课堂设计排版的课件另有 `lesson_slides.py`、`lesson_layout.py`、`mathtext.py` | 模板版本、视觉审查、单页微调、`test_presentations.py`；按设计排版的页面改动后跑 `test_lesson_slides.py`（每个模板都要过版式检查），并用 LibreOffice 渲染看一遍 |
 | 出题 / 阅卷 / 授课包 | `quizzes.py`、`grading.py`、`packages.py`、`handouts.py` | 冻结版本与 JSON 模式、题号映射、学生练习与学生学案不含答案和来源编号、`packages.js` 的导出内容列表、`test_packages.py` 与 `test_lesson_design.py` |
-| 模型配置 | `model_settings.py`、`qwen.py`、`vision.py`、`embed.py` | 三个通道的区别、密钥遮蔽、重启生效 |
+| 模型配置 | `model_settings.py`、`model_import.py`、`qwen.py`、`vision.py`、`embed.py` | 三个通道的区别、密钥遮蔽（导入结果不回传已保存的密钥）、同一服务保留已配好的模型、重启生效、`test_model_import.py` |
 | 客户端空库 / 开发环境演示数据 | `edition.py`、`init_db.py`、`courses.py` 的预置课程、`index.html` 中的 `release` 分支 | 客户端空库可从零建课（`test_edition.py`）、`desktop/scripts/stage.mjs` 的文件白名单 |
 | 桌面客户端 | `desktop/src/`、`desktop/scripts/` | `npm test`、`node scripts/smoke.mjs --dev`；新增服务环境变量要加进 `processes.cleanEnv` 的清理列表 |
 | Linux 安装包与沙箱 | `desktop/electron-builder.config.cjs`、`scripts/linux-sandbox.cjs`、`scripts/deb-after-install.tpl` | `test/deb.test.js`、`test/linux-sandbox.test.js`；升级 electron-builder 时对照它的 `templates/linux/after-install.tpl` 和 `apparmor-profile.tpl`；打包后用 `dpkg-deb -c` / `dpkg-deb -e` 看权限和安装脚本 |

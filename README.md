@@ -18,7 +18,7 @@ A VLM + RAG prototype for lesson preparation. It generates editable, teacher-fac
 | Courses (课程) | Per course: lesson prep (goals, lesson plan, knowledge points ticked from the course library), course resources shared by all its classes, a **knowledge library** (知识点库), and its classes; uploads are recognized into knowledge points automatically (section headings by rule, fine-grained points by the model), reviewed and confirmed by the teacher, and each point keeps its source pages; images are read by a vision model |
 | Classes & profiles (班级与画像) | Class profile (per-point mastery distribution, students to watch, class notes with history), one-click class lecture, class roster and CSV import, class-only resources, and each student's record and learning evidence |
 | Records (生成记录) | Lecture, quiz and grading history, background jobs, fixed-input comparison experiments |
-| Settings (系统设置) | Configure and test the language, vision and embedding models |
+| Settings (系统设置) | Configure and test the language, vision and embedding models. Quick setup finds model servers running on this computer (Ollama, LM Studio, vLLM, llama.cpp …) with their ports and models, or reads a pasted provider configuration (one-click import links from Cherry Studio, CC Switch, NextChat or LobeChat, curl commands, environment variables, JSON) and lists the service's models |
 
 ## Core Workflow
 
