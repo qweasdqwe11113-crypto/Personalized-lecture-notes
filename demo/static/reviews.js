@@ -137,7 +137,7 @@ function drawEditor(preserve=false){
     $('revision-checklist').replaceChildren(...Object.entries(editorData.review_items).map(([key,text])=>{const label=el('label',undefined,'check-row');const input=el('input');input.type='checkbox';input.dataset.checkKey=key;input.checked=false;label.append(input,document.createTextNode(text));return label;}));
     $('issue-form').reset();$('issue-material').replaceChildren(...reviewLecture.context.materials.map(m=>{const o=el('option',`M${m.id} · ${m.title}`);o.value='M'+m.id;return o;}),...(reviewLecture.context.visual_evidence||[]).map(v=>{const o=el('option',v.citation_id+' · '+v.label);o.value=v.citation_id;return o;}));
   }
-  $('revision-confirmed').checked=false;$('issue-confirmed').checked=false;drawResolutions(preserve);drawEditorHistory();drawIssueMaterial();$('lecture-editor-content').hidden=false;
+  $('revision-confirmed').checked=false;$('issue-confirmed').checked=false;drawResolutions(preserve);drawEditorHistory();drawIssueMaterial();drawRevisionPreview();$('lecture-editor-content').hidden=false;
 }
 function drawIssueMaterial(){
   $('issue-source-fields').hidden=$('issue-category').value!=='citation_support';
@@ -146,7 +146,14 @@ function drawIssueMaterial(){
   $('issue-material-content').textContent=m?m.content+'\n来源：'+m.source_title+' · '+m.section:v?v.content+'\n识读模型：'+v.model:'没有对应来源。';
 }
 $('issue-category').onchange=drawIssueMaterial;$('issue-material').onchange=drawIssueMaterial;
-$('revision-content').addEventListener('input',()=>{for(const c of $('revision-checklist').querySelectorAll('input'))c.checked=false;$('revision-confirmed').checked=false;});
+// Source on the left, the page as it will read on the right (issue #5): the same renderer as the workbench.
+let previewTimer=0;
+function drawRevisionPreview(){clearTimeout(previewTimer);const text=$('revision-content').value;$('revision-preview').replaceChildren(...(text.trim()?[renderMarkdown(text)]:[el('p','正文为空。','helper')]));}
+function followSource(){const source=$('revision-content'),preview=$('revision-preview'),range=source.scrollHeight-source.clientHeight;if(range>0)preview.scrollTop=(preview.scrollHeight-preview.clientHeight)*source.scrollTop/range;}
+$('revision-content').addEventListener('input',()=>{for(const c of $('revision-checklist').querySelectorAll('input'))c.checked=false;$('revision-confirmed').checked=false;clearTimeout(previewTimer);previewTimer=setTimeout(()=>{drawRevisionPreview();followSource();},150);});
+$('revision-content').addEventListener('scroll',followSource,{passive:true});
+// Side by side, the preview is exactly as tall as the source, also after the teacher drags the box taller.
+if(typeof ResizeObserver==='function')new ResizeObserver(()=>{const source=$('revision-content');$('revision-preview').style.blockSize=source.offsetHeight&&matchMedia('(min-width: 861px)').matches?source.offsetHeight+'px':'';}).observe($('revision-content'));
 async function openLectureEditor(){
   if(!reviewLecture || busy)return;
   const session=++editorSession;editorBase=selectedRevision;editorData=null;editorError('');$('lecture-editor-content').hidden=true;$('lecture-editor-status').textContent='正在读取审核与问题记录…';$('lecture-editor').showModal();
