@@ -181,7 +181,12 @@ async function submissionCarriesPipelineChoices() {
   assert.equal(sent.generation_mode, 'single');
   assert.equal(sent.lecture_format, 'plain');
   e.$('generation-mode').value = ''; e.$('lecture-format').value = '';
-  assert.deepEqual([e.context.generationPayload().generation_mode, e.context.generationPayload().lecture_format], ['sectioned-v1', 'rich-v1']);
+  assert.deepEqual([e.context.generationPayload().generation_mode, e.context.generationPayload().lecture_format], ['designed-v1', 'rich-v1']);
+  // The teacher confirms the lesson design unless the box is unticked.
+  e.$('design-review').checked = true;
+  assert.equal(e.context.generationPayload().design_review, true);
+  e.$('design-review').checked = false;
+  assert.equal(e.context.generationPayload().design_review, false);
 }
 
 async function classTargetFollowsScope() {

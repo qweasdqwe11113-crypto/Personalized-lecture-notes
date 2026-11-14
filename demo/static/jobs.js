@@ -4,7 +4,7 @@ let watchSession=0;
 async function refreshJobs(){
  const data=await api('/api/jobs');
  $('jobs-list').replaceChildren(...data.jobs.map(job=>{
-   const b=el('button',`${job.ppt_generation?'授课 PPT · ':job.section_rewrite?'章节调整 · ':''}${job.status==='succeeded'&&job.ppt_generation?'课件已生成':job.status==='succeeded'&&job.section_rewrite?'章节候选已生成':labels[job.status]} · ${job.name} · ${job.topic}`);
+   const b=el('button',`${job.ppt_generation?'授课 PPT · ':job.section_rewrite?'章节调整 · ':job.design_review?'课堂设计 · ':''}${job.status==='succeeded'&&job.ppt_generation?'课件已生成':job.status==='succeeded'&&job.section_rewrite?'章节候选已生成':job.status==='succeeded'&&job.design_review?'待确认':labels[job.status]} · ${job.name} · ${job.topic}`);
    b.append(el('span',`${new Date(job.created_at).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}${job.lecture_id?' · 讲义 #'+job.lecture_id:''}`,'history-date'));
    b.type='button';b.onclick=()=>{if(busy)return;watchJob(job.id);};const row=el('div',undefined,'job-row');row.append(b);if(job.status==='queued'){const cancel=el('button','取消排队','secondary');cancel.type='button';cancel.onclick=async()=>{cancel.disabled=true;try{await api('/api/jobs/'+job.id+'/cancel',{method:'POST'});await refreshJobs();}catch(e){error(e.message);cancel.disabled=false;}};row.append(cancel);}return row;
  }));
@@ -19,7 +19,7 @@ async function checkHealth(){
  }catch(e){$('health-summary').textContent=e.message;}
 }
 // One place builds the lesson settings, so a single job and a class batch freeze the same choices.
-window.generationPayload=()=>({topic:$('topic').value,goal:$('goal').value,personalization_mode:$('personalization-mode').value,retrieval_mode:$('retrieval-mode').value,teaching_options:readTeachingOptions(),visual_analysis_ids:typeof selectedVisualAnalyses==='function'?selectedVisualAnalyses():[],generation_mode:$('generation-mode').value||'sectioned-v1',lecture_format:$('lecture-format').value||'rich-v1'});
+window.generationPayload=()=>({topic:$('topic').value,goal:$('goal').value,personalization_mode:$('personalization-mode').value,retrieval_mode:$('retrieval-mode').value,teaching_options:readTeachingOptions(),visual_analysis_ids:typeof selectedVisualAnalyses==='function'?selectedVisualAnalyses():[],generation_mode:$('generation-mode').value||'designed-v1',lecture_format:$('lecture-format').value||'rich-v1',design_review:$('design-review').checked});
 async function watchJob(id){
  if(typeof openWorkspacePage==="function")openWorkspacePage("workbench");
  const session=++watchSession;
@@ -34,6 +34,12 @@ async function watchJob(id){
    $('progress').textContent=`${labels[job.status]} · 记录 #${job.run_id} · 已等待 ${wait} 秒`+(job.status==='queued'?` · 等待位置 ${job.queue_position}`:'');
    if(job.status==='running')$('progress').textContent+=window.liveLecture?.active()?' · 右侧为实时预览，保存前还要通过程序检查':' · 正在等待模型响应';
    if(job.confirmation_pending)throw new Error('任务结束状态未能确认，请核查生成记录并重启本地服务。');
+   if(job.status==='succeeded'&&job.design_review){
+     // A design is not a lecture yet: the teacher confirms or edits it, and that starts the writing job.
+     window.liveLecture?.stop();$('loading').hidden=true;$('empty').hidden=false;
+     $('progress').textContent=`课堂设计已生成 · 记录 #${job.run_id} · 确认后再写教师详案`;
+     await window.openDesignReview(job.run_id);break;
+   }
    if(job.status==='succeeded'){
      const r=await api('/api/lectures/'+job.lecture_id);
      restoreLectureSettings(r);showResult(r,true,false);
@@ -67,7 +73,7 @@ $('retry-run').onclick=async()=>{
    $('trace-dialog').close();await refreshJobs().catch(()=>{});await watchJob(job.id);
  }catch(e){traceError(e.message);}finally{button.disabled=false;}
 };
-window.refreshWorkspaceJobs=refreshJobs;
+window.refreshWorkspaceJobs=refreshJobs;window.watchLectureJob=watchJob;
 $('check-health').onclick=checkHealth;
 $('refresh-jobs').onclick=()=>refreshJobs().catch(e=>error(e.message));
 refreshJobs().catch(()=>{});checkHealth();

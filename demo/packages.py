@@ -10,13 +10,15 @@ from io import BytesIO
 import json
 import re
 
+import handouts
 import richdoc
 from urllib.parse import quote
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from flask import Response, jsonify, request
 
-from presentations import presentation_pptx
+from presentations import lesson_pptx, presentation_pptx
+from ppt_templates import DEFAULT_TEMPLATE, available_templates
 from profiles import SOURCE_LABELS, STATE_LABELS
 from quality import check_output
 from quizzes import DIFFICULTIES, LEVELS, TYPES, lecture_topic_key, option_lines, quiz_markdown
@@ -24,6 +26,7 @@ from reviews import STATUS_LABELS, ReviewError, lecture_row, review_bundle, vers
 from teaching import DETAILS, LESSON_TYPES
 
 PACKAGE_VERSION = 'lesson-package-v1'
+DESIGNED_VERSION = 'lesson-package-v2'   # a lesson written from a lesson design: handout, teacher's book, record
 FONT = 'Noto Sans SC'
 PAGE_BREAK = '<!-- pagebreak -->'
 VERSION_STATUS = {**STATUS_LABELS, 'unreviewed': '原稿未审核'}
@@ -75,7 +78,8 @@ def load_quiz(conn, identity, lecture_id, topic_key):
     return row
 
 
-def collect(db, lecture_id, number, quiz_id=None, presentation_id=None):
+def collect(db, lecture_id, number, quiz_id=None, presentation_id=None, slides_template=None):
+    """slides_template: build the slides of a designed lecture from its design on this template (no model call)."""
     with db() as conn:
         conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
         lecture = lecture_row(conn, lecture_id)
@@ -89,6 +93,9 @@ def collect(db, lecture_id, number, quiz_id=None, presentation_id=None):
         if run['context']['ppt_export']['lecture_id'] != lecture_id:
             raise ReviewError('该课件不是由这份讲义生成的，请重新选择。')
         deck = dict(run=run, slides=slides, pptx=payload)
+    elif slides_template is not None:
+        plan, template, payload = lesson_pptx(lecture, slides_template)
+        deck = dict(design=True, plan=plan, template=template, pptx=payload)
     report = lecture['citation_check'].get('quality_report') if number == 0 else version.get('quality_report')
     origin = '生成时留存' if number == 0 else '修订保存时留存'
     if not report:
@@ -127,7 +134,9 @@ def overview(parts):
         rows.append(('配套练习', f"{o['count']} 题 · {DIFFICULTIES[o['difficulty']]} · {LEVELS[o['student_level']]} · {relation}"))
     else:
         rows.append(('配套练习', '未选择题组'))
-    if deck:
+    if deck and deck.get('design'):
+        rows.append(('授课课件', deck_label(deck, version['revision_number'])))
+    elif deck:
         source = deck['run']['context']['ppt_export']
         rows.append(('授课课件', f"#{deck['run']['id']} · {len(deck['slides']['slides'])} 页 · {source.get('template_name', '旧版版式')} · "
                                  f"依据 {version_label(source['base_revision'])}"))
@@ -263,12 +272,80 @@ def handbook_markdown(parts):
     return '\n'.join(lines).rstrip() + '\n'
 
 
+def deck_label(deck, revision=0):
+    """A deck built from the lesson design: how many pages, on which template. The design is the one the
+    lecture was written from, so wording changed in a revision is not on the slides."""
+    label = f"按课堂设计排版 · {deck['plan']['visible']} 页 · {deck['template']['name']}（课件页码见课堂流程表）"
+    return label + ('；修订稿改动的文字不在课件里，请对照修改' if revision else '')
+
+
+def slide_pages(parts):
+    """{segment id: 「第 3—4 页」} of the slides in this package, when they were built from the design."""
+    import lesson_slides
+    deck = parts['deck']
+    if not deck or not deck.get('design'):
+        return None
+    return {segment: lesson_slides.page_range(deck['plan'], segment) for segment in deck['plan']['pages']}
+
+
+def designed(parts):
+    """The lesson design this lecture was written from, or None for lectures of the older pipelines."""
+    return parts['lecture']['context'].get('lesson_design')
+
+
+def book_facts(parts):
+    lecture, version, quiz, deck = parts['lecture'], parts['version'], parts['quiz'], parts['deck']
+    ctx = lecture['context']
+    topic, student, options = ctx.get('topic', {}), ctx.get('student', {}), ctx.get('teaching_options') or {}
+    profiled = ctx.get('personalization_mode', 'profile') != 'none'
+    rows = [('课程', ' / '.join(filter(None, [topic.get('stage'), topic.get('course'), topic.get('chapter')])) or topic.get('course')),
+            ('教学目标', lecture['goal']),
+            ('授课对象', f"{student.get('name')}（{student.get('subtitle', '')}）" if profiled else '通用（未使用学生信息）'),
+            ('课时', f"{options.get('duration')} 分钟 · {LESSON_TYPES.get(options.get('lesson_type'), '—')}" if options else '未记录'),
+            ('讲义版本', f"#{lecture['id']} / {version_label(version['revision_number'])} · {VERSION_STATUS.get(version['status'], version['status'])}")]
+    if deck:
+        rows.append(('配套课件', deck_label(deck, version['revision_number']) if deck.get('design') else f"#{deck['run']['id']} · {len(deck['slides']['slides'])} 页"))
+    if quiz:
+        rows.append(('配套练习', f"{quiz['options']['count']} 题，另见「学生练习」与「练习-教师版」"))
+    return rows
+
+
+def record_markdown(parts):
+    """Provenance and review of a designed lesson, kept apart from what the teacher takes to class."""
+    lecture = parts['lecture']
+    title = lecture['context'].get('topic', {}).get('title', lecture['topic'])
+    lines = [f'# {title} · 生成记录与核对', '',
+             f"授课包版本 {DESIGNED_VERSION} · 汇总时间 {datetime.now(timezone.utc).astimezone():%Y-%m-%d %H:%M}", '',
+             '> 这份文件说明教师用书和学生学案是依据什么生成的，以及授课前要核对什么。学生档案部分仅供教师参考。', '']
+    for section in (overview, learner_section, sources_section, review_section):
+        block = [line for line in section(parts) if line != PAGE_BREAK]
+        if block:
+            lines.extend(block + [''])
+    return '\n'.join(lines).rstrip() + '\n'
+
+
 # ---------------------------------------------------------------- Word rendering
 
 def _fonts(style):
     from docx.oxml.ns import qn
     style.font.name = FONT
     style.element.get_or_add_rPr().get_or_add_rFonts().set(qn('w:eastAsia'), FONT)
+
+
+def _ruled(paragraph):
+    """One empty line of a block to write on. Paragraphs with the same "between" border get a rule
+    between each pair, so a block of N+1 of them shows N evenly spaced rules. (A plain bottom border
+    will not do: Word and LibreOffice box identical neighbours and keep only the last rule.)"""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Pt
+    paragraph.paragraph_format.space_before, paragraph.paragraph_format.space_after = Pt(10), Pt(0)
+    border = OxmlElement('w:pBdr')
+    rule = OxmlElement('w:between')
+    for key, value in (('val', 'single'), ('sz', '4'), ('space', '1'), ('color', '9AA3B2')):
+        rule.set(qn('w:' + key), value)
+    border.append(rule)
+    paragraph._p.get_or_add_pPr().append(border)
 
 
 def _inline(paragraph, text, italic=False):
@@ -319,6 +396,11 @@ def markdown_docx(text):
         if line == PAGE_BREAK:
             document.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
             continue
+        ruled = re.fullmatch(r'<!-- lines:(\d{1,2}) -->', line)
+        if ruled:
+            for _ in range(int(ruled[1]) + 1):
+                _ruled(document.add_paragraph())
+            continue
         if line.startswith('|'):
             rows = [line]
             while index < len(lines) and lines[index].strip().startswith('|'):
@@ -329,8 +411,18 @@ def markdown_docx(text):
             table = document.add_table(rows=len(cells), cols=max(map(len, cells)))
             table.style = 'Table Grid'
             if len(table.columns) == 2:
-                for row, width in ((r, w) for r in table.rows for w in [(0, 3.2), (1, 12.8)]):
-                    row.cells[width[0]].width = Cm(width[1])
+                widths = [3.2, 12.8]
+            else:
+                # Share 16 cm by the longest text of each column, within bounds, so prose columns get room.
+                weights = [min(34, max(7, max((len(re.sub(r'[$\\\\{}]', '', values[c])) for values in cells if c < len(values)), default=5)))
+                           for c in range(len(table.columns))]
+                widths = [16 * weight / sum(weights) for weight in weights]
+            # Word reads the cell widths, LibreOffice the column grid: set both, and stop either from re-fitting.
+            table.autofit = False
+            for c, width in enumerate(widths):
+                table.columns[c].width = Cm(width)
+                for row in table.rows:
+                    row.cells[c].width = Cm(width)
             for r, values in enumerate(cells):
                 for c, value in enumerate(values):
                     paragraph = table.cell(r, c).paragraphs[0]
@@ -361,27 +453,45 @@ def markdown_docx(text):
 
 # ---------------------------------------------------------------- package
 
+def documents(parts):
+    """Markdown of each document of a designed lesson: teacher's book, handout, handout with answers, record."""
+    design = designed(parts)
+    return dict(teacher=handouts.teacher_book(design, parts['version']['content'], book_facts(parts), slide_pages(parts)),
+                handout=handouts.student_handout(design), key=handouts.student_handout(design, answers=True),
+                record=record_markdown(parts))
+
+
 def build_package(parts):
     lecture, version, quiz, deck = parts['lecture'], parts['version'], parts['quiz'], parts['deck']
     label = version_label(version['revision_number'])
-    handbook = handbook_markdown(parts)
-    files = [('教师授课手册.docx', markdown_docx(handbook)), ('教师授课手册.md', handbook.encode('utf-8')),
-             (f'讲义正文-{label}.md', version['content'].encode('utf-8'))]
+    if designed(parts):
+        docs = documents(parts)
+        files = [('教师用书.docx', markdown_docx(docs['teacher'])), ('教师用书.md', docs['teacher'].encode('utf-8')),
+                 ('学生学案.docx', markdown_docx(docs['handout'])), ('学生学案.md', docs['handout'].encode('utf-8')),
+                 ('学生学案-含答案.docx', markdown_docx(docs['key'])),
+                 ('生成记录与核对.docx', markdown_docx(docs['record']))]
+    else:
+        handbook = handbook_markdown(parts)
+        files = [('教师授课手册.docx', markdown_docx(handbook)), ('教师授课手册.md', handbook.encode('utf-8')),
+                 (f'讲义正文-{label}.md', version['content'].encode('utf-8'))]
     if quiz:
         files.append(('学生练习.docx', markdown_docx(quiz_markdown(quiz, False))))
         files.append(('练习-教师版.docx', markdown_docx(quiz_markdown(quiz, True))))
     if deck:
         files.append(('授课课件.pptx', deck['pptx']))
     manifest = dict(
-        package_version=PACKAGE_VERSION, generated_at=datetime.now(timezone.utc).isoformat(),
+        package_version=DESIGNED_VERSION if designed(parts) else PACKAGE_VERSION, generated_at=datetime.now(timezone.utc).isoformat(),
         lecture=dict(id=lecture['id'], revision=version['revision_number'], status=version['status'],
                      content_sha256=sha256(version['content'].encode('utf-8')).hexdigest(), model=lecture['model']),
         quiz=dict(id=quiz['id'], request_sha256=quiz['request_sha256'],
                   lecture=(quiz['context'].get('lecture') or {}).get('id')) if quiz else None,
-        presentation=dict(run_id=deck['run']['id'], request_sha256=deck['run']['request_sha256'],
-                          template=deck['run']['context']['ppt_export'].get('template_id')) if deck else None,
+        presentation=(dict(built_from='lesson_design', version=deck['plan']['version'], template=deck['template']['id'],
+                           pages=deck['plan']['visible']) if deck and deck.get('design') else
+                      dict(run_id=deck['run']['id'], request_sha256=deck['run']['request_sha256'],
+                           template=deck['run']['context']['ppt_export'].get('template_id')) if deck else None),
         files=[dict(name=name, bytes=len(data), sha256=sha256(data).hexdigest()) for name, data in files],
-        note='所有内容读取自已保存记录；AI 生成内容须教师复核。学生练习不含答案与学生信息。')
+        note='所有内容读取自已保存记录；AI 生成内容须教师复核。学生练习不含答案与学生信息。'
+             + ('学生学案与教师用书由同一份课堂设计排版，题目逐字相同；「含答案」的学案和教师用书不要发给学生。' if designed(parts) else ''))
     stream = BytesIO()
     with ZipFile(stream, 'w', ZIP_DEFLATED) as archive:
         for name, data in files:
@@ -404,16 +514,22 @@ def package_options(db, lecture_id):
             FROM generation_runs r WHERE r.status='succeeded' AND r.context->'ppt_export'->>'lecture_id'=%s
             AND (NOT (r.context ? 'ppt_slide_edit') OR r.response_metadata->>'edit_state'='accepted')
             ORDER BY r.id DESC LIMIT 30''', (str(lecture_id),)).fetchall()
-    return dict(quizzes=quizzes, presentations=decks)
+    designed_lecture = bool(lecture['context'].get('lesson_design'))
+    templates = ([dict(id=item['id'], name=item['name']) for item in available_templates() if item['semantic']]
+                 if designed_lecture else [])
+    return dict(quizzes=quizzes, presentations=decks, designed=designed_lecture, slide_templates=templates,
+                default_template=DEFAULT_TEMPLATE)
 
 
 def register_packages(app, db):
     def arguments():
         raw = request.args.get('revision', '0')
         deck = request.args.get('presentation', '')
-        if not re.fullmatch(r'[0-9]{1,9}', raw) or (deck and not re.fullmatch(r'[0-9]{1,18}', deck)):
+        slides = request.args.get('slides') or None
+        if (not re.fullmatch(r'[0-9]{1,9}', raw) or (deck and not re.fullmatch(r'[0-9]{1,18}', deck))
+                or (deck and slides) or (slides and not re.fullmatch(r'[a-z0-9-]{1,40}', slides))):
             raise ReviewError('请选择有效的讲义版本与课件。')
-        return int(raw), request.args.get('quiz') or None, int(deck) if deck else None
+        return int(raw), request.args.get('quiz') or None, int(deck) if deck else None, slides
 
     @app.get('/api/lectures/<int:lecture_id>/package-options')
     def lesson_package_options(lecture_id):
@@ -421,22 +537,34 @@ def register_packages(app, db):
 
     @app.get('/api/lectures/<int:lecture_id>/package')
     def lesson_package(lecture_id):
-        number, quiz, deck = arguments()
+        number, quiz, deck, slides = arguments()
         fmt = request.args.get('format', 'zip')
-        if fmt not in ('zip', 'docx', 'md'):
-            raise ReviewError('请选择 zip、docx 或 md 格式。')
-        parts = collect(db, lecture_id, number, quiz, deck)
+        single = {'handout': ('handout', '学生学案'), 'handout-key': ('key', '学生学案-含答案'), 'record': ('record', '生成记录与核对')}
+        if fmt not in ('zip', 'docx', 'md', *single):
+            raise ReviewError('请选择有效的导出内容。')
+        # A handout or the record never shows the slides; only the teacher's documents carry their page numbers.
+        parts = collect(db, lecture_id, number, quiz, deck, None if fmt in single else slides)
         label = version_label(number)
+        word = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        if fmt in single and not designed(parts):
+            raise ReviewError('这份讲义不是按课堂设计生成的，没有学生学案；可以导出完整授课包或教师授课手册。')
         if fmt == 'zip':
             payload, _ = build_package(parts)
             mime, name = 'application/zip', f'授课包-讲义{lecture_id}-{label}.zip'
-        elif fmt == 'docx':
-            payload = markdown_docx(handbook_markdown(parts))
-            mime, name = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', f'教师授课手册-讲义{lecture_id}-{label}.docx'
+        elif fmt in single:
+            key, title = single[fmt]
+            payload, mime, name = markdown_docx(documents(parts)[key]), word, f'{title}-讲义{lecture_id}-{label}.docx'
         else:
-            payload, mime = handbook_markdown(parts).encode('utf-8'), 'text/markdown; charset=utf-8'
-            name = f'教师授课手册-讲义{lecture_id}-{label}.md'
+            # The teacher's document: the book of a designed lesson, the handbook of an older one.
+            text = documents(parts)['teacher'] if designed(parts) else handbook_markdown(parts)
+            title = '教师用书' if designed(parts) else '教师授课手册'
+            if fmt == 'docx':
+                payload, mime = markdown_docx(text), word
+            else:
+                payload, mime = text.encode('utf-8'), 'text/markdown; charset=utf-8'
+            name = f'{title}-讲义{lecture_id}-{label}.{fmt}'
+        extension = name.rsplit('.', 1)[1]
         response = Response(payload, content_type=mime)
         response.headers['Content-Disposition'] = (
-            f"attachment; filename=lesson-package-{lecture_id}.{fmt}; filename*=UTF-8''{quote(name)}")
+            f"attachment; filename=lesson-package-{lecture_id}.{extension}; filename*=UTF-8''{quote(name)}")
         return response

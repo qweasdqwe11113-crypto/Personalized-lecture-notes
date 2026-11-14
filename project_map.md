@@ -1,6 +1,6 @@
 # 项目模块关联图
 
-更新日期：2026-11-13。面向开发者：说明模块职责、调用关系、数据流和存储，修改代码前先确认影响范围。功能行为见 [docs/features.md](docs/features.md)。
+更新日期：2026-11-14。面向开发者：说明模块职责、调用关系、数据流和存储，修改代码前先确认影响范围。功能行为见 [docs/features.md](docs/features.md)。
 
 ## 1. 整体结构
 
@@ -56,6 +56,7 @@ flowchart TD
 | --- | --- | --- |
 | `reviews.js` | `reviews.py` | 版本切换、问题记录、编辑与审核、程序检查面板 |
 | `section-editor.js` | `sections.py` | 按章节生成候选并另存修订 |
+| `design-review.js` | `designed.py` | 确认课堂设计：预览、改时间 / 重点 / 题干答案、按意见重做、确认后开始写详案（`/api/lesson-designs/<记录>` 及其 `check`、`expand`、`revise`） |
 | `traces.js` | `runs.py` | 查看生成输入、失败重试 |
 | `profile-comparison.js`、`lecture-comparison.js` | `profiles.py`、`comparisons.py` | 画像对照、讲义比较 |
 | `quizzes.js`（配套出题） | `quizzes.py` | 以当前讲义版本出题 |
@@ -88,11 +89,14 @@ flowchart TD
 | `prompts.py`、`prompts/` | 组装请求、只序列化一次并计算 SHA-256、标记提示词版本 |
 | `jobs.py`、`runs.py` | 有界任务队列（多工作线程、批量额度）、取消与重试、重启恢复；运行记录与讲义同事务保存 |
 | `gate.py` | 模型并发闸门：全进程共用，`MODEL_CONCURRENCY` 个额度；额度为 1 时等同原来的全局锁 |
-| `sectioned.py` | 分章节生成：大纲 → 各章节单独调用（有空闲额度时并行）→ 校验、重写一次 → 拼接 |
+| `design.py` | 课堂设计（`lesson-design-v1`）：解析模型给出的 JSON（含 LaTeX 反斜杠修复）、校验结构 / 时间 / 数量 / 引用（`hard` 不可用，`soft` 提醒）、题目显示名、各环节篇幅上限；把设计排成教师详案的各部分（要点、课堂流程表、环节、题目块、板书、作业）。题目块 `item_block` 是所有文档共用的唯一出处 |
+| `designed.py` | 默认写作方式（`designed-v1`）：课堂设计 → 校验、重试一次 →（可停下等教师确认）→ 新授 / 例题 / 重点环节各一次调用（并行）→ 程序拼装；确认、检查、按意见重做的接口 |
+| `style.py` | 文本指标：系统话术、免责声明、旁白、套话、排比、汉字数量、重复片段；用于环节重写的依据、程序检查的「表达提醒」和 `scale/quality_baseline.py` |
+| `sectioned.py` | 旧版分章节生成：大纲 → 各章节单独调用（有空闲额度时并行）→ 校验、重写一次 → 拼接 |
 | `repair.py` | 出题与课件的结构化输出未通过校验时，带问题自动重试一次 |
 | `qwen.py`、`model_runtime.py` | OpenAI 兼容调用（含流式 SSE）、错误分类、超时 |
 | `progress.py` | 运行中的实时正文（仅内存、仅显示），供 `/api/jobs/<id>/stream` 推送 |
-| `quality.py` | 章节、篇幅、引用编号、范围与已知问题词语检查；新流程追加算式复算、图与公式标记 |
+| `quality.py` | 章节、篇幅、引用编号、范围与已知问题词语检查；新流程追加算式复算、图与公式标记；按课堂设计生成的讲义改查环节结构，并加入 `design.report` 的时间 / 数量 / 目标 / 讲解安排检查和表达提醒 |
 | `mathcheck.py` | 重算纯数字等式、把写出的解代回方程；不认识的式子跳过 |
 | `figures.py` | 结构化图：校验 JSON 数据并绘制为 SVG / PNG（概率树、数轴、等式变形、函数图像、柱状对比） |
 
@@ -103,16 +107,20 @@ flowchart TD
 | `reviews.py` | 修订版本、问题记录、审核事务与并发冲突检查 |
 | `sections.py`、`comparisons.py` | 章节候选与采用；讲义与版本比较 |
 | `presentations.py` | 课件请求、输出校验、导出、内部视觉审查与单页微调 |
-| `ppt_story.py`、`ppt_templates.py`、`pptkit_export.py`、`pptx_export.py` | 语义页面契约、模板白名单与映射、排版适配与 PPTX 导出 |
+| `ppt_story.py`、`ppt_templates.py`、`pptkit_export.py`、`pptx_export.py` | 语义页面契约、模板白名单与映射、排版适配与 PPTX 导出；`build_lesson_pptx` 把按课堂设计排好的页面套到模板上 |
+| `lesson_slides.py` | 按课堂设计排版的课件（`lesson-slides-v1`）：从设计决定有哪些页、每页放什么、用多大字号、在哪里分页，以及每页的演讲者备注；`page_range` 给教师用书的课堂流程表标页码。不调用模型 |
+| `lesson_layout.py` | 上面那些页面的几何与绘制：文字高度估算、页眉页脚、题目、分步解答、答案、作业、图示页，以及图的原生形状重画 |
+| `mathtext.py` | LaTeX 转成 PowerPoint 里可编辑的文字：上下标、斜体字母、运算符间距、线性分式、学案填空（留空或填上答案） |
 | `ppt_aesthetics.py`、`render_ppt_slides.ps1` | PowerPoint 渲染与本机 Ollama 视觉审查（仅 Windows） |
-| `packages.py` | 授课包：只读已保存记录，组装教师手册、学生练习、课件与清单 |
+| `handouts.py` | 按课堂设计生成的讲义的学生学案（留白版与含答案版）、教师用书（讲义正文加答案速查和课后记录页），由程序从设计排版，不调用模型 |
+| `packages.py` | 授课包：只读已保存记录。有课堂设计时组装学生学案、教师用书、生成记录与核对；否则组装教师手册。另有学生练习、课件与清单；`markdown_docx` 把 Markdown 排成 Word（含作答横线 `<!-- lines:N -->`） |
 | `quizzes.py` | 出题、配套出题、题目校验、独立队列、导出；为阅卷提供题组答案与知识点映射 |
 | `grading.py` | 阅卷任务、识读与评分校验、证据草稿 |
 | `evaluation.py`、`experiment.py` | 当前版本固定对照；历史文件式实验 |
 | `rendering.py`、`model_settings.py` | 安全渲染与图片附录；模型配置的查看、测试与保存 |
 | `edition.py` | 正式版 / 测试版（`ZHIYE_EDITION`）与数据目录（`ZHIYE_DATA_DIR`，存放 `.env` 和 `.runtime/`，默认项目根目录）；`app.py`、`init_db.py`、`catalog.py`、`presentations.py` 共用 |
 | `richdoc.py` | 导出用：LaTeX 转 Word 原生公式、图转图片、表格；`app.py` 与 `packages.py` 共用 |
-| `scale/` | 可选的扩展语料、合成班级装载（`load.py`）、检索评测（`eval_retrieval.py`）和生成基准（`bench.py`） |
+| `scale/` | 可选的扩展语料、合成班级装载（`load.py`）、检索评测（`eval_retrieval.py`）、生成基准（`bench.py`）、已保存讲义的文本指标（`quality_baseline.py`，只读）和新旧写作方式对照（`design_compare.py`，加 `--real` 才调用模型） |
 
 ## 4. 关键流程
 
@@ -138,6 +146,22 @@ sequenceDiagram
     UI->>API: 轮询 GET /api/jobs/{id}
     API-->>UI: 状态与讲义编号
 ```
+
+默认写作方式（`designed-v1`）在「调用模型」这一步分成两段：
+
+```mermaid
+flowchart LR
+    R["冻结的请求<br/>只要课堂设计"] --> D["design.py 校验<br/>不合格带问题重试一次"]
+    D --> S{"先让教师确认？"}
+    S -->|是| C["设计记为已完成的生成记录<br/>教师查看、修改或要求重做"]
+    C --> E["确认后另建任务<br/>上下文带确认后的设计"]
+    S -->|否（含批量）| W
+    E --> W["新授 / 例题 / 重点环节<br/>各调用一次，并行"]
+    W --> A["程序拼装教师详案<br/>题目、提问、板书取自设计"]
+    A --> Q["程序检查后保存讲义<br/>context.lesson_design 留存设计"]
+```
+
+环节请求由冻结请求、冻结上下文（`context.designed`，含当时的环节提示词）和设计推导，逐次的 SHA-256 记在 `response_metadata.stages`。确认后的任务沿用原请求字节，上下文里的 `designed.confirmed` 记录设计、来源记录和是否被教师改过；「按原输入重试」因此不会重新向模型要设计。
 
 要点：输入先冻结再发送；向量模式在知识点范围内检索并记录命中片段；无画像模式不发送个体诊断；图片只以解析文字进入上下文；生成不修改学生状态；「按原输入重试」复用冻结字节，「重新生成」读取当前数据。
 
@@ -174,6 +198,18 @@ flowchart LR
     R -->|否| F["交付课件"]
     V --> F
     F --> E["单页微调候选<br/>采用后成为新版本"]
+```
+
+按课堂设计生成的讲义另有一条不调用模型的路线：
+
+```mermaid
+flowchart LR
+    D["课堂设计<br/>lectures.context.lesson_design"] --> LS["lesson_slides.py<br/>分页与备注"]
+    LS --> LL["lesson_layout.py<br/>绘制"]
+    M["mathtext.py<br/>公式转文字"] --> LL
+    LL --> B["pptkit_export.build_lesson_pptx<br/>套模板与版式检查"]
+    B --> O2["可编辑 PPTX"]
+    LS --> H["handouts.teacher_book<br/>课堂流程表的课件页码"]
 ```
 
 新任务冻结模板 ID、模板 SHA-256、映射版本和完整请求；历史课件按原渲染版本导出。单页微调只让模型返回目标页，服务端合并后校验其他页不变。
@@ -225,7 +261,7 @@ flowchart TD
 | `student_knowledge`、`learning_evidence`、`knowledge_state_history`、`student_profile_history` | 当前掌握状态、证据与历史 |
 | `materials`、`material_chunks` | 课程材料与向量分块 |
 | `lectures`、`lecture_revisions`、`lecture_issues` | 讲义原稿、修订与问题；班级讲义 `student_id` 为空、`class_id` 有值（`generation_runs`、`quiz_jobs` 同理） |
-| `generation_runs`、`generation_jobs` | 冻结输入、运行结果、排队状态（讲义、章节、PPT 共用） |
+| `generation_runs`、`generation_jobs` | 冻结输入、运行结果、排队状态（讲义、章节、PPT 共用）。成功的记录必须关联讲义，唯一的例外是等待教师确认的课堂设计（`response_metadata.operation = 'lesson_design'`，约束 `generation_runs_result_check`） |
 | `quiz_jobs` | 题组任务、冻结输入与结果 |
 | `lecture_experiments`、`lecture_experiment_cells` | 当前版本固定对照 |
 | `material_assets`、`generation_run_assets` | 图片资产辅助表（上传图片实际存在 SQLite） |
@@ -285,11 +321,12 @@ Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中
 | 检索 | `retrieval.py`、`embed.py`、`app.get_context()` | 索引更新、知识点范围、检索快照、无画像模式 |
 | 讲义结构与篇幅 | `lecture_policy.py`、`teaching.py`、`prompts.py` | `quality.py`、字符预算、历史版本 |
 | 队列与重试 | `jobs.py`、`runs.py`、`gate.py`、`jobs.js` | 取消、并发额度的获取与释放、失败状态、重启恢复 |
-| 分章节生成 | `sectioned.py`、`prompts/lecture-sectioned-*.md` | 冻结上下文里的 `sectioned`、章节配额与篇幅检查一致、`test_pipeline_v3.py` |
+| 课堂设计与按环节写作 | `design.py`、`designed.py`、`prompts/lecture-design-*.md`、`lecture-subject-*.md`、`design-review.js` | 设计的字段要同时改校验、排版和提示词里的 JSON 格式；`validate` 对自己的输出再校验结果不变（教师修改后重新提交依赖这一点）；`prompts.designed_view` 决定模型能看到的上下文；`sections.prepare_section` 的调整请求；`test_lesson_design.py`、离线沙盒 `serve_design_fixture.py`（5057 端口） |
+| 分章节生成（旧版） | `sectioned.py`、`prompts/lecture-sectioned-*.md` | 冻结上下文里的 `sectioned`、章节配额与篇幅检查一致、`test_pipeline_v3.py` |
 | 公式与图 | `figures.py`、`richdoc.py`、`app.js` 的 `renderMarkdown` | 网页、HTML、Word、纯文本四种输出，`prompts/lecture-format-rich-v1.md` 里的图格式 |
 | 审核与章节调整 | `reviews.py`、`sections.py` | 版本锁、问题记录、引用检查 |
-| PPT | `presentations.py`、`ppt_story.py`、`pptkit_export.py` | 模板版本、视觉审查、单页微调、`test_presentations.py` |
-| 出题 / 阅卷 / 授课包 | `quizzes.py`、`grading.py`、`packages.py` | 冻结版本与 JSON 模式、题号映射、学生练习不含答案 |
+| PPT | `presentations.py`、`ppt_story.py`、`pptkit_export.py`；按课堂设计排版的课件另有 `lesson_slides.py`、`lesson_layout.py`、`mathtext.py` | 模板版本、视觉审查、单页微调、`test_presentations.py`；按设计排版的页面改动后跑 `test_lesson_slides.py`（每个模板都要过版式检查），并用 LibreOffice 渲染看一遍 |
+| 出题 / 阅卷 / 授课包 | `quizzes.py`、`grading.py`、`packages.py`、`handouts.py` | 冻结版本与 JSON 模式、题号映射、学生练习与学生学案不含答案和来源编号、`packages.js` 的导出内容列表、`test_packages.py` 与 `test_lesson_design.py` |
 | 模型配置 | `model_settings.py`、`qwen.py`、`vision.py`、`embed.py` | 三个通道的区别、密钥遮蔽、重启生效 |
 | 正式版 / 测试版 | `edition.py`、`init_db.py`、`courses.py` 的预置课程、`index.html` 中的 `release` 分支 | 正式版空库可从零建课（`test_edition.py`）、`desktop/scripts/stage.mjs` 的文件白名单 |
 | 桌面客户端 | `desktop/src/`、`desktop/scripts/` | `npm test`、`node scripts/smoke.mjs --dev`；新增服务环境变量要加进 `processes.cleanEnv` 的清理列表 |
