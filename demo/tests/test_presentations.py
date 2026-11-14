@@ -129,6 +129,40 @@ class PresentationUnitTests(unittest.TestCase):
             with self.subTest(content=content[:60]), self.assertRaises(module.ModelError):
                 parse_deck(content, fixture_context())
 
+    def test_a_rejected_deck_says_which_page_which_field_and_the_real_value(self):
+        # The message is all the automatic retry sees (issue #7: "第8页标题或类型错误" left the model guessing).
+        def message(change):
+            bad = fixture_deck(); change(bad)
+            with self.assertRaises(module.ModelError) as caught:
+                parse_deck(json.dumps(bad, ensure_ascii=False), fixture_context())
+            return str(caught.exception)
+        self.assertIn('输出 5 页，设置为 6 页', message(lambda d: d['slides'].pop()))
+        self.assertIn('第2页标题 36 字符，超过 34 字符：「' + '标题' * 18 + '」',
+                      message(lambda d: d['slides'][1].update(title='标题' * 18)))
+        self.assertIn('第3页类型 kind 写成了「exercise」，只能是 cover、concept、example、question、summary',
+                      message(lambda d: d['slides'][2].update(kind='exercise')))
+        self.assertIn('第2页第 2 条投屏要点 65 字符，超过 64 字符',
+                      message(lambda d: d['slides'][1].update(bullets=['短', '长' * 65])))
+        self.assertIn('第2页讲稿只有 5 字符，至少 40 字符', message(lambda d: d['slides'][1].update(notes='太短的讲稿')))
+        self.assertIn('第3页引用了不存在的来源：M999', message(lambda d: d['slides'][2].update(sources=['M999'])))
+        self.assertIn('最后一页（第6页）类型应为 summary，实际是 concept', message(lambda d: d['slides'][-1].update(kind='concept')))
+
+    def test_a_layout_name_written_as_the_page_kind_is_read_as_the_matching_kind(self):
+        for semantic in (False, True):
+            ctx = fixture_context()
+            if semantic:
+                ctx['ppt_export']['export_version'] = DESIGN_VERSION
+            deck = fixture_deck()
+            deck['slides'][3]['kind'] = 'practice'        # its visual is the practice layout
+            deck['slides'][4]['kind'] = ' Recap'
+            deck['slides'][5]['kind'] = 'recap'
+            if not semantic:
+                deck['slides'][1]['kind'] = 'steps'
+                deck['slides'][2]['kind'] = 'definition'
+            kinds = [slide['kind'] for slide in parse_deck(json.dumps(deck, ensure_ascii=False), ctx)['slides']]
+            self.assertEqual(kinds, ['cover', 'example', 'example', 'question', 'concept', 'summary'] if semantic else
+                             ['cover', 'example', 'concept', 'question', 'concept', 'summary'], semantic)
+
     def test_unknown_citations_in_sources_or_notes_are_rejected(self):
         for key, value in [('sources', ['M999']), ('sources', [False]), ('notes', '完整测试说明。'*12+' [V999]')]:
             bad = fixture_deck(); bad['slides'][2][key] = value

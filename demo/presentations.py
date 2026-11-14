@@ -69,6 +69,37 @@ def prepare_slides(context, model):
     return PreparedRequest(body, fingerprint(body), prompt_version, 'lecture-ppt-context-v1')
 
 
+KINDS = ('cover', 'concept', 'example', 'question', 'summary')
+# A model sometimes writes the layout name where the page kind belongs. The prompt pairs them
+# (practice only on question pages, steps only on example pages), so the page is read as meant.
+KIND_OF_LAYOUT = dict(cover='cover', practice='question', steps='example', definition='concept', explain='concept',
+                      comparison='concept', table='concept', process='concept', metrics='concept')
+
+
+def text_problem(value, maximum, minimum=1):
+    """'' when a screen or notes text is acceptable, otherwise what is wrong, with the real length.
+
+    The message reaches both the teacher and the one automatic retry, so it names the actual value.
+    """
+    if not isinstance(value, str):
+        return '缺失'
+    length = len(value.strip())
+    if length > maximum:
+        return f' {length} 字符，超过 {maximum} 字符'
+    if length < minimum:
+        return '为空' if not length else f'只有 {length} 字符，至少 {minimum} 字符'
+    if re.search(r'[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff]', value):
+        return '含控制字符'
+    return ''
+
+
+def page_kind(value, index, count):
+    kind = value.strip().lower() if isinstance(value, str) else ''
+    if kind == 'recap':
+        return 'summary' if index == count - 1 else 'concept'
+    return KIND_OF_LAYOUT.get(kind, kind)
+
+
 def parse_deck(content, context):
     def invalid(message):
         raise ModelError('invalid_ppt', '课件输出未通过检查：' + message + '。请按原输入重试。', 'output')
@@ -83,57 +114,71 @@ def parse_deck(content, context):
     except (ValueError, TypeError):
         invalid('模型未返回有效 JSON')
 
-    def field(value, maximum, minimum=1):
-        return (isinstance(value, str) and minimum <= len(value.strip()) <= maximum
-                and not re.search(r'[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff]', value))
-
-    if not isinstance(deck, dict) or not field(deck.get('title'), 60):
-        invalid('缺少有效课程标题')
-    slides = deck.get('slides')
-    if not isinstance(slides, list) or len(slides) != context['ppt_export']['slide_count']:
-        invalid('实际页数与设置不一致')
+    if not isinstance(deck, dict) or text_problem(deck.get('title'), 60):
+        invalid('缺少有效课程标题' if not isinstance(deck, dict) else '课程标题' + text_problem(deck.get('title'), 60))
+    slides, count = deck.get('slides'), context['ppt_export']['slide_count']
+    if not isinstance(slides, list):
+        invalid('缺少页面列表 slides')
+    if len(slides) != count:
+        invalid(f'实际页数与设置不一致（输出 {len(slides)} 页，设置为 {count} 页）')
     allowed = {f'M{m["id"]}' for m in context.get('materials', [])}
     allowed |= {v['citation_id'] for v in context.get('visual_evidence', [])}
     result = []
     semantic = context['ppt_export'].get('export_version') == DESIGN_VERSION
     for index, slide in enumerate(slides):
+        page = f'第{index+1}页'
         if not isinstance(slide, dict):
-            invalid(f'第{index+1}页结构错误')
-        if (not field(slide.get('title'), 34) or not isinstance(slide.get('kind'), str)
-                or slide['kind'] not in {'cover', 'concept', 'example', 'question', 'summary'}):
-            invalid(f'第{index+1}页标题或类型错误')
+            invalid(f'{page}结构错误')
+        if text_problem(slide.get('title'), 34):
+            invalid(f'{page}标题' + text_problem(slide.get('title'), 34)
+                    + (f'：「{slide["title"].strip()}」' if isinstance(slide.get('title'), str) and slide['title'].strip() else ''))
+        slide = dict(slide, kind=page_kind(slide.get('kind'), index, count))
+        if slide['kind'] not in KINDS:
+            written = slide.get('kind') if isinstance(slide.get('kind'), str) else ''
+            invalid(f'{page}类型 kind 写成了「{written}」，只能是 ' + '、'.join(KINDS) if written
+                    else f'{page}缺少类型 kind')
         bullets = slide.get('bullets')
-        if (not isinstance(bullets, list) or not 1 <= len(bullets) <= 4
-                or any(not field(b, 64) for b in bullets) or sum(map(len, bullets)) > 180):
-            invalid(f'第{index+1}页投屏要点过长或缺失')
-        if not field(slide.get('question'), 70, 0) or not field(slide.get('notes'), 1600, 40):
-            invalid(f'第{index+1}页提问或讲稿长度不符合要求')
+        if not isinstance(bullets, list) or not 1 <= len(bullets) <= 4:
+            invalid(f'{page}投屏要点应为 1—4 条' + (f'，实际 {len(bullets)} 条' if isinstance(bullets, list) else ''))
+        for number, bullet in enumerate(bullets, 1):
+            if text_problem(bullet, 64):
+                invalid(f'{page}第 {number} 条投屏要点' + text_problem(bullet, 64))
+        if sum(map(len, bullets)) > 180:
+            invalid(f'{page}投屏要点合计 {sum(map(len, bullets))} 字符，超过 180 字符')
+        if text_problem(slide.get('question'), 70, 0):
+            invalid(f'{page}提问' + text_problem(slide.get('question'), 70, 0))
+        if text_problem(slide.get('notes'), 1600, 40):
+            invalid(f'{page}讲稿' + text_problem(slide.get('notes'), 1600, 40))
         if any(re.search(r'[\r\n\t]', s) for s in [slide['title'], *bullets, slide['question']]):
-            invalid(f'第{index+1}页投屏文字包含换行或制表符')
+            invalid(f'{page}投屏文字包含换行或制表符')
         if index == 0 and (len(bullets) > 2 or sum(map(len, bullets)) > 80 or slide['question']):
-            invalid('封面内容过多')
+            invalid('封面内容过多：投屏要点最多 2 条、合计 80 字符，提问留空')
         visual = None
         if semantic:
             try:
                 visual = validate_visual(slide.get('visual'), slide)
             except ValueError as exc:
-                invalid(f'第{index+1}页视觉结构错误：{exc}')
+                invalid(f'{page}视觉结构错误：{exc}')
             if index and slide['kind'] == 'cover':
                 invalid('内页不能重复使用封面')
         sources = slide.get('sources')
-        if (not isinstance(sources, list) or len(sources) > 30
-                or any(not isinstance(s, str) or s not in allowed for s in sources)):
-            invalid(f'第{index+1}页引用了不存在的来源')
+        if not isinstance(sources, list) or len(sources) > 30:
+            invalid(f'{page}来源 sources 应为最多 30 项的列表')
+        unknown = [str(s) for s in sources if not isinstance(s, str) or s not in allowed]
+        if unknown:
+            invalid(f'{page}引用了不存在的来源：' + '、'.join(unknown[:5]))
         cited = set(re.findall(r'\[([MV]\d+)\]', '\n'.join([slide['title'], *bullets, slide['question'], slide['notes'], *visual_texts(visual)])))
         if cited - allowed:
-            invalid(f'第{index+1}页正文包含无效来源编号')
+            invalid(f'{page}正文包含无效来源编号：' + '、'.join(sorted(cited - allowed)[:5]))
         result.append(dict(kind=slide['kind'], title=slide['title'].strip(),
                            bullets=[b.strip() for b in bullets], question=slide['question'].strip(),
                            notes=slide['notes'].strip(), sources=sorted(set(sources) | cited)))
         if semantic:
             result[-1]['visual'] = visual
-    if result[0]['kind'] != 'cover' or result[-1]['kind'] != 'summary':
-        invalid('缺少封面或末页总结')
+    if result[0]['kind'] != 'cover':
+        invalid(f'缺少封面：第1页类型应为 cover，实际是 {result[0]["kind"]}')
+    if result[-1]['kind'] != 'summary':
+        invalid(f'缺少末页总结：最后一页（第{len(result)}页）类型应为 summary，实际是 {result[-1]["kind"]}')
     return dict(title=deck['title'].strip(), slides=result)
 
 
