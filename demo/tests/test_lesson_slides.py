@@ -3,14 +3,16 @@ and the run sheet's page numbers. No database and no model call; the routes and 
 tested in test_lesson_design.DesignedPipeline.
 """
 import copy
+import json
 import unittest
 from io import BytesIO
 from zipfile import ZipFile
 
 from pptx import Presentation
 
-from test_lesson_design import CONTEXT, with_notes   # first: it puts demo/ on the import path
+from test_lesson_design import CONTEXT, TREE, with_notes   # first: it puts demo/ on the import path
 import design as D
+import figures
 import handouts
 import lesson_slides as LS
 import mathtext
@@ -135,6 +137,36 @@ class SlidePlan(unittest.TestCase):
                 self.assertTrue(all(slide.notes_slide.notes_text_frame.text.strip() for slide in slides), template)
         with self.assertRaisesRegex(ValueError, LESSON_TEMPLATE_ERROR):
             build_lesson_pptx(self.deck, 'no-such-template')
+
+    def test_every_figure_kind_stays_inside_its_card_in_every_template(self):
+        specs = [TREE,
+                 {'type': 'number_line', 'min': -2, 'max': 8, 'points': [{'x': 5, 'label': 'x = 5'}]},
+                 {'type': 'balance', 'steps': [{'left': '3x + 5', 'right': '20'}, {'left': 'x', 'right': '5'}], 'solution': {'x': 5}},
+                 {'type': 'function_plot', 'x': [0, 8], 'functions': [{'expr': '0.5*exp(-0.5*x)'}, {'expr': '2exp(-2x)'}]},
+                 {'type': 'bar_chart', 'bars': [{'label': '先验', 'value': 0.6}, {'label': '后验', 'value': 0.375}]}]
+        self.assertEqual({spec['type'] for spec in specs}, set(figures.TYPES))
+        semantic = [item['id'] for item in available_templates() if item['semantic']]
+        for group in (specs[:3], specs[3:]):
+            reply = with_notes()
+            reply['figures'] = [{'segment': segment['id'], 'spec': spec} for segment, spec in zip(reply['segments'], group)]
+            deck = LS.plan(D.validate(reply, CONTEXT)[0], label='图示页')
+            drawn = [len(figures.build(json.dumps(spec, ensure_ascii=False))[1].items) for spec in group]
+            for template in semantic:
+                prs = Presentation(BytesIO(build_lesson_pptx(deck, template)))
+                width, height = prs.slide_width, prs.slide_height
+                cards = [(list(slide.shapes), [shape.name for shape in slide.shapes].index('图'))
+                         for slide in prs.slides if '图' in [shape.name for shape in slide.shapes]]
+                self.assertEqual(len(cards), len(group), template)
+                for (shapes, at), count in zip(cards, drawn):
+                    card, slack = shapes[at], height // 100
+                    self.assertTrue(0 <= card.left and card.left + card.width <= width and card.top + card.height <= height, template)
+                    for shape in shapes[at + 1:at + 1 + count]:
+                        self.assertGreaterEqual(shape.left, card.left - slack, (template, shape.name))
+                        self.assertGreaterEqual(shape.top, card.top - slack, (template, shape.name))
+                        self.assertLessEqual(shape.left + shape.width, card.left + card.width + slack, (template, shape.name))
+                        self.assertLessEqual(shape.top + shape.height, card.top + card.height + slack, (template, shape.name))
+                        for run in (r for p in shape.text_frame.paragraphs for r in p.runs) if shape.has_text_frame else ():
+                            self.assertGreater(run.font.size, height / 80, (template, run.text))   # still readable when projected
 
     def test_run_sheet_names_the_slides_and_an_edited_sheet_gets_its_own_table(self):
         pages = {segment: LS.page_range(self.deck, segment) for segment in self.deck['pages']}
