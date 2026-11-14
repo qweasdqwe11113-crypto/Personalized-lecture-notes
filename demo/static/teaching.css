@@ -25,6 +25,13 @@
 .section-save-actions { background: white; padding: 14px 0 6px; }
 .section-save-actions .primary { width: auto; flex: 1 1 200px; }
 @media (max-width: 650px) { .section-comparison { grid-template-columns: minmax(0, 1fr); } #section-editor { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); } }
+
+/* Lecture editor: Markdown source and the rendered page side by side; stacked on narrow screens. */
+.revision-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.revision-compare > * { min-width: 0; }
+.revision-preview-pane h3 { margin: 14px 0 6px; font-size: 14px; font-weight: 600; }
+.revision-preview.lecture { margin: 0; max-inline-size: none; box-sizing: border-box; block-size: 350px; max-block-size: 70dvh; overflow: auto; padding: 12px 16px; }
+@media (max-width: 860px) { .revision-compare { grid-template-columns: minmax(0, 1fr); gap: 0; } .revision-preview.lecture { block-size: auto; max-block-size: 50dvh; } }
 @media print { .section-entry, #section-editor { display: none !important; } }
 
 /* Lesson design review: the design on the left, the few things a teacher usually changes on the right. */
