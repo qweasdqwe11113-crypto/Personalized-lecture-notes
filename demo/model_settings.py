@@ -16,6 +16,8 @@ from flask import jsonify, request
 from PIL import Image, ImageDraw
 from qwen import clean_content
 from model_runtime import request_timeout
+import model_import
+from model_import import ConfigImportError
 
 CHANNELS = {'llm': 'QWEN', 'vlm': 'VLM', 'embedding': 'QWEN_EMBEDDING'}
 SUFFIXES = {'base_url': 'BASE_URL', 'model': 'MODEL', 'api_key': 'API_KEY'}
@@ -178,9 +180,67 @@ def register_model_settings(app, env_path):
     def get_settings():
         try:
             channels = saved()
-            return jsonify(channels=public_channels(channels), restart_required=channels != read_channels(os.environ))
+            return jsonify(channels=public_channels(channels), restart_required=channels != read_channels(os.environ),
+                           providers=model_import.public_providers())
         except OSError:
             return jsonify(error='无法读取本地模型配置文件。'), 500
+
+    def current_models():
+        return {name: c['model'] for name, c in saved().items()}
+
+    @app.post('/api/model-settings/import')
+    def import_settings():
+        # Reads pasted text into form values; saves nothing. The key goes back only to this page.
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify(error='请粘贴配置文字。'), 400
+        try:
+            found = model_import.parse_config(data.get('text', ''), data.get('provider') or '')
+            channels = saved()
+            key = found['api_key'] or next((c['api_key'] for c in channels.values()
+                                            if c['base_url'].rstrip('/') == found['base_url'] and c['api_key']), '')
+        except ConfigImportError as exc:
+            return jsonify(error=str(exc)), 400
+        except OSError:
+            return jsonify(error='无法读取本地配置。'), 500
+        listing = None
+        try:
+            listing = model_import.list_models(found['base_url'], key, current_models())
+            found['base_url'] = listing['base_url']
+        except ConfigImportError as exc:
+            found['notes'].append('没有读到模型列表：' + str(exc))
+        return jsonify(found=found, models=listing['models'] if listing else None,
+                       suggested=listing['suggested'] if listing else {})
+
+    @app.post('/api/model-settings/models')
+    def model_list():
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict) or not isinstance(data.get('config'), dict):
+            return jsonify(error='请提交服务地址。'), 400
+        name = data.get('channel')
+        if not isinstance(name, str) or name not in CHANNELS:
+            return jsonify(error='请选择有效的模型类型。'), 400
+        config = data['config']
+        url, key = config.get('base_url', ''), config.get('api_key', '')
+        if not isinstance(url, str) or not isinstance(key, str) or len(url) > 2048 or len(key) > 2048:
+            return jsonify(error='配置字段格式不正确，请使用单行文本。'), 400
+        try:
+            old = saved()[name]
+            if not key.strip() and config.get('clear_key') is not True:
+                key = old['api_key']
+            return jsonify(model_import.list_models(url, key.strip(), current_models()))
+        except ConfigImportError as exc:
+            return jsonify(error=str(exc)), 400
+        except OSError:
+            return jsonify(error='无法读取本地配置。'), 500
+
+    @app.post('/api/model-settings/detect')
+    def detect_services():
+        try:
+            current = current_models()
+        except OSError:
+            current = {}
+        return jsonify(services=model_import.detect_local(current))
 
     @app.post('/api/model-settings')
     def save_settings():

@@ -109,7 +109,7 @@ flowchart TD
 | `quizzes.py` | 出题、配套出题、题目校验、独立队列、导出；为阅卷提供题组答案与知识点映射 |
 | `grading.py` | 阅卷任务、识读与评分校验、证据草稿 |
 | `evaluation.py`、`experiment.py` | 当前版本固定对照；历史文件式实验 |
-| `rendering.py`、`model_settings.py` | 安全渲染与图片附录；模型配置的查看、测试与保存 |
+| `rendering.py`、`model_settings.py`、`model_import.py` | 安全渲染与图片附录；模型配置的查看、测试与保存；快速配置（识别粘贴的配置、检测本机模型服务、读取模型列表，只填表单不保存） |
 | `edition.py` | 正式版 / 测试版（`ZHIYE_EDITION`）与数据目录（`ZHIYE_DATA_DIR`，存放 `.env` 和 `.runtime/`，默认项目根目录）；`app.py`、`init_db.py`、`catalog.py`、`presentations.py` 共用 |
 | `richdoc.py` | 导出用：LaTeX 转 Word 原生公式、图转图片、表格；`app.py` 与 `packages.py` 共用 |
 | `scale/` | 可选的扩展语料、合成班级装载（`load.py`）、检索评测（`eval_retrieval.py`）和生成基准（`bench.py`） |
@@ -290,7 +290,7 @@ Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中
 | 审核与章节调整 | `reviews.py`、`sections.py` | 版本锁、问题记录、引用检查 |
 | PPT | `presentations.py`、`ppt_story.py`、`pptkit_export.py` | 模板版本、视觉审查、单页微调、`test_presentations.py` |
 | 出题 / 阅卷 / 授课包 | `quizzes.py`、`grading.py`、`packages.py` | 冻结版本与 JSON 模式、题号映射、学生练习不含答案 |
-| 模型配置 | `model_settings.py`、`qwen.py`、`vision.py`、`embed.py` | 三个通道的区别、密钥遮蔽、重启生效 |
+| 模型配置 | `model_settings.py`、`model_import.py`、`qwen.py`、`vision.py`、`embed.py` | 三个通道的区别、密钥遮蔽（导入结果不回传已保存的密钥）、重启生效、`test_model_import.py` |
 | 正式版 / 测试版 | `edition.py`、`init_db.py`、`courses.py` 的预置课程、`index.html` 中的 `release` 分支 | 正式版空库可从零建课（`test_edition.py`）、`desktop/scripts/stage.mjs` 的文件白名单 |
 | 桌面客户端 | `desktop/src/`、`desktop/scripts/` | `npm test`、`node scripts/smoke.mjs --dev`；新增服务环境变量要加进 `processes.cleanEnv` 的清理列表 |
 | Linux 安装包与沙箱 | `desktop/electron-builder.config.cjs`、`scripts/linux-sandbox.cjs`、`scripts/deb-after-install.tpl` | `test/deb.test.js`、`test/linux-sandbox.test.js`；升级 electron-builder 时对照它的 `templates/linux/after-install.tpl` 和 `apparmor-profile.tpl`；打包后用 `dpkg-deb -c` / `dpkg-deb -e` 看权限和安装脚本 |
