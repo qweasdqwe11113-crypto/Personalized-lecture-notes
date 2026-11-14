@@ -57,7 +57,7 @@ function postgresMajor(dataDir) {
 }
 
 /** Copy the stopped data folder into parent/<name>, by default 知页备份-<time>; returns the new folder. */
-function createBackup(dataDir, parent, {version, edition, now = new Date(), name = `知页备份-${stamp(now)}`} = {}) {
+function createBackup(dataDir, parent, {version, now = new Date(), name = `知页备份-${stamp(now)}`} = {}) {
   const target = path.join(parent, name);
   if (fs.existsSync(target)) throw new Error('同名备份已存在，请稍后再试。');
   fs.mkdirSync(target, {recursive: true});
@@ -68,7 +68,7 @@ function createBackup(dataDir, parent, {version, edition, now = new Date(), name
   // Runtime lock files belong to the server that wrote them, not to the copy.
   fs.rmSync(path.join(target, 'database', 'postmaster.pid'), {force: true});
   fs.writeFileSync(path.join(target, MANIFEST), JSON.stringify({
-    app: '知页', version, edition, postgres: postgresMajor(dataDir), created_at: now.toISOString(),
+    app: '知页', version, postgres: postgresMajor(dataDir), created_at: now.toISOString(),
   }, null, 2));
   return target;
 }
@@ -83,16 +83,13 @@ function readManifest(folder) {
 }
 
 /** Check that folder is a usable backup for this data folder; returns its manifest. */
-function checkBackup(folder, dataDir, edition) {
+function checkBackup(folder, dataDir) {
   const manifest = readManifest(folder);
   if (!manifest) throw new Error('所选文件夹不是知页备份（缺少 zhiye-backup.json）。');
   if (!fs.existsSync(path.join(folder, 'database', 'PG_VERSION'))) throw new Error('备份中缺少数据库文件。');
   const current = postgresMajor(dataDir);
   if (current && manifest.postgres && manifest.postgres !== current) {
     throw new Error(`备份来自 PostgreSQL ${manifest.postgres}，当前为 ${current}，无法直接恢复。`);
-  }
-  if (manifest.edition && edition && manifest.edition !== edition) {
-    throw new Error(`这份备份来自${manifest.edition === 'release' ? '正式版' : '测试版'}，请在对应版本中恢复。`);
   }
   return manifest;
 }

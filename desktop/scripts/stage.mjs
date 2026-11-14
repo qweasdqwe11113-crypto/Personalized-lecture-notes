@@ -1,8 +1,8 @@
 // Collect what the installer carries into build/resources:
 //   python/    a portable CPython with requirements.txt installed
-//   backend/   the service code (an allow-list: no tests, experiments or, for 正式版, demonstration data)
+//   backend/   the service code (an allow-list: no tests, experiments or demonstration data)
 //   postgres/  the portable PostgreSQL for this platform
-// Usage: node scripts/stage.mjs [--flavor release|demo]
+// Usage: node scripts/stage.mjs
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -15,8 +15,6 @@ const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const repo = path.resolve(desktop, '..');
 const out = path.join(desktop, 'build', 'resources');
 const cache = path.join(desktop, '.cache');
-const args = process.argv.slice(2);
-const flavor = args.includes('--flavor') && args[args.indexOf('--flavor') + 1] === 'demo' ? 'demo' : 'release';
 const WIN = process.platform === 'win32';
 
 // python-build-standalone 20261021, CPython 3.12.15, stripped "install only" builds.
@@ -34,7 +32,6 @@ const PYTHON = {
 // The service reads only these; everything else in the repository stays out of the installer.
 const BACKEND = ['demo/prompts', 'demo/static', 'demo/templates', 'assets/ppt-templates', 'tools/ppt-kit/pptkit'];
 const BACKEND_FILES = /^(.+\.py|schema\.sql|render_ppt_slides\.ps1)$/;
-const DEMO_DATA = ['demo/seed.json', 'demo/university_seed.json', 'demo/feedback_issues.json'];
 
 function log(message) { console.log(`[stage] ${message}`); }
 const sha256 = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -102,9 +99,8 @@ function stageBackend() {
     if (BACKEND_FILES.test(name)) { fs.mkdirSync(path.join(target, 'demo'), {recursive: true}); fs.copyFileSync(path.join(repo, 'demo', name), path.join(target, 'demo', name)); }
   }
   for (const dir of BACKEND) copyTree(path.join(repo, dir), path.join(target, dir));
-  if (flavor === 'demo') for (const file of DEMO_DATA) fs.copyFileSync(path.join(repo, file), path.join(target, file));
   fs.copyFileSync(path.join(repo, 'LICENSE'), path.join(target, 'LICENSE'));
-  log(`复制服务代码（${flavor === 'demo' ? '测试版，含演示数据' : '正式版，不含演示数据'}）`);
+  log('复制服务代码（不含演示数据）');
   // Compile now: the installed program folder may be read-only at run time.
   execFileSync(pythonBinary(path.join(out, 'python')), ['-m', 'compileall', '-q', '-j', '0', path.join(target, 'demo'), path.join(target, 'tools')], {stdio: 'inherit'});
 }
@@ -161,7 +157,7 @@ stageBackend();
 stagePostgres();
 const python = pythonBinary(path.join(out, 'python'));
 fs.writeFileSync(path.join(out, 'manifest.json'), JSON.stringify({
-  flavor, platform: process.platform,
+  platform: process.platform,
   python: execFileSync(python, ['-c', 'import platform; print(platform.python_version())'], {encoding: 'utf8'}).trim(),
   created_at: new Date().toISOString(),
 }, null, 2));

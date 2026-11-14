@@ -1,27 +1,24 @@
-// Installer settings. ZHIYE_FLAVOR=release builds 知页 (empty database); ZHIYE_FLAVOR=demo builds
-// 知页测试版 (with the demonstration courses), which installs beside it with its own data. On Linux
-// both are built as AppImage, tar.gz and .deb; the .deb packages are named zhiye and zhiye-test and
-// install into /opt/知页 and /opt/知页测试版, so the two can be installed together.
+// Installer settings for 知页 (the database starts empty). On Linux it is built as AppImage, tar.gz
+// and .deb; the .deb package is named zhiye and installs into /opt/知页.
 const fs = require('node:fs');
 const path = require('node:path');
 const {launcher} = require('./scripts/linux-sandbox.cjs');
 
-const test = process.env.ZHIYE_FLAVOR === 'demo';
-const productName = test ? '知页测试版' : '知页';
-const slug = test ? 'zhiye-test' : 'zhiye';
+const productName = '知页';
+const slug = 'zhiye';
 
 module.exports = {
-  appId: test ? 'cn.zhiye.desktop.test' : 'cn.zhiye.desktop',
+  appId: 'cn.zhiye.desktop',
   productName,
   executableName: slug,
   artifactName: `${slug}-\${version}-\${os}-\${arch}.\${ext}`,
   copyright: '知页项目组',
-  directories: {output: `dist/${test ? 'demo' : 'release'}`, buildResources: 'assets'},
+  directories: {output: 'dist', buildResources: 'assets'},
   // @embedded-postgres is an optional dependency only so that development (src/paths.js) and
   // scripts/stage.mjs can find PostgreSQL; the packages carry the staged copy in resources/postgres.
   // Without the exclusion electron-builder would add a second, unused copy (about 58 MB).
   files: ['src/**/*', 'assets/icon.png', 'package.json', '!node_modules/@embedded-postgres{,/**/*}'],
-  extraMetadata: {productName, zhiye: {edition: test ? 'demo' : 'release'}},
+  extraMetadata: {productName},
   extraResources: [
     {from: 'build/resources/python', to: 'python'},
     {from: 'build/resources/backend', to: 'backend'},
