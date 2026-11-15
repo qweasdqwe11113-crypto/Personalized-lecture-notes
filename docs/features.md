@@ -345,7 +345,7 @@
 - **发布**：推送与 `desktop/package.json` 版本一致的 `vX.Y.Z` 标签后，GitHub Actions 在 Linux 和 Windows 上分别构建正式版。每个系统都先跑单元测试和冒烟测试（启动、重启、备份、再次启动），全部通过后生成一个草稿 Release，确认后手动发布。涉及客户端或服务代码的 Pull Request 也会这样构建和测试，安装包作为 Artifacts 下载，不生成 Release。
 - **限制**：
   - 安装包没有代码签名，Windows 首次运行会出现 SmartScreen 提示。
-  - 没有自动更新。「知页 → 检查更新」只查询 GitHub 上的最新版本，并打开下载页。
+  - 只检查更新，不自动下载安装。每次启动、工作空间打开后，客户端在后台查询一次 GitHub 上的最新 Release（15 秒超时；重试或重启服务不再查）。只有发现比当前新、且没有被跳过的版本时才弹窗：「前往下载」打开 Release 页，「以后再说」下次启动再提示，「跳过这个版本」后启动时不再提示这个及更早的版本，更新的版本发布后照常提示。已是最新、还没有 Release、网络不通或被 GitHub 限流时不打扰，只在 `logs/client.log` 记一行「检查更新：…」。菜单「知页 → 启动时检查更新」可以关掉，选择和跳过的版本存在客户端设置文件 `desktop.json`（`autoCheckUpdates`、`skippedVersion`）。「知页 → 检查更新…」随时手动查询，结果都会弹窗说明，也会提示已跳过的版本。
   - .deb 只在 Ubuntu 24.04 虚拟机里装过，还没有在 Debian 或更早的 Ubuntu 上试过。Windows 版已在真实的 Windows 电脑上安装测试通过。
   - PPT 视觉审查需要 PowerPoint 和 Ollama，客户端不附带。
   - Ubuntu 24.04 起，AppArmor 不允许没有配置文件的程序使用 Chromium 沙箱（AppImage、tar.gz 和从源码运行都属于这种情况）。这时客户端不用沙箱启动，而不是直接报错退出，并在日志里记一行说明；窗口里只会打开启动页和本机服务的页面。tar.gz 版可以在程序目录里执行 `sudo chown root:root chrome-sandbox && sudo chmod 4755 chrome-sandbox`，之后重新启用沙箱。

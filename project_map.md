@@ -293,7 +293,7 @@ Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中
 
 | 文件 | 职责 |
 | --- | --- |
-| `src/main.js` | 窗口、菜单、启动页状态、IPC（检查发送方）、导航与权限限制、备份 / 恢复 / 更换数据目录、检查更新、安全退出 |
+| `src/main.js` | 窗口、菜单、启动页状态、IPC（检查发送方）、导航与权限限制、备份 / 恢复 / 更换数据目录、检查更新（菜单手动查询；每次启动成功后在后台自动查一次，是否提示由 `policy.offerRelease` 判断，开关与跳过的版本存在 `desktop.json`）、安全退出 |
 | `src/runtime.js` | 启动顺序：数据目录与版本检查（`upgrade.prepare`）→ `Postgres` → `Backend.migrate`（`init_db.py`）→ `Backend.start`（`app.py`）→ 记录版本；重启与停止 |
 | `src/upgrade.js` | `last-version.json`、版本比较、升级前备份（停库、复制、只留 3 份、失败即停）、拒绝降级、恢复前的版本检查 |
 | `src/postgres.js` | 建库（`initdb`）、追加配置、`pg_ctl` 启停、连接地址 |

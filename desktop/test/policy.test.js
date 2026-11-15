@@ -37,6 +37,17 @@ test('release tags compare as versions', () => {
   assert.equal(policy.isNewer(undefined, '0.1.0'), false);
 });
 
+test('a skipped version is left out of the start-up check only', () => {
+  assert.equal(policy.offerRelease('v0.2.0', '0.1.0'), true);
+  assert.equal(policy.offerRelease('v0.1.0', '0.1.0', {automatic: true}), false, 'nothing newer');
+  assert.equal(policy.offerRelease('v0.2.0', '0.1.0', {automatic: true, skipped: 'v0.2.0'}), false);
+  assert.equal(policy.offerRelease('v0.2.0', '0.1.0', {automatic: true, skipped: '0.2.0'}), false, 'with or without the v');
+  assert.equal(policy.offerRelease('v0.2.0', '0.1.0', {automatic: true, skipped: 'v0.3.0'}), false, 'older than the skipped one');
+  assert.equal(policy.offerRelease('v0.3.0', '0.1.0', {automatic: true, skipped: 'v0.2.0'}), true, 'a later release asks again');
+  assert.equal(policy.offerRelease('v0.2.0', '0.1.0', {automatic: false, skipped: 'v0.2.0'}), true, 'the menu always shows it');
+  assert.equal(policy.offerRelease('v0.2.0', '0.1.0', {automatic: true, skipped: null}), true);
+});
+
 test('pages may only use clipboard writing and full screen', () => {
   assert.deepEqual([...policy.ALLOWED_PERMISSIONS].sort(), ['clipboard-sanitized-write', 'fullscreen']);
 });
