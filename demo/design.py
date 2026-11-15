@@ -10,6 +10,7 @@ Nothing here judges subject correctness or teaching quality. `hard` problems mak
 unusable (it cannot be rendered or cites a source that does not exist); `soft` problems are
 worth one more attempt and are then shown to the teacher as reminders.
 """
+from collections import Counter
 import json
 import re
 
@@ -33,6 +34,36 @@ BLANK = re.compile(r'_{4,}')        # a gap the student fills in on the handout
 ARITHMETIC = '算式复算不一致'   # a possible false alarm: reported, but never the only reason for a retry
 TRIMMED = '只保留了前'          # an over-long list was cut: reported, not worth another model call
 FLAG = '待核对：'               # a line the model wrote to point at something it could not reconcile
+AUDIENCES = {'profile': 'student', 'class': 'class', 'none': 'general'}   # who the lesson is for, from personalization_mode
+# Classroom organisation that has no place in one-to-one tutoring.
+CLASSROOM = re.compile(r'巡视|小组|分组|举手|全班|全体|组长|同桌|各组|(?:学有余力|基础薄弱|基础待巩固)的(?:学生|同学)')
+CHECKING = ('practice', 'homework')   # the roles whose answers show whether an objective was reached
+# Characters of an answer, formulas' command names and spaces left out, beyond which it is a worked solution
+# that belongs in the steps: (without steps, with steps). Real answers ran 24-80; written-out solutions 73-105.
+ANSWER_LIMIT = (60, 100)
+# Characters that glue words together: a pair holding one (「母为」 of 「分母为正」) is not a word.
+FUNCTION_CHARS = set('的为是和与了在及或并且把被要各其之')
+# Words any objective or problem may use; sharing one says nothing about checking that objective.
+GENERIC = {'计算', '求解', '写出', '说出', '能够', '完成', '理解', '掌握', '运用', '利用', '结果', '比较', '说明', '验证',
+           '检验', '核对', '区分', '给出', '得到', '并用', '学生', '问题', '题目', '方法', '能用', '能写', '能说', '能从',
+           '能在', '能列', '能判', '能区', '能把', '能根', '根据', '已知', '求出'}
+# A formula says in symbols what an objective says in words: P(A_1\mid D) is a conditional probability.
+SPOKEN = {'mid': '条件概率', 'frac': '分母', 'dfrac': '分母', 'tfrac': '分母', 'cap': '交集', 'cup': '并集',
+          'binom': '组合数', 'sum': '求和', 'int': '积分'}
+# Words about the data or the writing, not about the lesson: a teacher or student can do nothing with them.
+META = re.compile(r'依据诊断|根据诊断|未诊断|不预判|(?:暂无|没有|均无|并无|尚无)[^，。；\s]{0,4}(?:诊断|数据)|无(?:前测|诊断)数据|待核对|仍需(?:确认|核对)'
+                  r'|根据[^，。；\s]{0,10}知识点|本题考查|仅供参考|提示词')
+# A sentence cut off (「追问“分母应该是谁的概...”」), not a quoted pattern such as 「只有……才」.
+UNFINISHED = re.compile(r"[一-鿿](?:\.{3,}|…+)(?=[ \t]*(?:[”\"’'」』)）。，；;,]|$))", re.M)
+ABBREVIATION = re.compile(r'(?<![A-Za-z\\])(?:PMF|PDF|CDF|MGF|pmf|pdf|cdf)(?![A-Za-z])')
+HOMEWORK_MINUTES = 2            # setting homework printed on the handout needs no more
+# "（注：本题数据为自编假设模型。）": a note for the teacher that the model put into the problem itself.
+_MADE_UP = r'(?:自编|虚构|编造|假设模型|数据(?:为|是|均为)假设)'
+_SELF_MADE = re.compile(r'[ \t]*[（(][ \t]*(?:注|说明)?[ \t]*[:：]?[^（）()\n]{0,30}?' + _MADE_UP + r'[^（）()\n]{0,30}[）)]'
+                        r'|[ \t]*(?:注|说明)[:：][^。\n]{0,40}?' + _MADE_UP + r'[^。\n]{0,40}(?:。|$)')
+# In a check (printed under a worked example and on the slides) the note may stand as a sentence of its own.
+_MADE_UP_SENTENCE = re.compile(r'[^。；;\n]*' + _MADE_UP + r'[^。；;\n]*(?:[。；;]|$)')
+_NUMBER = re.compile(r'(?<![A-Za-z_{.\d])\d+(?:\.\d+)?')       # not the 1 of A1 or A_1
 FIELDS = {'title': '标题', 'stem': '题干', 'answer': '答案', 'steps': '解答步骤', 'do': '步骤内容', 'teacher': '教师活动',
           'key_points': '重点', 'difficulties': '难点', 'not_today': '本课不展开', 'summary': '小结', 'text': '内容',
           'items': '题目', 'segments': '环节', 'objectives': '学习目标', 'ask': '问题', 'minutes': '分钟数',
@@ -185,7 +216,8 @@ def validate(raw, context):
     if not focus:
         reader.hard.append('缺少 focus（重点、难点、本课不展开的内容）')
     design = dict(
-        version=VERSION, title=reader.text(raw, 'title', 60, '课堂设计'),
+        version=VERSION, audience=AUDIENCES.get(context.get('personalization_mode', 'profile'), 'student'),
+        title=reader.text(raw, 'title', 60, '课堂设计'),
         focus=dict(key_points=reader.lines(focus, 'key_points', 80, 1, 2, '课堂设计', strict=True),
                    difficulties=reader.lines(focus, 'difficulties', 80, 0, 2, '课堂设计'),
                    not_today=reader.lines(focus, 'not_today', 80, 0, 4, '课堂设计')),
@@ -220,13 +252,16 @@ def validate(raw, context):
             if do:
                 steps.append(dict(do=do, why=reader.text(step, 'why', 160, f'题目 {identity} 的步骤', required=False)))
         knowledge = entry.get('knowledge_id')
+        answer = reader.text(entry, 'answer', 600, f'题目 {identity}')
+        if len(_bare(answer)) > ANSWER_LIMIT[bool(steps)]:
+            reader.soft.append(f'题目 {identity} 的答案（answer）是一整段解答；answer 只写最终结果（几小问用“(1)……；(2)……”），'
+                               '推导、判断条件和中间算式写进 steps')
         design['items'].append(dict(
             id=identity, role=role, level=level if isinstance(level, str) and level in LEVELS else 'basic',
             knowledge_id=knowledge if knowledge in known else None,
             title=reader.text(entry, 'title', 30, f'题目 {identity}', required=False),
-            stem=reader.text(entry, 'stem', 800, f'题目 {identity}'), steps=steps,
-            answer=reader.text(entry, 'answer', 600, f'题目 {identity}'),
-            check=reader.text(entry, 'check', 300, f'题目 {identity}', required=False),
+            stem=without_note(reader.text(entry, 'stem', 800, f'题目 {identity}')), steps=steps, answer=answer,
+            check=without_note(reader.text(entry, 'check', 300, f'题目 {identity}', required=False), sentence=True),
             mistake=reader.text(entry, 'mistake', 200, f'题目 {identity}', required=False),
             sources=_sources(reader, entry, f'题目 {identity}', allowed)))
     bank = {item['id']: item for item in design['items']}
@@ -304,7 +339,15 @@ def validate(raw, context):
         if text:
             if not checked:
                 reader.soft.append(f'第 {number} 条目标没有对应的练习或作业来检验（checked_by 为空或编号不存在）')
+            elif not any(bank[ref]['role'] in CHECKING for ref in checked):
+                reader.soft.append(f'第 {number} 条目标只写由 {"、".join(checked)} 检验；例题和前测是课上讲的，检验要用当堂练习或课后作业：'
+                                   '把真正考到这条目标的练习或作业写进 checked_by，没有就改一道练习或作业来考它')
             design['objectives'].append(dict(id=f'O{number}', text=text, checked_by=checked))
+    for number, ref, words in objective_gaps(design):
+        reader.soft.append(f'第 {number} 条目标写由 {ref} 检验，但 {ref} 的题干、步骤和答案里没有这条目标的内容（如「'
+                           + '」「'.join(words) + '」）；checked_by 只写真正考到这条目标的题')
+    for ref, earlier in repeated_items(design):
+        reader.soft.append(f'{ref} 用的是 {earlier} 的同一组数据，问的结果 {earlier} 已经算过；换数据、换情境或换问法')
 
     plan = context.get('personalization_plan') or []
     names = {entry['knowledge_id']: entry['name'] for entry in plan}
@@ -357,6 +400,29 @@ def validate(raw, context):
         focused = sum(segment['focus'] for segment in design['segments'])
         if not 1 <= focused <= 3:
             reader.soft.append(f'应有 1—3 个重点环节（focus 为 true），现在 {focused} 个')
+        for segment in design['segments']:
+            if segment['kind'] == 'homework' and segment['minutes'] > HOMEWORK_MINUTES:
+                reader.soft.append(f'环节 {segment["id"]}「布置作业」占了 {segment["minutes"]} 分钟；作业已经印在学案上，指明题号即可，'
+                                   f'最多 {HOMEWORK_MINUTES} 分钟，也可以并进小结，省下的时间给练习和讲评')
+    if design['audience'] == 'student':
+        for segment in design['segments']:
+            words = sorted(set(CLASSROOM.findall(classroom_text(segment))))
+            if words:
+                reader.soft.append(f'这是一对一辅导，环节 {segment["id"]} 写了「' + '」「'.join(words)
+                                   + '」；改成教师和这一名学生之间的动作（让学生说思路、看学生写到哪一步）')
+    found = wording(design)
+    for kind, where, phrase in found:
+        if kind == 'meta':
+            reader.soft.append(f'{where}写了「{phrase}」：这是关于数据或生成过程的话，教师和学生用不上；直接写学生的情况和这节课怎么做')
+        elif kind == 'unfinished':
+            reader.soft.append(f'{where}有一句没写完（「{phrase}」）；把这句写完整，不用省略号')
+    short = [(where, phrase) for kind, where, phrase in found if kind == 'abbreviation']
+    if short:
+        reader.soft.append('、'.join(dict.fromkeys(where for where, _ in short)) + ' 写了英文缩写「'
+                           + '」「'.join(dict.fromkeys(phrase for _, phrase in short))
+                           + '」；学案和课件给学生看，写中文（如“概率公式”“分布函数”）')
+    for ref, value, other in mismatched_values(design):
+        reader.soft.append(f'题目 {ref} 的答案和步骤写 {value}，检验或板书写 {other}；同一个结果在各处写同一个值（先算出精确值再四舍五入），板书上的数要与题目算出的一致')
     for role, key in (('example', 'examples'), ('practice', 'exercises')):
         count = sum(item['role'] == role for item in design['items'])
         if key in options and count != options[key]:
@@ -386,6 +452,233 @@ def validate(raw, context):
 def worth_retry(soft):
     """The reminders that justify asking the model again; the rest are only shown to the teacher."""
     return [problem for problem in soft if ARITHMETIC not in problem and TRIMMED not in problem]
+
+
+def without_note(text, sentence=False):
+    """A problem as the student gets it: a note that the data are made up is the teacher's business, and the
+    package's record says so once. sentence: also a plain sentence saying so (in a check, not in a stem, where
+    「假设……」 may be the problem itself)."""
+    text = _SELF_MADE.sub('', text)
+    return (_MADE_UP_SENTENCE.sub('', text) if sentence else text).strip()
+
+
+def classroom_text(segment):
+    """What a segment asks the teacher and the students to do, where classroom organisation would show."""
+    return '\n'.join([*segment['teacher'], segment['students'], segment['screen'], segment['if_short'],
+                      *[question[key] for question in segment['questions'] for key in ('ask', 'follow_up')]])
+
+
+def _terms(text):
+    """Pairs of Chinese characters and Latin words of a text, LaTeX command names left out: what a problem
+    has to share with the objective it checks."""
+    text = re.sub(r'\\([A-Za-z]+)', lambda match: f' {SPOKEN.get(match[1], "")} ', text)
+    text = re.sub(r'(?<![A-Za-z])(?:(E)|D|Var)\s*\(', lambda match: ' 期望 (' if match[1] else ' 方差 (', text)
+    pairs = {text[i:i + 2] for i in range(len(text) - 1)
+             if re.fullmatch(r'[一-鿿]{2}', text[i:i + 2]) and not set(text[i:i + 2]) & FUNCTION_CHARS}
+    return (pairs | {word.lower() for word in re.findall(r'[A-Za-z]{2,}', text)}) - GENERIC
+
+
+def _bare(text):
+    """A text as long as it reads: no LaTeX command names, braces, dollar signs or spaces."""
+    return re.sub(r'\\[A-Za-z]+|[\s${}\\^_]', '', text)
+
+
+def objective_gaps(design):
+    """[(objective number, item id, words)]: a problem named as checking an objective that shares none of the
+    objective's distinctive words. Words two thirds or more of the lesson's problems use (「概率」 in a probability
+    lesson) and words no problem uses tell nothing and are left out; an objective with nothing left is not judged."""
+    texts = {item['id']: _terms(' '.join([item['title'], item['stem'], item['answer'], item['check'],
+                                          *[step['do'] for step in item['steps']]])) for item in design['items']}
+    if len(texts) < 3:
+        return []
+    counts = Counter(term for terms in texts.values() for term in terms)
+    gaps = []
+    for number, objective in enumerate(design['objectives'], 1):
+        own = {term for term in _terms(objective['text']) if 0 < counts[term] < len(texts) * 2 / 3}
+        if not own:
+            continue
+        gaps += [(number, ref, sorted(own, key=lambda term: (counts[term], term))[:3])
+                 for ref in objective['checked_by'] if not own & texts[ref]]
+    return gaps
+
+
+def _numbers(text):
+    """The numbers a problem gives or a solution reaches, without the 2 of 「例2」 or E2."""
+    text = re.sub(r'(?:前测|例|练|作业|第)\s*\d+', ' ', text)
+    return {round(float(value), 6) for value in _NUMBER.findall(text)}
+
+
+def repeated_items(design):
+    """[(item id, earlier item id)]: an exercise or homework problem whose data all come from the problems before
+    it (an example may keep its predecessor's data: 「次品率不变」) and whose answer one of them has already worked
+    out (a decimal, or two numbers, besides the data)."""
+    bank = {item['id']: item for item in design['items']}
+    order = [ref for ref in labels(design)]
+    found, seen = [], set()
+    for index, ref in enumerate(order):
+        item = bank[ref]
+        given = _numbers(item['stem'])
+        if item['role'] not in ('practice', 'homework') or len(given) < 2 or not given <= seen:
+            if item['role'] != 'homework':
+                seen |= given
+            continue
+        reached = _numbers(item['answer'] + ' ' + ' '.join(step['do'] for step in item['steps'])) - given
+        for earlier in order[:index]:
+            other = bank[earlier]
+            if other['role'] == 'homework':
+                continue
+            shared = reached & _numbers(other['answer'] + ' ' + ' '.join(step['do'] for step in other['steps']))
+            if len(shared) >= 2 or any(value != int(value) for value in shared):
+                found.append((ref, earlier))
+                break
+    return found
+
+
+def _fields(design):
+    """(where, text) of every sentence the model wrote into the design, for wording checks."""
+    yield '学情与对策', design['learner']
+    for key, name in (('key_points', '重点'), ('difficulties', '难点'), ('not_today', '本课不展开')):
+        for text in design['focus'][key]:
+            yield name, text
+    for segment in design['segments']:
+        where = f'环节 {segment["id"]}'
+        yield where + ' 的屏幕', segment['screen']
+        yield where + ' 的学生活动', segment['students']
+        yield where + ' 的时间不够时', segment['if_short']
+        for text in segment['teacher']:
+            yield where + ' 的教师活动', text
+        for text in segment['board']:
+            yield where + ' 的板书', text
+        for question in segment['questions']:
+            for key in ('ask', 'expect', 'wrong', 'follow_up'):
+                yield where + ' 的提问', question[key]
+        for note in segment.get('notes', []):
+            yield where + ' 的学案笔记', note['text'] + ' ' + note['answer']
+    for item in design['items']:
+        for text in [item['stem'], item['answer'], item['check'], item['mistake'],
+                     *[step['do'] + ' ' + step['why'] for step in item['steps']]]:
+            yield f'题目 {item["id"]}', text
+    for objective in design['objectives']:
+        yield '学习目标', objective['text']
+    for text in design['summary']:
+        yield '小结', text
+
+
+def wording(design):
+    """[(kind, where, phrase)] of words a teacher or student cannot use as written: talk about the data or
+    the writing (「依据诊断」「待核对」), a sentence cut off with an ellipsis, an English abbreviation where
+    students read. kind: 'meta' | 'unfinished' | 'abbreviation'."""
+    student = re.compile(r'^(?:题目|学习目标|小结|环节 \w+ 的(?:屏幕|板书|学案笔记))')
+    found = []
+    for where, text in _fields(design):
+        found += [('meta', where, match[0]) for match in META.finditer(text or '')]
+        found += [('unfinished', where, text[max(0, match.start() - 12):match.end()]) for match in UNFINISHED.finditer(text or '')]
+        if student.match(where):
+            found += [('abbreviation', where, match[0]) for match in ABBREVIATION.finditer(text or '')]
+    return list(dict.fromkeys(found))
+
+
+def _decimals(text):
+    return set(re.findall(r'(?<![\d.])\d+\.\d{2,}(?![\d])', text or ''))
+
+
+def _split_top(text, separators):
+    """text split at the separators that stand outside brackets: P(X=2)=0.027 splits once, not twice."""
+    pieces, depth, start, index = [], 0, 0, 0
+    while index < len(text):
+        char = text[index]
+        depth += char in '([{'
+        depth -= char in ')]}'
+        hit = next((sep for sep in separators if depth == 0 and text.startswith(sep, index)), None)
+        if hit:
+            pieces.append(text[start:index])
+            start = index = index + len(hit)
+            continue
+        index += 1
+    return pieces + [text[start:]]
+
+
+def _value(text):
+    """(written, number) for a plain number or a fraction of two integers, None for anything else."""
+    text = re.sub(r'\s+', '', text)
+    if re.fullmatch(r'-?\d+(?:\.\d+)?', text):
+        return text, float(text)
+    fraction = re.fullmatch(r'\\[dt]?frac\{(\d+)\}\{(\d+)\}', text)
+    return (text, int(fraction[1]) / int(fraction[2])) if fraction and int(fraction[2]) else None
+
+
+def _results(text):
+    """{left side: [(written, number)]} of the equations in a text's formulas: $P(D)=0.6\\times0.02+0.4\\times0.05=0.032$
+    gives {'P(D)': [('0.032', 0.032)]}. Sides that are not a plain number or fraction are skipped."""
+    found = {}
+    for formula in re.findall(r'\$([^$\n]+)\$', text or ''):
+        for clause in _split_top(formula, (',', ';', '，', '；', '\\quad', '\\;')):
+            sides = _split_top(clause, ('=', '\\approx'))
+            left = re.sub(r'\s+|\\left|\\right', '', sides[0])
+            values = [value for value in map(_value, sides[1:]) if value]
+            if values and re.search(r'[A-Za-z]', left):
+                found.setdefault(left, []).extend(values)
+    return found
+
+
+def _close(a, b):
+    """Two written values that agree to the coarser of their decimal places."""
+    places = min(len(written.split('.')[1]) if '.' in written else (6 if 'frac' in written else 0) for written in (a[0], b[0]))
+    return abs(a[1] - b[1]) <= 0.5 * 10 ** -places + 1e-9
+
+
+def _stated(design, segment):
+    """The board lines of a segment that state its own results: not a wrong working shown for contrast
+    (≠, 错) and not a line naming a problem of another segment."""
+    ids = {item['id'] for item in design['items']}
+    for line in segment['board']:
+        named = set(re.findall(r'(?<![A-Za-z0-9_\\])[A-Z]\d+(?![A-Za-z0-9_])', line)) & ids
+        if not re.search(r'≠|\\neq|错', line) and not named - set(segment['items']):
+            yield line
+
+
+def board_slips(design):
+    """[(item id, its value, board value)]: a board line gives a result of one of the segment's problems
+    (the same left side, as P(C)) with a value no problem of the lesson reaches for it. Lines showing a wrong
+    working (≠, 错) and lines naming a problem of another segment are left out."""
+    every = {}
+    for item in design['items']:
+        for left, values in _results(' '.join([item['answer'], item['check'], item['mistake'],
+                                               *[step['do'] for step in item['steps']]])).items():
+            every.setdefault(left, []).extend(values)
+    found = []
+    for segment in design['segments']:
+        own = {}
+        for ref in segment['items']:
+            item = next(item for item in design['items'] if item['id'] == ref)
+            for left, values in _results(' '.join([item['answer'], *[step['do'] for step in item['steps']]])).items():
+                own.setdefault(left, []).extend((ref, value) for value in values)
+        for line in _stated(design, segment):
+            for left, values in _results(line).items():
+                if left not in own:
+                    continue
+                for value in values:
+                    if not any(_close(value, other) for other in every.get(left, [])):
+                        ref, reached = own[left][-1]
+                        found.append((ref, reached[0], value[0]))
+    return found
+
+
+def mismatched_values(design):
+    """[(item id, value, other value)]: a result written with the same number of decimals but a different last
+    digit in the solution and in the check or on the board (0.1246 and 0.1247): one of them is a rounding slip.
+    Also a board line giving a problem's result with a value the problem never reaches (board_slips)."""
+    boards = {ref: ' '.join(_stated(design, segment)) for segment in design['segments'] for ref in segment['items']}
+    found = board_slips(design)
+    for item in design['items']:
+        solved = _decimals(item['answer'] + ' ' + ' '.join(step['do'] for step in item['steps']))
+        checked = _decimals(item['check'] + ' ' + boards.get(item['id'], '')) - solved
+        pair = next(((a, c) for a in sorted(solved) for c in sorted(checked)
+                     if len(a.split('.')[1]) == len(c.split('.')[1])
+                     and abs(float(a) - float(c)) <= 2.5 * 10 ** -len(a.split('.')[1])), None)
+        if pair:
+            found.append((item['id'], *pair))
+    return found
 
 
 def mixed_notation(design):
@@ -487,10 +780,27 @@ def humanize(design, text):
             fenced = not fenced
         elif not fenced:
             parts = re.split(r'(\$\$.*?\$\$|\$[^$\n]*\$)', line)  # odd positions are formulas
-            line = ''.join(part if index % 2 else pattern.sub(lambda m, part=part: swap(m, part), part)
+            line = ''.join(part if index % 2 else _NUMBERED.sub('', _DOUBLED.sub(lambda m: next(filter(None, m.groups())),
+                                                               pattern.sub(lambda m, part=part: swap(m, part), part)))
                            for index, part in enumerate(parts))
         lines.append(line)
     return '\n'.join(lines)
+
+
+# 「用 W1 前测确认」 reads 「用前测1前测确认」 once the id is named; the kind is said once.
+_DOUBLED = re.compile(r'(前测\d+) ?前测(?!\d)|(例\d+) ?例题(?!\d)|(练\d+) ?练习(?!\d)|(作业\d+) ?作业(?!\d)')
+# 「小结要点与作业题号H1」 reads 「……作业题号作业1」: before a name the words 「作业题号」 go.
+_NUMBERED = re.compile(r'(?:作业|练习|例题)?题号[ \t：:]*(?=(?:前测|例|练|作业)\d)|(?<=布置)作业(?=作业\d)')
+
+
+def figure_spec(design, spec):
+    """A figure's data with display names in its words (「例1 后验」, not 「E1 后验」); numbers untouched."""
+    if isinstance(spec, dict):
+        return {key: humanize(design, value) if key in ('title', 'label', 'root', 'note') and isinstance(value, str)
+                else figure_spec(design, value) for key, value in spec.items()}
+    if isinstance(spec, list):
+        return [figure_spec(design, value) for value in spec]
+    return spec
 
 
 def gap_outside(text):
@@ -598,17 +908,17 @@ def item_block(design, identity, answers=True):
 
 
 def schedule(design, pages=None):
-    """The one-page run sheet: when, what, who does what, what goes on the board.
-    pages: {segment id: 「第 3—4 页」} adds the slides each segment uses."""
+    """The one-page run sheet: when, which segment, what the students do, which problems.
+    The teacher's moves are written once, under each segment. pages: {segment id: 「第 3—4 页」}
+    adds the slides each segment uses."""
     names = labels(design)
-    head = ['时间', '环节', '教师', '学生', '题目'] + (['课件'] if pages else [])
+    head = ['时间', '环节', '学生', '题目'] + (['课件'] if pages else [])
     rows, clock = ['| ' + ' | '.join(head) + ' |', '|' + ' --- |' * len(head)], 0
     cell = lambda text: re.sub(r'\s+', ' ', text).replace('|', '\\|') or '—'
     for segment in design['segments']:
         title = segment_title(segment) + ('（重点）' if segment['focus'] else '')
         used = '、'.join(names[ref] for ref in segment['items'])
-        teacher = '；'.join(move.rstrip('。；;.') for move in segment['teacher'])
-        row = f'| {clock}—{clock + segment["minutes"]} | {cell(title)} | {cell(teacher)} | {cell(segment["students"])} | {cell(used)} |'
+        row = f'| {clock}—{clock + segment["minutes"]} | {cell(title)} | {cell(segment["students"])} | {cell(used)} |'
         rows.append(row + (f' {cell(pages.get(segment["id"], ""))} |' if pages else ''))
         clock += segment['minutes']
     return humanize(design, '\n'.join(rows))
@@ -660,7 +970,7 @@ def segment_block(design, segment, prose=''):
     lines.append('\n\n'.join(part for part in ordered if part))
     for figure in design['figures']:
         if figure['segment'] == segment['id']:
-            lines += ['', '```figure', json.dumps(figure['spec'], ensure_ascii=False), '```']
+            lines += ['', '```figure', json.dumps(figure_spec(design, figure['spec']), ensure_ascii=False), '```']
     if segment.get('notes'):
         lines += ['', '**学案笔记**（学生边听边填）', ''] + [f'- {filled(note)}' for note in segment['notes']]
     for number, question in enumerate(segment['questions'], 1):
@@ -703,7 +1013,12 @@ def report(design, context):
              if any(sum(bank[ref]['role'] == role for ref in s['items']) * least > s['minutes']
                     for role, least in MIN_MINUTES.items())]
     counts = {role: sum(item['role'] == role for item in design['items']) for role in ROLES}
-    unchecked = [o['text'] for o in design['objectives'] if not o['checked_by']]
+    unchecked = [o['text'] for o in design['objectives'] if not any(bank[ref]['role'] in CHECKING for ref in o['checked_by'])]
+    names = labels(design)
+    loose = [f'目标 {number} 与{names[ref]}' for number, ref, _ in objective_gaps(design)]
+    repeated = [f'{names[ref]}重复{names[earlier]}的数据和结果' for ref, earlier in repeated_items(design)]
+    slips = [f'{names[ref]}写了 {value} 和 {other}' for ref, value, other in mismatched_values(design)]
+    loose_words = [f'{humanize(design, re.sub(r"^(?:环节|题目) ", "", where))}「{phrase}」' for _, where, phrase in wording(design)]
     plan = context.get('personalization_plan') or []
     linked = {link['knowledge_id'] for link in design['plan_links']}
     unlinked = [entry['name'] for entry in plan if entry['knowledge_id'] not in linked]
@@ -716,9 +1031,20 @@ def report(design, context):
         ('design_items', '例题与练习数量', all(counts[role] == number for role, number in wanted),
          f'例题 {counts["example"]} 道、当堂练习 {counts["practice"]} 道、课后作业 {counts["homework"]} 道'
          + ('；授课设置为' + '、'.join(f'{ROLE_NAMES[role]} {number} 道' for role, number in wanted) if wanted else '') + '。'),
-        ('design_objectives', '目标与检验题对应', not unchecked,
-         '以下目标没有对应的练习或作业：' + '；'.join(unchecked) if unchecked
-         else f'{len(design["objectives"])} 条目标都指定了检验它的题目；题目是否真能检验目标需教师判断。'),
+        ('design_objectives', '目标与检验题对应', not unchecked and not loose,
+         '；'.join(filter(None, [
+             '以下目标没有对应的练习或作业：' + '；'.join(unchecked) if unchecked else '',
+             '以下检验题里看不到对应目标的内容，请核对：' + '、'.join(loose) if loose else '']))
+         or f'{len(design["objectives"])} 条目标都指定了检验它的题目，题目里也有目标的关键词；题目是否真能检验目标需教师判断。'),
+        ('design_variety', '练习与例题不重复', not repeated,
+         '；'.join(repeated) + '。换数据、换情境或换问法。' if repeated
+         else '没有练习或作业沿用前面题目的数据并重算已有的结果；按数字比对，换了说法的重复需教师判断。'),
+        ('design_values', '同一结果前后一致', not slips,
+         '；'.join(slips) + '。同一个结果在步骤、答案、检验和板书里应写同一个值。' if slips
+         else '步骤、答案、检验和板书里同样位数的数值没有发现末位不一致；不同位数的近似值不比较。'),
+        ('design_wording', '可以直接使用的写法', not loose_words,
+         '以下地方写了关于数据或生成过程的话、没写完的句子或英文缩写：' + '；'.join(loose_words[:6]) if loose_words
+         else '没有发现「依据诊断」「待核对」这类关于数据的话、没写完的句子或学生材料里的英文缩写；措辞是否合适需教师判断。'),
         ('design_focus', '重点与难点', 1 <= len(design['focus']['key_points']) <= 2,
          f'重点 {len(design["focus"]["key_points"])} 条、难点 {len(design["focus"]["difficulties"])} 条、'
          f'本课不展开 {len(design["focus"]["not_today"])} 条；取舍是否合适需教师判断。'),

@@ -42,6 +42,12 @@ class FormulaText(unittest.TestCase):
         self.assertEqual(mathtext.plain('$\\binom{5}{2}p^2(1-p)^3$'), 'C₅²p²(1 − p)³')
         self.assertEqual(mathtext.plain('两条产线 $A_1$、$A_2$'), '两条产线 A₁、A₂')
 
+    def test_a_fraction_brackets_only_what_would_read_wrong(self):
+        for latex, shown in (('\\frac{P(A\\cap B)}{P(B)}', 'P(A∩B)/P(B)'), ('\\frac{P(A_1)P(D\\mid A_1)}{P(D)}', 'P(A₁)P(D | A₁)/P(D)'),
+                             ('\\frac{a}{b+c}', 'a/(b + c)'), ('\\frac{1}{1-p}', '1/(1 − p)'),
+                             ('\\frac{a}{P(A)P(B)}', 'a/(P(A)P(B))'), ('\\frac{x}{(a)(b)}', 'x/((a)(b))')):
+            self.assertEqual(mathtext.plain(f'${latex}$'), shown, latex)
+
     def test_gaps_are_blank_until_answers_fill_them_in_order(self):
         blank = mathtext.runs('$P(D) = ____$ 和 ____')
         self.assertEqual([run.mark for run in blank if run.mark], ['blank', 'blank'])
@@ -74,14 +80,17 @@ class SlidePlan(unittest.TestCase):
         self.deck = LS.plan(self.design, label='隔离课堂设计', lines=['大学 · 概率论'])
         self.pages = LS.outline(self.deck)
 
-    def test_pages_follow_the_class_order_and_the_last_page_is_hidden(self):
-        self.assertEqual(self.deck['version'], 'lesson-slides-v1')
+    def test_pages_follow_the_class_order_and_say_nothing_about_how_they_were_made(self):
+        self.assertEqual(self.deck['version'], 'lesson-slides-v3')
         self.assertEqual(self.deck['pages'], {'S1': [2, 3], 'S2': [4, 8], 'S3': [9, 11], 'homework': [12, 12]})
-        self.assertEqual((self.deck['visible'], len(self.deck['slides'])), (12, 13))
+        self.assertEqual((self.deck['visible'], len(self.deck['slides'])), (12, 12))
         self.assertEqual([page['layout'] for page in self.pages],
                          ['cover', 'points', 'points', 'problems', 'figure', 'steps', 'problems', 'steps',
-                          'problems', 'problems', 'answers', 'homework', 'notice'])
-        self.assertEqual([page['hidden'] for page in self.pages], [False] * 12 + [True])
+                          'problems', 'problems', 'answers', 'homework'])
+        self.assertEqual([page['hidden'] for page in self.pages], [False] * 12)
+        everything = '\n'.join(page['title'] + '\n'.join(page['body']) + page['notes'] for page in self.pages)
+        for hidden in ('AI', '程序', '模型', '依据材料', 'M13'):
+            self.assertNotIn(hidden, everything)
         self.assertEqual((LS.page_range(self.deck, 'S1'), LS.page_range(self.deck, 'homework'), LS.page_range(self.deck, 'S9')),
                          ('第 2—3 页', '第 12 页', ''))
         cover = self.pages[0]
@@ -126,11 +135,10 @@ class SlidePlan(unittest.TestCase):
         self.assertGreater(crowded['visible'], self.deck['visible'])
         for deck in (self.deck, crowded):
             for template in semantic:
-                prs = Presentation(BytesIO(build_lesson_pptx(deck, template, ['依据：测试讲义'])))
+                prs = Presentation(BytesIO(build_lesson_pptx(deck, template)))
                 slides = list(prs.slides)
                 self.assertEqual(len(slides), len(deck['slides']), template)
-                self.assertEqual([slide._element.get('show') for slide in slides], [None] * (len(slides) - 1) + ['0'], template)
-                self.assertIn('依据：测试讲义', texts(slides[-1]))
+                self.assertEqual([slide._element.get('show') for slide in slides], [None] * len(slides), template)
                 drawn = '\n'.join(texts(slide) for slide in slides)
                 for hidden in ('$', '\\frac', '\\times'):
                     self.assertNotIn(hidden, drawn, template)
@@ -172,14 +180,23 @@ class SlidePlan(unittest.TestCase):
         pages = {segment: LS.page_range(self.deck, segment) for segment in self.deck['pages']}
         self.assertNotIn('课件', D.schedule(self.design))
         sheet = D.schedule(self.design, pages)
-        self.assertIn('| 时间 | 环节 | 教师 | 学生 | 题目 | 课件 |', sheet)
-        self.assertIn('| 例题：双产线 | 板演例1；学生口述例2 | 独立完成 | 例1、例2 | 第 4—8 页 |', sheet)
+        self.assertIn('| 时间 | 环节 | 学生 | 题目 | 课件 |', sheet)
+        self.assertIn('| 例题：双产线 | 独立完成 | 例1、例2 | 第 4—8 页 |', sheet)
         lesson_text = D.document(self.design, {'S1': '先问分母是什么。'}, CONTEXT)
         book = handouts.teacher_book(self.design, lesson_text, [('课程', '概率论')], pages)
         self.assertIn('第 4—8 页 |', book)
         self.assertNotIn('**课件页码**', book)
         self.assertEqual(handouts.teacher_book(self.design, lesson_text, []),
                          handouts.teacher_book(self.design, lesson_text, [], None))
+        # A printed [M13] is looked up in the book itself.
+        parts = {'lecture': {'context': {'materials': [{'id': 13, 'title': '贝叶斯公式', 'source_title': '教材', 'section': '1.4'},
+                                                       {'id': 14, 'title': '未引用'}]}}}
+        sources = packages.book_sources(parts, lesson_text)
+        self.assertEqual(sources, [('M13', '贝叶斯公式 · 教材 · 1.4')])
+        cited = handouts.teacher_book(self.design, lesson_text, [], None, sources)
+        self.assertIn('**资料对照**（正文里方括号中的编号）\n\n| 编号 | 资料 |\n| --- | --- |\n| M13 | 贝叶斯公式 · 教材 · 1.4 |', cited)
+        self.assertLess(cited.index('**资料对照**'), cited.index('## 答案速查'))
+        self.assertNotIn('**资料对照**', book)
         edited = lesson_text.replace(D.schedule(self.design), '老师改过的课堂流程')
         book = handouts.teacher_book(self.design, edited, [], pages)
         self.assertIn('老师改过的课堂流程', book)

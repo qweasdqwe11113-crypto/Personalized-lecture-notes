@@ -213,8 +213,8 @@ class LectureQuizTests(QuizFixture):
         self.assertEqual(self.client.get('/api/quizzes?lecture_id=x').status_code, 400)
         teacher = self.client.get(f"/api/quizzes/{result['id']}/download?format=md&version=teacher").data.decode()
         student = self.client.get(f"/api/quizzes/{result['id']}/download?format=md&version=student").data.decode()
-        self.assertIn(f'配套讲义 #{self.lecture_id} / 原稿', teacher)
-        self.assertNotIn('配套讲义', student)
+        self.assertIn('教师版', teacher)
+        self.assertNotIn('配套讲义', teacher + student)   # the record lists the lecture; the sheet does not
 
     def test_general_level_keeps_lecture_but_drops_individual_diagnostics(self):
         result = self.submit(self.lecture_payload(student_level='standard'))
@@ -281,8 +281,9 @@ class LectureQuizTests(QuizFixture):
         self.assertIn('几乎照抄了学生已经做过的「例1」', seen[1][2][-1]['content'])
         first = result['result']['questions'][0]
         self.assertEqual(first['stem'], '两条产线的产量占比为 0.7、0.3，次品率为 0.01、0.04。抽到一件次品，求 $P(A_1\\mid D)$，并说明 $A_2$ 的后验为何更大。')
-        self.assertEqual(first['analysis'], '对应学习目标 1。$P(A_1\\mid D) = \\frac{0.007}{0.019}$，与例1同类。')
-        self.assertTrue(result['result']['questions'][1]['analysis'].startswith('对应学习目标 1。'))   # added when missing
+        # The objective is printed on its own line; the analysis keeps only the solution.
+        self.assertEqual(first['analysis'], '$P(A_1\\mid D) = \\frac{0.007}{0.019}$。')
+        self.assertFalse(any('对应学习目标' in q['analysis'] for q in result['result']['questions']))
         docx = self.client.get(f"/api/quizzes/{result['id']}/download?format=docx&version=teacher").data
         xml = ZipFile(BytesIO(docx)).read('word/document.xml').decode()
         self.assertIn('<m:oMath', xml)   # the formulas are Word equations, not dollar signs
@@ -324,7 +325,8 @@ class LectureQuizTests(QuizFixture):
         self.assertEqual(quiz['status'], 'succeeded', quiz)
         self.assertEqual(quiz['checks'], [{'number': 2, 'details': ['0.3 * 0.2 计算得 0.06，与所写的 0.08 不一致。']}])
         teacher = self.client.get(f"/api/quizzes/{quiz['id']}/download?format=md&version=teacher").data.decode()
-        self.assertIn('算式复算提醒（可能误报）：0.3 * 0.2 计算得 0.06', teacher)
+        for note in ('算式复算', '可能误报', '需教师复核', '请复核', '出题时状态'):   # the web view shows the reminder
+            self.assertNotIn(note, teacher)
 
     def test_one_question_is_replaced_or_edited_as_a_new_record(self):
         self.designed()
@@ -467,10 +469,32 @@ class DesignedQuizChecks(unittest.TestCase):
             return json.dumps(data, ensure_ascii=False)
         result = parse_questions(reply(), self.context())
         self.assertEqual([q['objective'] for q in result['questions']], [1, 2])
-        self.assertTrue(result['questions'][1]['analysis'].startswith('对应学习目标 2。'))
+        self.assertEqual([q['analysis'] for q in result['questions']], ['先算全概率。', '只写一项会错。'])
         self.assertIn('解析却写成目标 2', self.rejected(reply('对应学习目标 2。先算全概率。')))
         self.assertIn('学习目标分配', self.rejected(reply().replace('"objective": 2', '"objective": 1')))
         self.assertIn('数值相同', self.rejected(reply(options=('0.5', '1/2', '$0.25$', '1'))))
+
+    def test_the_analysis_says_how_to_solve_and_nothing_about_the_quiz(self):
+        from quizzes import solution_only
+        self.assertEqual(solution_only('本题考查全概率公式。$P(D) = 0.7 \\times 0.01 + 0.3 \\times 0.04 = 0.019$，与例2类似，需教师复核。'),
+                         '$P(D) = 0.7 \\times 0.01 + 0.3 \\times 0.04 = 0.019$。')
+        self.assertEqual(solution_only('本题与练1同属一类，均为贝叶斯。先算 $P(D)$。'), '先算 $P(D)$。')
+        self.assertEqual(solution_only('题中次品率与讲义冲突，以讲义 0.02 为准。'), '题中次品率与讲义冲突，以讲义 0.02 为准。')
+
+    def test_the_same_numbers_in_a_new_situation_are_a_copy(self):
+        from quizzes import copied_problem
+        used = [dict(name='作业1', stem='某网站平均每分钟收到 $4$ 次访问请求，访问次数服从泊松分布。求某分钟内恰好收到 $3$ 次访问请求的概率。',
+                     answer='$P(X=3)=\\frac{32}{3}e^{-4} \\approx 0.1954$')]
+        stem = '某客服中心平均每小时接到 $4$ 次投诉电话，次数服从泊松分布。求某小时内恰好接到 $3$ 次投诉的概率 $P(X=3)$。（保留四位小数）'
+        self.assertEqual(copied_problem(stem, used, '$\\frac{32}{3}e^{-4}\\approx 0.1954$'), '作业1')
+        self.assertIsNone(copied_problem(stem.replace('$4$', '$5$'), used, '$\\frac{125}{6}e^{-5}\\approx 0.1404$'))
+
+    def test_an_analysis_that_corrects_itself_goes_back(self):
+        data = json.loads(self.reply('全新的题目：先验变大时后验怎样变化？'))
+        data['questions'][0]['analysis'] = '$P(A_2\\mid D)=\\frac{3}{8}$。\n\n等等，重新核验计算：选项中无 $\\frac{3}{8}$，调整数值。'
+        self.assertIn('改算的过程（「等等，」）', self.rejected(json.dumps(data, ensure_ascii=False)))
+        data['questions'][0]['analysis'] = '先验变化后重新计算全概率：$P(D)=0.066$。选项 A、B 等等，都不对。'
+        self.assertEqual(len(parse_questions(json.dumps(data, ensure_ascii=False), self.context())['questions']), 2)
 
     def test_more_ways_of_writing_symbols_follow_the_handout(self):
         result = parse_questions(self.reply('已知 P(A₁)=0.6，求 A₂ 的后验；P(X≥2)=1-3e^{-2}'), self.context())

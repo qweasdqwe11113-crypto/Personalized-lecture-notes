@@ -32,7 +32,14 @@ def designed_system(context, stage):
     if family in ('probability', 'math'):
         parts.append((PROMPTS / f'lecture-subject-{family}-v1.md').read_text(encoding='utf-8').strip())
     parts.append((PROMPTS / f'lecture-design-{stage}-v1.md').read_text(encoding='utf-8').strip())
+    if tutoring(context):
+        parts.append((PROMPTS / 'lecture-design-tutor-v1.md').read_text(encoding='utf-8').strip())
     return '\n\n'.join(parts)
+
+
+def tutoring(context):
+    """A lesson for one student is one-to-one tutoring, not a class."""
+    return context.get('personalization_mode', 'profile') == 'profile'
 
 
 def designed_view(context):
@@ -83,12 +90,12 @@ def prepare_design(context, goal, model):
         user.update(previous_design=feedback['design'], teacher_feedback=feedback['note'])
     payload = {'model': model, 'messages': [{'role': 'system', 'content': system},
                                             {'role': 'user', 'content': json.dumps(user, ensure_ascii=False, default=str)}],
-               'temperature': 0.3, 'max_tokens': 8000, 'chat_template_kwargs': {'enable_thinking': False},
+               'temperature': 0.3, 'max_tokens': 10000, 'chat_template_kwargs': {'enable_thinking': False},
                'response_format': {'type': 'json_object'}}
     body = json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
     family = course_family(context['topic'])
     version = ('lesson-design-v1' + (f'+{family}-v1' if family in ('probability', 'math') else '')
-               + ('+revision' if feedback else ''))
+               + ('+tutor-v1' if tutoring(context) else '') + ('+revision' if feedback else ''))
     return PreparedRequest(body, hashlib.sha256(body.encode('utf-8')).hexdigest(), version, 'lesson-design-context-v1')
 
 

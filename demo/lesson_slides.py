@@ -10,10 +10,10 @@ a page:
 - an example: the problem, then the worked solution (continued on another page when long);
 - summary and homework, and a figure on a page of its own where the design has one.
 
-Students see no source markers, AI notices or category labels. Teaching notes, questions with
-expected answers and the review reminder go to the speaker notes and to a last page that is
-hidden during the slide show. Page numbers are fixed here, before drawing, so the teacher's book
-can print them in its run sheet.
+Students see no source markers, AI notices or category labels. Teaching notes and questions with
+expected answers go to the speaker notes; how the deck was made is told in the package's record, not
+on a slide. Page numbers are fixed here, before drawing, so the teacher's book can print them in its
+run sheet.
 """
 import re
 
@@ -21,7 +21,7 @@ import design as D
 import lesson_layout as L
 import mathtext
 
-VERSION = 'lesson-slides-v1'
+VERSION = 'lesson-slides-v3'   # v3: no hidden notice page, no AI or source notes; v2: short answer pages sit lower
 HEADINGS = {'warmup': '课前回顾', 'intro': '导入', 'concept': '新知', 'example': '例题', 'practice': '课堂练习',
             'summary': '课堂小结', 'homework': '课后作业'}
 SIZES = dict(cover=(26, 24, 22, 20), points=(32, 30, 28, 26, 24), problems=(32, 30, 28, 26, 24),
@@ -160,15 +160,6 @@ class _Deck:
                                  question='' if made else question))
         return made
 
-    def figure_spec(self, spec):
-        """The figure's data with display names in its words (「例1 后验」, not 「E1 后验」); numbers untouched."""
-        if isinstance(spec, dict):
-            return {key: self.shown(value) if key in ('title', 'label', 'root', 'note') and isinstance(value, str)
-                    else self.figure_spec(value) for key, value in spec.items()}
-        if isinstance(spec, list):
-            return [self.figure_spec(value) for value in spec]
-        return spec
-
     def homework(self, segment):
         items = [item for item in self.design['items'] if item['role'] == 'homework']
         if not items:
@@ -221,7 +212,7 @@ class _Deck:
             heading = title if kind != 'practice' or '练' in title else f'{HEADINGS[kind]}：{title}'
             made += self.problems(segment, others, heading, ask)
             made += self.answers(segment, others, f'{heading} · 答案')
-        figures = [self.figure_spec(entry['spec']) for entry in self.design['figures'] if entry['segment'] == segment['id']]
+        figures = [D.figure_spec(self.design, entry['spec']) for entry in self.design['figures'] if entry['segment'] == segment['id']]
         for number, spec in enumerate(figures):
             page = dict(layout='figure', segment=segment['id'], heading=HEADINGS[kind],
                         title=self.shown(spec.get('title') or title), figure=spec, question='')
@@ -267,8 +258,6 @@ def _page_notes(deck, page):
                 parts.append('检验：' + deck.said(item['check']))
             if item['mistake']:
                 parts.append('易错：' + deck.said(item['mistake']))
-            if item['sources']:
-                parts.append('依据材料：' + '、'.join(item['sources']))
             lines.append('；'.join(parts))
     if page.get('fill') == 'answers':
         lines.append('这一页是学案填空的答案。')
@@ -284,9 +273,6 @@ def _page_notes(deck, page):
     return lines
 
 
-REVIEW = '内容由 AI 生成，程序只核对了结构、时间、数量和编号；上课前请核对推导、答案和提问。'
-
-
 def plan(design, label='', lines=()):
     """The deck as data: pages with their content and font size, the speaker notes, and the pages of each segment.
 
@@ -299,7 +285,7 @@ def plan(design, label='', lines=()):
         [f'重点：{"；".join(deck.said(t) for t in design["focus"]["key_points"])}'] +
         ([f'难点：{"；".join(deck.said(t) for t in design["focus"]["difficulties"])}'] if design['focus']['difficulties'] else []) +
         ([f'本课不展开：{"；".join(deck.said(t) for t in design["focus"]["not_today"])}'] if design['focus']['not_today'] else []) +
-        ([f'学情与对策：{deck.said(design["learner"])}'] if design['learner'] else []) + ['', REVIEW])
+        ([f'学情与对策：{deck.said(design["learner"])}'] if design['learner'] else []))
     homework_placed = False
     for index, segment in enumerate(design['segments']):
         made = deck.segment(segment)
@@ -322,11 +308,6 @@ def plan(design, label='', lines=()):
         if made:
             deck.pages['homework'] = [len(deck.slides)] * 2
     visible = len(deck.slides)
-    deck.add(None, 'notice', '授课前请核对（放映时不显示）', hidden=True, lines=[
-        REVIEW, '题目、步骤和答案与学生学案、教师用书取自同一份课堂设计，逐字相同；改动题目时三份材料要一起改。',
-        '公式写成可编辑的文字（上下标、分式写作 a/b），可以直接在 PowerPoint 或 WPS 里修改。',
-        f'页面由程序排版（{VERSION}），没有调用模型。'],
-        notes=REVIEW)
     for page in deck.slides:
         page.setdefault('notes', '')
         page.setdefault('progress', [len(design['segments']), -1])
@@ -369,8 +350,6 @@ def outline(deck):
                     for _, entries in page['groups'] for entry in entries]
         elif page['layout'] == 'figure':
             body = ['【图】' + flat(page['title'])]
-        elif page['layout'] == 'notice':
-            body = list(page['lines'])
         if page.get('question'):
             body.append('想一想：' + flat(page['question']))
         result.append(dict(number=number, layout=page['layout'], heading=page['heading'], title=flat(page['title']),

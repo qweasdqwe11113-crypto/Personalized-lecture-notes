@@ -82,10 +82,8 @@ def fit_template_shapes(slide, width, height, region, *, zones=False):
 LESSON_TEMPLATE_ERROR = '课件模板不可用，请换一个模板。'
 
 
-def build_lesson_pptx(deck, template_id, provenance=()):
-    """Slides planned by lesson_slides.plan() drawn on a semantic template. No model content controls geometry.
-
-    provenance: lines appended to the hidden last page (lecture, design and template versions)."""
+def build_lesson_pptx(deck, template_id):
+    """Slides planned by lesson_slides.plan() drawn on a semantic template. No model content controls geometry."""
     import lesson_layout
     try:
         template = template_record(template_id)
@@ -117,7 +115,6 @@ def build_lesson_pptx(deck, template_id, provenance=()):
             set_slide_bg(slide, RGBColor(255, 255, 255))
         slide.name = plain(page['title'])
         if page.get('hidden'):
-            page = {**page, 'lines': [*page['lines'], *provenance]}
             slide._element.set('show', '0')
         lesson_layout.draw(slide, theme, page, page['progress'], plain(deck['label']), index, deck['visible'], skin=skin)
         if native:

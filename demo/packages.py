@@ -10,6 +10,7 @@ from io import BytesIO
 import json
 import re
 
+import design as lesson_design
 import handouts
 import richdoc
 from urllib.parse import quote
@@ -25,8 +26,11 @@ from quizzes import DIFFICULTIES, LEVELS, TYPES, lecture_topic_key, option_lines
 from reviews import STATUS_LABELS, ReviewError, lecture_row, review_bundle, version_row
 from teaching import DETAILS, LESSON_TYPES
 
-PACKAGE_VERSION = 'lesson-package-v1'
-DESIGNED_VERSION = 'lesson-package-v2'   # a lesson written from a lesson design: handout, teacher's book, record
+# v1.1 / v2.1: the Markdown copies and the manifest moved into ATTACHED; a designed lesson's quiz is its after-class check.
+PACKAGE_VERSION = 'lesson-package-v1.1'
+DESIGNED_VERSION = 'lesson-package-v2.1'   # a lesson written from a lesson design: handout, teacher's book, record
+ATTACHED = '附件/'
+MANIFEST = ATTACHED + '授课包清单.json'
 FONT = 'Noto Sans SC'
 PAGE_BREAK = '<!-- pagebreak -->'
 VERSION_STATUS = {**STATUS_LABELS, 'unreviewed': '原稿未审核'}
@@ -223,6 +227,9 @@ def sources_section(parts):
         lines.extend(['因字符预算未纳入的材料：' + '、'.join(f'M{i}' for i in budget['omitted_material_ids']), ''])
     if not ctx.get('materials'):
         lines.append('本次未提供课程参考材料，讲义来源不足，需教师补充核对。')
+    if ctx.get('reference_examples'):
+        names = '、'.join(example.get('name', '') for example in ctx['reference_examples'] if example.get('name'))
+        lines.extend([f'例题采用了课题设定的参考例题（{names}）：数据是自编的假设数据，不是实际统计；学案和课件里不再逐题注明。', ''])
     for m in ctx.get('materials', []):
         lines.extend([f"### [M{m['id']}] {m.get('title', '')}", '',
                       f"来源：{m.get('source_title', '')} · {m.get('source_url', '')} · {m.get('section', '')}"])
@@ -275,7 +282,7 @@ def handbook_markdown(parts):
 def deck_label(deck, revision=0):
     """A deck built from the lesson design: how many pages, on which template. The design is the one the
     lecture was written from, so wording changed in a revision is not on the slides."""
-    label = f"按课堂设计排版 · {deck['plan']['visible']} 页 · {deck['template']['name']}（课件页码见课堂流程表）"
+    label = f"{deck['plan']['visible']} 页 · {deck['template']['name']}（各环节用到的页码见课堂流程表）"
     return label + ('；修订稿改动的文字不在课件里，请对照修改' if revision else '')
 
 
@@ -289,8 +296,13 @@ def slide_pages(parts):
 
 
 def designed(parts):
-    """The lesson design this lecture was written from, or None for lectures of the older pipelines."""
-    return parts['lecture']['context'].get('lesson_design')
+    """The lesson design this lecture was written from, or None for lectures of the older pipelines.
+    A design saved before it recorded its audience takes it from the lecture."""
+    context = parts['lecture']['context']
+    design = context.get('lesson_design')
+    if design and 'audience' not in design:
+        design = {**design, 'audience': lesson_design.AUDIENCES.get(context.get('personalization_mode', 'profile'), 'student')}
+    return design
 
 
 def book_facts(parts):
@@ -300,14 +312,29 @@ def book_facts(parts):
     profiled = ctx.get('personalization_mode', 'profile') != 'none'
     rows = [('课程', ' / '.join(filter(None, [topic.get('stage'), topic.get('course'), topic.get('chapter')])) or topic.get('course')),
             ('教学目标', lecture['goal']),
-            ('授课对象', f"{student.get('name')}（{student.get('subtitle', '')}）" if profiled else '通用（未使用学生信息）'),
+            ('授课对象', f"{student.get('name')}（{student.get('subtitle', '')}）" if profiled else '通用'),
             ('课时', f"{options.get('duration')} 分钟 · {LESSON_TYPES.get(options.get('lesson_type'), '—')}" if options else '未记录'),
-            ('讲义版本', f"#{lecture['id']} / {version_label(version['revision_number'])} · {VERSION_STATUS.get(version['status'], version['status'])}")]
+            ('讲义版本', version_label(version['revision_number']))]
     if deck:
-        rows.append(('配套课件', deck_label(deck, version['revision_number']) if deck.get('design') else f"#{deck['run']['id']} · {len(deck['slides']['slides'])} 页"))
-    if quiz:
+        rows.append(('配套课件', deck_label(deck, version['revision_number']) if deck.get('design') else f"{len(deck['slides']['slides'])} 页"))
+    if quiz and designed(parts):
+        rows.append(('课后检测', f"{quiz['options']['count']} 题，见「课后检测-学生版」「课后检测-教师版」。学案上的课后作业是当天的巩固；"
+                                 '这组题用在下次课前或单元检测'))
+    elif quiz:
         rows.append(('配套练习', f"{quiz['options']['count']} 题，另见「学生练习」与「练习-教师版」"))
     return rows
+
+
+def book_sources(parts, text):
+    """(code, what it is) of every material and image reading the teacher's book cites, so a printed
+    「[M96]」 can be looked up on the spot."""
+    ctx = parts['lecture']['context']
+    known = {f"M{m['id']}": ' · '.join(filter(None, [m.get('title'), m.get('source_title'), m.get('section')]))
+             for m in ctx.get('materials', [])}
+    known.update({item['citation_id']: f"图片解析 · {item.get('label', '图片')}"
+                  for item in ctx.get('visual_evidence', [])})
+    cited = dict.fromkeys(re.findall(r'\[([MV]\d+)\]', text))
+    return [(code, known[code]) for code in cited if code in known]
 
 
 def record_markdown(parts):
@@ -316,7 +343,9 @@ def record_markdown(parts):
     title = lecture['context'].get('topic', {}).get('title', lecture['topic'])
     lines = [f'# {title} · 生成记录与核对', '',
              f"授课包版本 {DESIGNED_VERSION} · 汇总时间 {datetime.now(timezone.utc).astimezone():%Y-%m-%d %H:%M}", '',
-             '> 这份文件说明教师用书和学生学案是依据什么生成的，以及授课前要核对什么。学生档案部分仅供教师参考。', '']
+             '> 这份文件说明教师用书和学生学案是依据什么生成的，以及授课前要核对什么。学生档案部分仅供教师参考。', '',
+             '> 教师用书、学案、课件和课后检测由 AI 生成，程序只核对了结构、时间、数量和编号；'
+             '授课前请核对重点取舍、推导和答案。教师用书、含答案的学案和课后检测教师版含答案，不要发给学生。', '']
     for section in (overview, learner_section, sources_section, review_section):
         block = [line for line in section(parts) if line != PAGE_BREAK]
         if block:
@@ -456,7 +485,8 @@ def markdown_docx(text):
 def documents(parts):
     """Markdown of each document of a designed lesson: teacher's book, handout, handout with answers, record."""
     design = designed(parts)
-    return dict(teacher=handouts.teacher_book(design, parts['version']['content'], book_facts(parts), slide_pages(parts)),
+    return dict(teacher=handouts.teacher_book(design, parts['version']['content'], book_facts(parts), slide_pages(parts),
+                                              book_sources(parts, parts['version']['content'])),
                 handout=handouts.student_handout(design), key=handouts.student_handout(design, answers=True),
                 record=record_markdown(parts))
 
@@ -464,21 +494,27 @@ def documents(parts):
 def build_package(parts):
     lecture, version, quiz, deck = parts['lecture'], parts['version'], parts['quiz'], parts['deck']
     label = version_label(version['revision_number'])
+    # What the teacher opens sits at the top; the Markdown copies and the manifest go into a folder of their own.
     if designed(parts):
         docs = documents(parts)
-        files = [('教师用书.docx', markdown_docx(docs['teacher'])), ('教师用书.md', docs['teacher'].encode('utf-8')),
-                 ('学生学案.docx', markdown_docx(docs['handout'])), ('学生学案.md', docs['handout'].encode('utf-8')),
+        files = [('教师用书.docx', markdown_docx(docs['teacher'])), ('学生学案.docx', markdown_docx(docs['handout'])),
                  ('学生学案-含答案.docx', markdown_docx(docs['key'])),
                  ('生成记录与核对.docx', markdown_docx(docs['record']))]
+        extra = [(ATTACHED + '教师用书.md', docs['teacher'].encode('utf-8')),
+                 (ATTACHED + '学生学案.md', docs['handout'].encode('utf-8'))]
+        quiz_names = ('课后检测-学生版.docx', '课后检测-教师版.docx')
     else:
         handbook = handbook_markdown(parts)
-        files = [('教师授课手册.docx', markdown_docx(handbook)), ('教师授课手册.md', handbook.encode('utf-8')),
-                 (f'讲义正文-{label}.md', version['content'].encode('utf-8'))]
+        files = [('教师授课手册.docx', markdown_docx(handbook))]
+        extra = [(ATTACHED + '教师授课手册.md', handbook.encode('utf-8')),
+                 (ATTACHED + f'讲义正文-{label}.md', version['content'].encode('utf-8'))]
+        quiz_names = ('学生练习.docx', '练习-教师版.docx')
     if quiz:
-        files.append(('学生练习.docx', markdown_docx(quiz_markdown(quiz, False))))
-        files.append(('练习-教师版.docx', markdown_docx(quiz_markdown(quiz, True))))
+        files.append((quiz_names[0], markdown_docx(quiz_markdown(quiz, False))))
+        files.append((quiz_names[1], markdown_docx(quiz_markdown(quiz, True))))
     if deck:
         files.append(('授课课件.pptx', deck['pptx']))
+    files += extra
     manifest = dict(
         package_version=DESIGNED_VERSION if designed(parts) else PACKAGE_VERSION, generated_at=datetime.now(timezone.utc).isoformat(),
         lecture=dict(id=lecture['id'], revision=version['revision_number'], status=version['status'],
@@ -490,13 +526,15 @@ def build_package(parts):
                       dict(run_id=deck['run']['id'], request_sha256=deck['run']['request_sha256'],
                            template=deck['run']['context']['ppt_export'].get('template_id')) if deck else None),
         files=[dict(name=name, bytes=len(data), sha256=sha256(data).hexdigest()) for name, data in files],
-        note='所有内容读取自已保存记录；AI 生成内容须教师复核。学生练习不含答案与学生信息。'
-             + ('学生学案与教师用书由同一份课堂设计排版，题目逐字相同；「含答案」的学案和教师用书不要发给学生。' if designed(parts) else ''))
+        note='所有内容读取自已保存记录；AI 生成内容须教师复核。'
+             + ('学生学案与教师用书由同一份课堂设计排版，题目逐字相同；「含答案」的学案、教师用书和课后检测教师版不要发给学生。'
+                '课后检测学生版不含答案与学生信息。' if designed(parts) else '学生练习不含答案与学生信息。')
+             + f'Markdown 版和本清单在「{ATTACHED.rstrip("/")}」文件夹里。')
     stream = BytesIO()
     with ZipFile(stream, 'w', ZIP_DEFLATED) as archive:
         for name, data in files:
             archive.writestr(name, data)
-        archive.writestr('授课包清单.json', json.dumps(manifest, ensure_ascii=False, indent=2))
+        archive.writestr(MANIFEST, json.dumps(manifest, ensure_ascii=False, indent=2))
     return stream.getvalue(), manifest
 
 

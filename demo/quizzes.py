@@ -22,6 +22,15 @@ TYPES = {'single_choice': '单项选择', 'fill_blank': '填空', 'short_answer'
          'calculation': '计算', 'application': '综合应用'}
 DIFFICULTIES = {'basic': '基础', 'medium': '中等', 'advanced': '拔高', 'mixed': '混合难度'}
 LEVELS = {'profile': '按学生画像', 'foundation': '基础待巩固', 'standard': '常规水平', 'advanced': '学有余力'}
+# Sentences of an analysis that talk about the quiz instead of solving the problem: 「对应学习目标 1。」
+# 「本题与练1同类……」「本题考查……」「需教师复核……」. A sentence naming a conflict with the materials stays.
+_ABOUT = re.compile(r'对应(?:学习)?目标\s*\d+|(?:与|和)[^。，；]{0,12}(?:例|练|作业|前测)\s*\d+[^。]{0,8}(?:同类(?!项)|同属|类似)'
+                    r'|本题(?:主要)?考查|讲义(?:要点|第\s*\d+)|课堂第\s*\d+\s*环节|(?:需|需要|请)(?:教师)?(?:复核|核对)|仅供参考')
+_SENTENCE = re.compile(r'[^。！？\n]+[。！？]?|\n')
+# A model correcting itself in the answer or analysis (「等等，重新核验……调整数值……」): the stem, options and
+# answer it wrote do not agree, so the question goes back rather than to the teacher.
+_SCRATCH = re.compile(r'(?:^|[。！？\n])\s*等等[，,]|重新(?:核验|审视)|需(?:要)?修正|上面(?:的)?答案|调整(?:数值|数据)'
+                      r'|选项中(?:没有|无)|题目设计|不匹配|这也不整')
 
 
 class QuizError(ValueError):
@@ -218,10 +227,12 @@ def _bare(text):
     return re.sub(r'\\[A-Za-z]+|[\s$\\{}^_，。、；：？！,.;:?!()（）【】\[\]"“”‘’]', '', text).casefold()
 
 
-def copied_problem(stem, used):
+def copied_problem(stem, used, answer=''):
     """The name of a problem the students have already met that this stem copies, or None.
     A copy is the same text give or take a few characters, or nearly the same text with the same numbers;
-    a variant with new numbers, a new question or a new situation passes."""
+    The same numbers in a new situation is a copy too when the question is alike (ratio 0.5) or the answer
+    reaches a result the problem's answer already gives: the students have that answer. A variant with new
+    numbers, or a new question, passes."""
     numbers = lambda text: sorted(re.findall(r'(?<![A-Za-z_{.\d])\d+(?:\.\d+)?', text))   # not the 1 of A1 or A_1
     bare, mine = _bare(stem), numbers(stem)
     for problem in used:
@@ -229,7 +240,11 @@ def copied_problem(stem, used):
         if len(known) < 12:
             continue
         ratio = SequenceMatcher(None, bare, known, autojunk=False).ratio()
-        if (len(known) >= 20 and known in bare) or ratio >= 0.95 or (ratio >= 0.85 and mine == numbers(problem['stem'])):
+        same = mine == numbers(problem['stem'])
+        alike = len(set(mine)) >= 2 and set(mine) == set(numbers(problem['stem']))
+        reached = (set(numbers(answer)) & set(numbers(problem.get('answer', '')))) - set(mine)
+        if ((len(known) >= 20 and known in bare) or ratio >= 0.95 or (ratio >= 0.85 and same)
+                or (alike and (ratio >= 0.5 or reached))):
             return problem['name']
     return None
 
@@ -336,6 +351,10 @@ def parse_questions(content, context):
         for field, maximum in [('stem', 3000), ('answer', 2500), ('analysis', 5000), ('common_mistake', 1500)]:
             if not isinstance(q[field], str) or not q[field].strip() or len(q[field]) > maximum:
                 invalid('题干、答案或解析不完整或过长，请重试。')
+        scratch = _SCRATCH.search(q['answer'] + '\n' + q['analysis'])
+        if scratch:
+            invalid(f'第 {q["number"]} 题的答案或解析里有改算的过程（「{re.sub(r"^[。！？\s]+", "", scratch[0])}」）：'
+                    '先把题干、选项和答案改到彼此一致，解析只写最后的正确解法。')
         stem = ''.join(q['stem'].split()).casefold()
         if stem in seen:
             invalid('题组存在重复题干，请重试。')
@@ -344,9 +363,9 @@ def parse_questions(content, context):
             texts = [q[k] for k in ('stem', 'answer', 'analysis', 'common_mistake')] + (q['options'] if isinstance(q['options'], list) else [])
             if any(isinstance(v, str) and re.search(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', v) for v in texts):
                 invalid(f'第 {q["number"]} 题里有损坏的公式：JSON 字符串中的每个反斜杠要写成两个，请重试。')
-            same = copied_problem(q['stem'], design['used'])
+            same = copied_problem(q['stem'], design['used'], q['answer'])
             if same:
-                invalid(f'第 {q["number"]} 题几乎照抄了学生已经做过的「{same}」，请换情境、数值或设问方式出变式题。')
+                invalid(f'第 {q["number"]} 题几乎照抄了学生已经做过的「{same}」，请换一组数值，并换情境或设问方式出变式题。')
             if 'objective' in q:
                 said = re.match(r'\s*对应(?:学习)?目标\s*(\d+)', q['analysis'])
                 if said and int(said[1]) != q['objective']:
@@ -378,13 +397,33 @@ def parse_questions(content, context):
             for field in ('stem', 'analysis', 'common_mistake') + (() if q['type'] == 'single_choice' else ('answer',)):
                 q[field] = unify_notation(q[field], symbols)
             q['options'] = [unify_notation(option, symbols) for option in q['options']]
-            if 'objective' in q and not re.match(r'\s*对应(?:学习)?目标', q['analysis']):
-                q['analysis'] = f'对应学习目标 {q["objective"]}。' + q['analysis']
+    for q in result['questions']:
+        q['analysis'] = solution_only(q['analysis'])
     if replace:
         # One question regenerated: the rest of the set is the frozen copy of the set it came from.
         new = result['questions'][0]
         result = {'questions': [new if other['number'] == new['number'] else other for other in context['replace_base']]}
     return result
+
+
+def solution_only(text):
+    """An analysis as a teacher explains it, without the words about the quiz itself (the teacher's version
+    prints the learning objective on its own line). A sentence that opens with them goes (「本题与练1同类，均为……」);
+    elsewhere only that clause goes (「$P(D)=0.019$，与例1同类。」 keeps the formula)."""
+    kept = []
+    for sentence in _SENTENCE.findall(text or ''):
+        if sentence == '\n' or '冲突' in sentence:
+            kept.append(sentence)
+            continue
+        end = sentence[-1] if sentence[-1] in '。！？' else ''
+        pieces = re.split(r'([，,；;])', sentence[:len(sentence) - len(end)])
+        clauses = list(zip(pieces[0::2], pieces[1::2] + ['']))
+        if _ABOUT.search(clauses[0][0]):
+            continue
+        body = ''.join(clause + mark for clause, mark in clauses if not _ABOUT.search(clause)).rstrip('，,；; ')
+        if body.strip():
+            kept.append(body + end)
+    return re.sub(r'\n{3,}', '\n\n', ''.join(kept)).strip() or (text or '').strip()
 
 
 def check_edited(q):
@@ -538,13 +577,11 @@ def option_lines(options):
 
 def quiz_markdown(row, teacher=False):
     context = row['context']
-    lines = ['# '+context['topic']['title']+' · 练习题', '',
+    # A quiz on a lesson taught from a design is the after-class check; the handout already carries homework.
+    kind = '课后检测' if (context.get('lecture') or {}).get('design') else '练习题'
+    lines = ['# '+context['topic']['title']+' · '+kind, '',
              f"共 {row['options']['count']} 题 · {DIFFICULTIES[row['options']['difficulty']]}", '',
-             '教师版 · 答案与解析需教师复核。' if teacher else '姓名：____________    日期：____________', '']
-    if teacher and context.get('lecture'):
-        lecture = context['lecture']
-        lines[-1:-1] = [f"配套讲义 #{lecture['id']} / {'原稿' if not lecture['revision'] else 'R' + str(lecture['revision'])}"
-                        f"（出题时状态：{lecture['status']}）", '']
+             '教师版' if teacher else '姓名：____________    日期：____________', '']
     for q in row['result']['questions']:
         lines.extend([f"## 第 {q['number']} 题 · {TYPES[q['type']]} · {DIFFICULTIES[q['difficulty']]}", '', q['stem'], ''])
         lines.extend(option_lines(q['options']))
@@ -554,13 +591,13 @@ def quiz_markdown(row, teacher=False):
         names = {s['id']: s['name'] for s in context['states']}
         names.update(context.get('knowledge_names', {}))
         objectives = objective_names(context)
-        reminders = {check['number']: check['details'] for check in quiz_checks(row)}
+        materials = {f"M{m['id']}": m.get('title') or f"M{m['id']}" for m in context.get('materials', [])}
         for q in row['result']['questions']:
             lines.extend([f"### 第 {q['number']} 题", f"知识点：{names.get(str(q['knowledge_id']), names.get(q['knowledge_id'], ''))}"]
                          + ([f"学习目标：{objectives[q['objective']]}"] if q.get('objective') in objectives else [])
-                         + ['参考答案：'+q['answer'], '', '解析：'+q['analysis'], '', '易错点：'+q['common_mistake'],
-                            '材料依据：'+('、'.join(q['source_ids']) if q['source_ids'] else '自编题目，未标注直接材料依据，请复核。')]
-                         + [f'算式复算提醒（可能误报）：{detail}' for detail in reminders.get(q['number'], [])] + [''])
+                         + ['参考答案：'+q['answer'], '', '解析：'+solution_only(q['analysis']), '', '易错点：'+q['common_mistake']]
+                         + (['材料：' + '、'.join(materials.get(code, code) for code in q['source_ids'])] if q['source_ids'] else [])
+                         + [''])
     return '\n'.join(lines)
 
 

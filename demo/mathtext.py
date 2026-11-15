@@ -12,7 +12,7 @@ import re
 
 from richdoc import ACCENTS, FUNCTIONS, IGNORED, PLAIN_GROUP, STYLE_GROUP, SYMBOLS, _tokens
 
-VERSION = 'mathtext-v1'
+VERSION = 'mathtext-v2'   # v2: P(B) and other single function values need no brackets under a fraction bar
 Run = namedtuple('Run', 'text math italic script mark', defaults=('',))   # script: '' | 'sub' | 'sup'
 # mark: '' | 'blank' (a gap the student fills in) | 'answer' (what goes in that gap)
 GAP = re.compile(r'_{4,}')
@@ -31,9 +31,24 @@ def _text(runs):
 
 
 def _single(runs):
-    """One number, one letter (with its scripts) or a factorial: needs no brackets in a fraction."""
+    """One number, one letter (with its scripts), a factorial, or one function value such as P(B) or
+    Var(X): needs no brackets in a fraction."""
     base = ''.join(run.text for run in runs if not run.script).strip()
-    return bool(re.fullmatch(r'\d+(?:\.\d+)?|[A-Za-zα-ωΑ-Ω][̀-ͯ⃗]?|[\w.]+!|\(.*\)|√.*', base))
+    if re.fullmatch(r'\d+(?:\.\d+)?|[A-Za-zα-ωΑ-Ω][̀-ͯ⃗]?|[\w.]+!|√.*', base):
+        return True
+    call = re.fullmatch(r'[A-Za-zα-ωΑ-Ω]*(\(.*\))', base)
+    return bool(call) and _closes_at_end(call[1])
+
+
+def _closes_at_end(text):
+    """Whether the bracket that opens the text is the one that closes it: (A∩B) yes, (a)(b) no."""
+    depth = 0
+    for index, char in enumerate(text):
+        depth += char == '('
+        depth -= char == ')'
+        if depth == 0:
+            return index == len(text) - 1
+    return False
 
 
 def _top_level(text, signs):

@@ -1,6 +1,6 @@
 # 项目模块关联图
 
-更新日期：2026-11-14。面向开发者：说明模块职责、调用关系、数据流和存储，修改代码前先确认影响范围。功能行为见 [docs/features.md](docs/features.md)。
+更新日期：2026-11-15。面向开发者：说明模块职责、调用关系、数据流和存储，修改代码前先确认影响范围。功能行为见 [docs/features.md](docs/features.md)。
 
 ## 1. 整体结构
 
@@ -89,7 +89,7 @@ flowchart TD
 | `prompts.py`、`prompts/` | 组装请求、只序列化一次并计算 SHA-256、标记提示词版本 |
 | `jobs.py`、`runs.py` | 有界任务队列（多工作线程、批量额度）、取消与重试、重启恢复；运行记录与讲义同事务保存 |
 | `gate.py` | 模型并发闸门：全进程共用，`MODEL_CONCURRENCY` 个额度；额度为 1 时等同原来的全局锁 |
-| `design.py` | 课堂设计（`lesson-design-v1`）：解析模型给出的 JSON（含 LaTeX 反斜杠修复）、校验结构 / 时间 / 数量 / 引用（`hard` 不可用，`soft` 提醒）、题目显示名、各环节篇幅上限；把设计排成教师详案的各部分（要点、课堂流程表、环节、题目块、板书、作业）。题目块 `item_block` 是所有文档共用的唯一出处 |
+| `design.py` | 课堂设计（`lesson-design-v1`）：解析模型给出的 JSON（含 LaTeX 反斜杠修复）、校验结构 / 时间 / 数量 / 引用（`hard` 不可用，`soft` 提醒），以及目标与检验题是否对应（`objective_gaps`）、练习是否重抄前面题目的数据（`repeated_items`）、答案是否写成整段、一对一辅导里的班级课用词、同一结果前后写的值是否一致、板书上的结果是否是题目算出的（`mismatched_values`、`board_slips`）、目标是否由练习或作业检验、老师和学生用不上的写法（`wording`：关于数据或生成过程的话、省略号、英文缩写）；`audience` 记录对象（student / class / general）；题目显示名、各环节篇幅上限；把设计排成教师详案的各部分（要点、课堂流程表、环节、题目块、板书、作业）。题目块 `item_block` 是所有文档共用的唯一出处 |
 | `designed.py` | 默认写作方式（`designed-v1`）：课堂设计 → 校验、重试一次 →（可停下等教师确认）→ 新授 / 例题 / 重点环节各一次调用（并行）→ 程序拼装；确认、检查、按意见重做的接口 |
 | `style.py` | 文本指标：系统话术、免责声明、旁白、套话、排比、汉字数量、重复片段；用于环节重写的依据、程序检查的「表达提醒」和 `scale/quality_baseline.py` |
 | `sectioned.py` | 旧版分章节生成：大纲 → 各章节单独调用（有空闲额度时并行）→ 校验、重写一次 → 拼接 |
@@ -108,13 +108,13 @@ flowchart TD
 | `sections.py`、`comparisons.py` | 章节候选与采用；讲义与版本比较 |
 | `presentations.py` | 课件请求、输出校验、导出、内部视觉审查与单页微调 |
 | `ppt_story.py`、`ppt_templates.py`、`pptkit_export.py`、`pptx_export.py` | 语义页面契约、模板白名单与映射、排版适配与 PPTX 导出；`build_lesson_pptx` 把按课堂设计排好的页面套到模板上 |
-| `lesson_slides.py` | 按课堂设计排版的课件（`lesson-slides-v1`）：从设计决定有哪些页、每页放什么、用多大字号、在哪里分页，以及每页的演讲者备注；`page_range` 给教师用书的课堂流程表标页码。不调用模型 |
+| `lesson_slides.py` | 按课堂设计排版的课件（`lesson-slides-v3`，不含程序说明页）：从设计决定有哪些页、每页放什么、用多大字号、在哪里分页，以及每页的演讲者备注；`page_range` 给教师用书的课堂流程表标页码。不调用模型 |
 | `lesson_layout.py` | 上面那些页面的几何与绘制：文字高度估算、页眉页脚、题目、分步解答、答案、作业、图示页，以及图的原生形状重画 |
 | `mathtext.py` | LaTeX 转成 PowerPoint 里可编辑的文字：上下标、斜体字母、运算符间距、线性分式、学案填空（留空或填上答案） |
 | `ppt_aesthetics.py`、`render_ppt_slides.ps1` | PowerPoint 渲染与本机 Ollama 视觉审查（仅 Windows） |
-| `handouts.py` | 按课堂设计生成的讲义的学生学案（留白版与含答案版）、教师用书（讲义正文加答案速查和课后记录页），由程序从设计排版，不调用模型 |
-| `packages.py` | 授课包：只读已保存记录。有课堂设计时组装学生学案、教师用书、生成记录与核对；否则组装教师手册。另有学生练习、课件与清单；`markdown_docx` 把 Markdown 排成 Word（含作答横线 `<!-- lines:N -->`） |
-| `quizzes.py` | 出题、配套出题、题目校验、独立队列、导出；为阅卷提供题组答案与知识点映射；按课堂设计上的课按学习目标排出题计划（`objective_plan`，`/api/quizzes/plan` 预览）、带设计摘要（`design.quiz_view`）、退回照抄课上题目的题、统一符号写法；单题换题与教师修改另存新记录；答案算式复算提醒 |
+| `handouts.py` | 按课堂设计生成的讲义的学生学案（留白版与含答案版）、教师用书（讲义正文、资料对照、答案速查和课后记录页；一对一辅导的学案和记录页按一名学生排），由程序从设计排版，不调用模型 |
+| `packages.py` | 授课包：只读已保存记录。有课堂设计时组装学生学案、教师用书、生成记录与核对（AI 生成与不要发给学生的说明只写在这里），配套练习叫课后检测；否则组装教师手册、学生练习。Word 和 PPTX 在 ZIP 最外层，Markdown 版和清单在 `附件/`；`markdown_docx` 把 Markdown 排成 Word（含作答横线 `<!-- lines:N -->`） |
+| `quizzes.py` | 出题、配套出题、题目校验、独立队列、导出；为阅卷提供题组答案与知识点映射；按课堂设计上的课按学习目标排出题计划（`objective_plan`，`/api/quizzes/plan` 预览）、带设计摘要（`design.quiz_view`）、退回照抄课上题目的题、统一符号写法；解析只留解法（`solution_only` 删去「对应学习目标」「与练1同类」之类的话）；解析里有改算过程（「等等，重新核验」）的退回重出；单题换题与教师修改另存新记录；答案算式复算提醒（只在出题页显示） |
 | `grading.py` | 阅卷任务、识读与评分校验、证据草稿、按学习目标汇总建议分 |
 | `evaluation.py`、`experiment.py` | 当前版本固定对照；历史文件式实验 |
 | `rendering.py`、`model_settings.py`、`model_import.py` | 安全渲染与图片附录；模型配置的查看、测试与保存；快速配置（识别粘贴的配置、检测本机模型服务、读取模型列表，只填表单不保存） |
@@ -326,7 +326,7 @@ Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中
 | 公式与图 | `figures.py`、`richdoc.py`、`app.js` 的 `renderMarkdown` | 网页、HTML、Word、纯文本四种输出，`prompts/lecture-format-rich-v1.md` 里的图格式 |
 | 审核与章节调整 | `reviews.py`、`sections.py` | 版本锁、问题记录、引用检查 |
 | PPT | `presentations.py`、`ppt_story.py`、`pptkit_export.py`；按课堂设计排版的课件另有 `lesson_slides.py`、`lesson_layout.py`、`mathtext.py` | 模板版本、视觉审查、单页微调、`test_presentations.py`；按设计排版的页面改动后跑 `test_lesson_slides.py`（每个模板都要过版式检查），并用 LibreOffice 渲染看一遍 |
-| 出题 / 阅卷 / 授课包 | `quizzes.py`、`grading.py`、`packages.py`、`handouts.py` | 冻结版本与 JSON 模式、题号映射、学生练习与学生学案不含答案和来源编号、`packages.js` 的导出内容列表、`test_packages.py` 与 `test_lesson_design.py` |
+| 出题 / 阅卷 / 授课包 | `quizzes.py`、`grading.py`、`packages.py`、`handouts.py` | 冻结版本与 JSON 模式、题号映射、学生练习 / 课后检测与学生学案不含答案和来源编号、`packages.js` 的导出内容列表、`test_packages.py` 与 `test_lesson_design.py` |
 | 模型配置 | `model_settings.py`、`model_import.py`、`qwen.py`、`vision.py`、`embed.py` | 三个通道的区别、密钥遮蔽（导入结果不回传已保存的密钥）、同一服务保留已配好的模型、重启生效、`test_model_import.py` |
 | 客户端空库 / 开发环境演示数据 | `edition.py`、`init_db.py`、`courses.py` 的预置课程、`index.html` 中的 `release` 分支 | 客户端空库可从零建课（`test_edition.py`）、`desktop/scripts/stage.mjs` 的文件白名单 |
 | 桌面客户端 | `desktop/src/`、`desktop/scripts/` | `npm test`、`node scripts/smoke.mjs --dev`；新增服务环境变量要加进 `processes.cleanEnv` 的清理列表 |
