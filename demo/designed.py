@@ -76,11 +76,20 @@ def segment_request(frozen_body, context, design, segment, budget):
     # The design's 学情与对策 already carries the caveats about the evidence; a segment only needs the teaching plan.
     view = {**view, 'personalization_plan': [{k: v for k, v in entry.items() if k != 'warnings'}
                                              for entry in view.get('personalization_plan', [])]}
+    # Steps carry their number, so 「例1 第 2 步」 in the text points at the step the student sees as step 2.
+    numbered = {**design, 'items': [{**item, 'steps': [{'step': n, **step} for n, step in enumerate(item['steps'], 1)]}
+                                    for item in design['items']]}
     message = {'goal': user['goal'], 'context': {**view, 'materials': materials or view['materials']},
-               'design': design, 'names': names, 'target_segment': segment['id'], 'budget': budget}
+               'design': numbered, 'names': names, 'target_segment': segment['id'], 'budget': budget}
     messages = [{'role': 'system', 'content': context['designed']['segment_system']},
                 {'role': 'user', 'content': json.dumps(message, ensure_ascii=False, default=str)}]
     return _derive(frozen_body, messages, min(8000, round(budget['high'] * 2.2) + 700), True, 'lesson-segment-v1')
+
+
+# The design-level words (design.META) less 「待核对」, which opens the line the text uses to flag a mismatch;
+# plus phrases copied from the instructions and mentions of what this lesson leaves out.
+PROSE_META = re.compile(r'依据诊断|根据诊断|未诊断|不预判|(?:暂无|没有|均无|并无|尚无)[^，。；\s]{0,4}(?:诊断|数据)|无(?:前测|诊断)数据|根据[^，。；\s]{0,10}知识点|仅供参考'
+                        r'|交代(?:推导)?去向|不逐题读|关键句可直接说|留作课后|课后阅读')
 
 
 def inspect_prose(output, segment, budget, context, design):
@@ -117,10 +126,37 @@ def inspect_prose(output, segment, budget, context, design):
         soft.append('重抄了' + '、'.join(copied) + '的题干；题目由程序排版，这里只写怎么讲')
     if re.search(r'学情与对策|课堂设计|设计中|design', text):
         soft.append('不要复述学情与对策，也不要提到“设计”：学情已写在本课要点里；发现设计里前后对不上时，只写一行以“待核对：”开头的话')
+    classroom = sorted(set(D.CLASSROOM.findall(text))) if design.get('audience') == 'student' else []
+    if classroom:
+        soft.append('这是一对一辅导，不要写「' + '」「'.join(classroom) + '」；写教师和这一名学生之间的动作：'
+                    '让学生说思路、看学生写到哪一步、卡住时先问哪一句')
+    loose = list(dict.fromkeys(match[0] for pattern in (PROSE_META, D.UNFINISHED, D.ABBREVIATION) for match in pattern.finditer(text)))
+    if loose:
+        soft.append('正文写了「' + '」「'.join(loose[:4]) + '」：教师拿来就用的备课笔记不写关于数据或生成过程的话，'
+                    '不提本课不展开的内容（已写在本课要点里），句子写完整，学科名词写中文')
+    asked = sorted({int(number) for number in re.findall(r'提问\s*(\d+)', text)} - set(range(1, len(segment['questions']) + 1)))
+    if asked:
+        soft.append(f'正文提到「提问 {asked[0]}」，但这个环节只有 {len(segment["questions"])} 个提问；'
+                    '只引用本环节的提问，别的环节的问题不在这里问')
+    said = [clip for question in segment['questions'] for key in ('expect', 'follow_up')
+            for clip in [_shared(text, question.get(key, ''))] if clip]
+    if said:
+        soft.append('正文重抄了提问的预期回答或追问「' + '」「'.join(said[:2]) + '」：提问、预期回答、常见错答和追问程序会印在环节后面，'
+                    '正文只写什么时候问、学生答错时怎么接')
     hint = style.reminder(text)
     if hint:
         soft.append('表达需要改：' + hint + '。改成教师备课笔记的口吻，用短句和阿拉伯数字，不写旁白、免责声明和套话')
     return text, hard, soft
+
+
+def _shared(text, said, least=20):
+    """The longest stretch of `said` (formula marks and spaces ignored) that the text repeats, if it is at
+    least `least` characters long: the segment retelling an expected answer printed right below it."""
+    from difflib import SequenceMatcher
+    squeeze = lambda value: re.sub(r'[\s$]', '', value or '')
+    a, b = squeeze(text), squeeze(said)
+    match = SequenceMatcher(None, a, b, autojunk=False).find_longest_match(0, len(a), 0, len(b))
+    return b[match.b:match.b + match.size] if match.size >= least else ''
 
 
 def _distance(text, soft, budget):
@@ -355,8 +391,11 @@ def register_designs(app, db, queue, model):
         design, hard, _ = D.validate(data.get('design', original), run['context'])
         if design is None or hard:
             raise DesignRequestError('课堂设计未通过检查，不能开始写作。', 400, hard)
+        # Compared after the same checks, so what validation itself adds (the audience, a note taken out of a
+        # problem) does not count as the teacher's edit.
+        unchanged = D.validate(original, run['context'])[0]
         settings = {**run['context']['designed'], 'stop': False, 'feedback': None,
-                    'confirmed': dict(design=design, source_run_id=run_id, edited=design != original)}
+                    'confirmed': dict(design=design, source_run_id=run_id, edited=design != unchanged)}
         context = {**run['context'], 'designed': settings}
         prepared = PreparedRequest(run['request_body'], run['request_sha256'], run['prompt_version'], run['input_version'])
         return jsonify(queue().submit(run['student_id'], run['topic_key'], run['goal'], context, prepared, parent=run_id)), 202

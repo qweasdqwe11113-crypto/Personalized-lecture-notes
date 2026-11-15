@@ -56,7 +56,7 @@ def design_reply():
              'if_short': '不能省', 'sources': ['M13']},
             {**segment, 'id': 'S2', 'kind': 'example', 'title': '双产线', 'minutes': 8, 'teacher': ['板演例1', '学生口述例2'],
              'items': ['E1', 'E2']},
-            {**segment, 'id': 'S3', 'kind': 'practice', 'title': '当堂练习', 'minutes': 9, 'teacher': ['巡视，看分母是否写全'],
+            {**segment, 'id': 'S3', 'kind': 'practice', 'title': '当堂练习', 'minutes': 9, 'teacher': ['看学生分母是否写全'],
              'items': ['P1', 'P2', 'P3']}],
         'items': [
             item('E1', 'example', '两条产线 $A_1$、$A_2$ 的产量占比为 0.6、0.4，次品率为 0.02、0.05。抽到一件次品，求它来自 $A_1$ 的概率。', '0.375',
@@ -126,7 +126,8 @@ class DesignRules(unittest.TestCase):
             self.assertIn(expected, text)
         codes = {code: passed for code, _, passed, _ in D.report(design, CONTEXT)}
         self.assertEqual(codes, {'design_time': False, 'design_items': False, 'design_objectives': False,
-                                 'design_focus': True, 'design_plan': False})
+                                 'design_focus': True, 'design_plan': False, 'design_variety': True,
+                                 'design_values': True, 'design_wording': True})
 
     def test_broken_structure_and_missing_sources_are_hard_problems(self):
         reply = design_reply()
@@ -176,8 +177,8 @@ class DesignRules(unittest.TestCase):
         headings = [line for line in book.splitlines() if line.startswith('## ')]
         self.assertEqual(headings, ['## 本课要点', '## 一、新授：贝叶斯公式（3 分钟）· 重点', '## 二、例题：双产线（8 分钟）',
                                     '## 三、当堂练习（9 分钟）', '## 小结', '## 板书设计', '## 课后作业'])
-        self.assertIn('| 时间 | 环节 | 教师 | 学生 | 题目 |', book)
-        self.assertIn('| 3—11 | 例题：双产线 | 板演例1；学生口述例2 | 独立完成 | 例1、例2 |', book)
+        self.assertIn('| 时间 | 环节 | 学生 | 题目 |', book)
+        self.assertIn('| 3—11 | 例题：双产线 | 独立完成 | 例1、例2 |', book)
         self.assertIn('（由练3、作业1检验）', book)
         self.assertIn('知识点12：逐项加权（第 2 环节）', book)
         self.assertEqual(book.count(stem), 1)
@@ -208,7 +209,7 @@ class DesignRules(unittest.TestCase):
         self.assertEqual(design['plan_links'], [{'knowledge_id': 11, 'segment': 'S1', 'how': '看 E1'}])
         self.assertEqual([s['title'] for s in design['segments']], ['贝叶斯公式', '双产线', '后验计算', '课堂小结与作业'])
         book = D.document(design, {'S2': '先让学生读 E1，再看 S1 的板书。公式 $E1$ 里的不换。'}, CONTEXT)
-        for shown in ('第 1 环节先看 W9 以外的情况；例1做错的学生在第 3 环节再练练1。', '板演例1；学生口述例2 | 独立完成 | 例1、例2 |',
+        for shown in ('第 1 环节先看 W9 以外的情况；例1做错的学生在第 3 环节再练练1。', '| 例题：双产线 | 独立完成 | 例1、例2 |',
                       '先让学生读例1，再看第 1 环节的板书。公式 $E1$ 里的不换。', '**时间不够时**　例2只列式', '- **屏幕**：显示练1、练2、练3',
                       '知识点11：看例1（第 1 环节）', '与例1的 $P(D)$ 比较，$E_1$ 不是题号', '## 四、课堂小结与作业（1 分钟）',
                       '**布置作业**　作业1（基础），题目见「课后作业」。', '### 例1 双产线基准', '### 练3（提高）'):
@@ -247,7 +248,7 @@ class DesignRules(unittest.TestCase):
         sheet = handouts.student_handout(design)
         self.assertEqual([line for line in sheet.splitlines() if line.startswith('## ')],
                          ['## 学习目标', '## 一、新授：贝叶斯公式', '## 二、例题：双产线', '## 三、当堂练习', '## 小结', '## 课后作业'])
-        self.assertTrue(sheet.startswith('# 隔离课堂设计 · 学案\n\n班级：'))
+        self.assertTrue(sheet.startswith('# 隔离课堂设计 · 学案\n\n姓名：'))   # one-to-one: no class to fill in
         for shown in ('- 后验 = 先验 × 似然 ÷ ____', '- 条件概率要求 ____ 大于 0，两个方向 ____ 交换', '### 例1 双产线基准',
                       '**答案**　0.375',                                      # the first example is fully worked
                       '**解答**（按提示补全每一步）\n\n1. （全概率）\n<!-- lines:2 -->',   # the next one keeps the reasons only
@@ -284,10 +285,17 @@ class DesignRules(unittest.TestCase):
         self.assertEqual(len([line for line in book.splitlines() if line.startswith('# ')]), 1)   # the lesson's own title is dropped
         self.assertEqual(book.count('## 本课要点'), 1)
         self.assertEqual(book.count('<!-- pagebreak -->'), 2)   # the run sheet stays on the first page
-        for shown in ('请勿发给学生', '先问分母是什么。', '## 答案速查', '**学案填空**\n\n- 后验 = 先验 × 似然 ÷ 【全概率】',
+        for hidden in ('AI 生成', '请勿发给学生', '程序', '记为学习证据'):
+            self.assertNotIn(hidden, book)
+        for shown in ('先问分母是什么。', '## 答案速查', '**学案填空**\n\n- 后验 = 先验 × 似然 ÷ 【全概率】',
                       '| 例1（基础） | 0.375 | 把 0.02 当成答案 |', '| 作业1（基础） | 言之成理即可 | — |', '## 课后记录',
-                      '- 目标 1（看练1）：达成 ____ 人；主要问题：____________', '**教学反思**\n<!-- lines:5 -->'):
+                      '- 目标 1（看练1）：□ 达成　□ 部分达成　□ 未达成；主要问题：____________', '**教学反思**\n<!-- lines:5 -->'):
             self.assertIn(shown, book)
+        # A class lesson counts students; one student is ticked off.
+        whole = D.validate(with_notes(), {**CONTEXT, 'personalization_mode': 'class'})[0]
+        self.assertIn('- 目标 1（看练1）：达成 ____ 人；主要问题：____________', handouts.after_class(whole))
+        self.assertIn('班级：', handouts.student_handout(whole))
+        self.assertNotIn('班级：', handouts.student_handout(design))
         gap = {'text': '若 $X \\sim P(\\lambda)$，则 $E(X)=$ ____，当 $n>$ ____ 时近似', 'answer': '$\\lambda$；100'}
         self.assertEqual(D.gap_outside(gap['text']), '若 $X \\sim P(\\lambda)$，则 $E(X)$ = ____，当 $n$ > ____ 时近似')
         self.assertEqual(D.filled(gap), '若 $X \\sim P(\\lambda)$，则 $E(X)$ = 【$\\lambda$】，当 $n$ > 【100】 时近似')
@@ -304,6 +312,167 @@ class DesignRules(unittest.TestCase):
         text, hard, soft = designed.inspect_prose('先问分母。\n待核对：提问里的 0.3 在例1 中没有出现。', design['segments'][0], budget, CONTEXT, design)
         self.assertEqual((hard, soft), ([], []))
         self.assertIn('待核对：', text)
+
+    def test_one_student_is_tutored_and_a_class_is_taught(self):
+        reply = design_reply()
+        reply['segments'][2]['teacher'] = ['巡视，看分母是否写全', '请两个小组对答案']
+        design, _, soft = D.validate(reply, CONTEXT)
+        self.assertEqual(design['audience'], 'student')
+        self.assertIn('这是一对一辅导，环节 S3 写了「小组」「巡视」', '\n'.join(soft))
+        classroom, _, soft = D.validate(reply, {**CONTEXT, 'personalization_mode': 'class'})
+        self.assertEqual((classroom['audience'], soft), ('class', []))
+        self.assertEqual(D.validate(reply, {**CONTEXT, 'personalization_mode': 'none', 'student': {}})[0]['audience'], 'general')
+        budget = {'low': 0, 'high': 300}
+        _, _, soft = designed.inspect_prose('先问分母。巡视时看全班是否写全。', design['segments'][0], budget, CONTEXT, design)
+        self.assertIn('这是一对一辅导，不要写「全班」「巡视」', '\n'.join(soft))
+        _, _, soft = designed.inspect_prose('先问分母。巡视时看全班是否写全。', classroom['segments'][0], budget, CONTEXT, classroom)
+        self.assertEqual(soft, [])
+        _, _, soft = designed.inspect_prose('让基础薄弱的学生先抄表；学有余力的学生多问一句。', design['segments'][0], budget, CONTEXT, design)
+        self.assertIn('不要写「基础薄弱的学生」「学有余力的学生」', '\n'.join(soft))
+
+    def test_a_note_that_the_data_are_made_up_is_taken_out_of_the_problem(self):
+        for stem, kept in (('求 $P(D)$。（注：本题数据为自编假设模型。）', '求 $P(D)$。'),
+                           ('求 $P(D)$。注：数据为自编，仅供练习。', '求 $P(D)$。'),
+                           ('（假设各次试验相互独立）求 $P(D)$。', '（假设各次试验相互独立）求 $P(D)$。'),
+                           ('设 $X$ 表示次品数（假设数据服从二项分布）。', '设 $X$ 表示次品数（假设数据服从二项分布）。')):
+            self.assertEqual(D.without_note(stem), kept, stem)
+        # A check is printed under the worked example and on the slides: a plain sentence saying so goes too.
+        self.assertEqual(D.without_note('后验之和为 1；频数复核一致。数据为自编假设。', sentence=True), '后验之和为 1；频数复核一致。')
+        self.assertEqual(D.without_note('数据为自编假设。', sentence=False), '数据为自编假设。')
+        reply = design_reply()
+        reply['items'][1]['stem'] += '（注：本题数据为自编假设模型。）'
+        reply['items'][1]['check'] = '两个后验之和为 1。数据为自编假设。'
+        design, _, soft = D.validate(reply, CONTEXT)
+        self.assertEqual(design['items'][1]['stem'], '把占比改为 0.2、0.8，次品率不变，再求来自 $A_1$ 的概率。')
+        self.assertEqual(design['items'][1]['check'], '两个后验之和为 1。')
+        self.assertEqual(soft, [])
+        self.assertEqual(D.validate(design, CONTEXT)[0], design)
+
+    def test_a_problem_checks_its_objective_and_an_exercise_does_not_rework_an_example(self):
+        reply = design_reply()
+        reply['objectives'][1]['checked_by'] = ['P2', 'H1']          # 练2 is a plain conditional probability
+        reply['items'][3]['stem'] = '已知 $P(B)=0.5$，$P(A\\cap B)=0.1$，求条件概率 $P(A\\mid B)$。'
+        reply['items'].append(item('H2', 'homework', '占比 0.2、0.8，次品率 0.02、0.05，抽到次品，求来自 $A_1$ 的概率。', '1/11，约 0.0909'))
+        reply['items'][1]['answer'] = '$1/11 \\approx 0.0909$'
+        design, hard, soft = D.validate(reply, CONTEXT)
+        self.assertEqual(hard, [])
+        text = '\n'.join(soft)
+        self.assertIn('第 2 条目标写由 P2 检验，但 P2 的题干、步骤和答案里没有这条目标的内容（如「变化」「先验」）', text)
+        self.assertIn('H2 用的是 E2 的同一组数据，问的结果 E2 已经算过', text)
+        self.assertNotIn('H1 用的是', text)
+        codes = {code: (passed, detail) for code, _, passed, detail in D.report(design, CONTEXT)}
+        self.assertEqual(codes['design_objectives'][0], False)
+        self.assertIn('目标 2 与练2', codes['design_objectives'][1])
+        self.assertEqual(codes['design_variety'], (False, '作业2重复例2的数据和结果。换数据、换情境或换问法。'))
+        # Words most problems use, and objectives with nothing distinctive, are not judged.
+        self.assertEqual(D.objective_gaps(D.validate(design_reply(), CONTEXT)[0]), [])
+        # A formula counts as its words: P(A_1|D) over P(D) is a conditional probability with a denominator.
+        self.assertLessEqual({'条件', '件概', '分母', '交集'}, D._terms('$\\frac{P(A_1\\cap D)}{P(D)}=P(A_1\\mid D)$'))
+        self.assertNotIn('text', D._terms('$\\text{Poisson}(4)$'))
+
+    def test_what_a_teacher_or_student_cannot_use_is_reported(self):
+        reply = design_reply()
+        reply['learner'] = '依据诊断，学生会算交集但常交换方向（待核对观察时间是否仍适用）。'
+        reply['segments'][0]['teacher'] = ['若答错，追问“分母应该是谁的概...”', '强调不能加“只有……才”的限制']
+        reply['items'][0]['steps'][0]['why'] = '全概率，代入 PMF'
+        reply['items'][0]['answer'] = '约 0.1246'
+        reply['items'][0]['check'] = '$0.375 + 0.625 = 1$，约 0.1247'
+        design, hard, soft = D.validate(reply, CONTEXT)
+        self.assertEqual(hard, [])
+        text = '\n'.join(soft)
+        for expected in ('学情与对策写了「依据诊断」', '学情与对策写了「待核对」', '环节 S1 的教师活动有一句没写完（「错，追问“分母应该是谁的概...」）',
+                         '题目 E1 写了英文缩写「PMF」', '题目 E1 的答案和步骤写 0.1246，检验或板书写 0.1247'):
+            self.assertIn(expected, text)
+        self.assertNotIn('只有……才', text)
+        self.assertEqual(len(D.worth_retry([line for line in soft if '英文缩写' in line or '没写完' in line])), 2)
+        codes = {code: (passed, detail) for code, _, passed, detail in D.report(design, CONTEXT)}
+        self.assertEqual(codes['design_values'][0], False)
+        self.assertIn('例1写了 0.1246 和 0.1247', codes['design_values'][1])
+        self.assertEqual(codes['design_wording'][0], False)
+        self.assertIn('第 1 环节的教师活动「错，追问“分母应该是谁的概...」；例1「PMF」', codes['design_wording'][1])
+        clean = D.validate(design_reply(), CONTEXT)[0]
+        self.assertEqual((D.wording(clean), D.mismatched_values(clean)), ([], []))
+
+    def test_a_board_value_the_problem_never_reaches_and_an_example_checking_an_objective_are_reported(self):
+        reply = design_reply()
+        reply['segments'][1]['board'] = ['$P(D)=0.6\\times0.02+0.4\\times0.05=0.032$', 'E2: $P(D)=0.26$',
+                                         '错解：$P(D)=0.07$', '$P(A_1\\mid D)\\approx0.38$']
+        reply['segments'][2]['board'] = ['E1: $P(D)=0.032$']   # another segment's problem: not compared
+        reply['objectives'][1]['checked_by'] = ['E2']
+        reply['learner'] = '全班 15 人均无前测数据，前测1用于确认公式是否熟练。'
+        design, hard, soft = D.validate(reply, CONTEXT)
+        text = '\n'.join(soft)
+        self.assertIn('题目 E2 的答案和步骤写 0.044，检验或板书写 0.26', text)
+        self.assertNotIn('写 0.07', text)
+        self.assertNotIn('0.38', text)
+        self.assertIn('第 2 条目标只写由 E2 检验；例题和前测是课上讲的，检验要用当堂练习或课后作业', text)
+        self.assertIn('学情与对策写了「均无前测数据」', text)
+        codes = {code: (passed, detail) for code, _, passed, detail in D.report(design, CONTEXT)}
+        self.assertIn('以下目标没有对应的练习或作业：能说明先验变化的影响', codes['design_objectives'][1])
+        self.assertIn('例2写了 0.044 和 0.26', codes['design_values'][1])
+        self.assertEqual(D.board_slips(D.validate(design_reply(), CONTEXT)[0]), [])
+        self.assertEqual(D.humanize(design, '小结要点与作业题号H1；记录作业题号和要求'), '小结要点与作业1；记录作业题号和要求')
+        self.assertEqual(D.humanize(design, '布置作业H1；布置作业'), '布置作业1；布置作业')
+
+    def test_words_that_are_no_words_and_symbols_for_mean_and_variance(self):
+        self.assertNotIn('母为', D._terms('说明分母为正'))
+        self.assertTrue({'期望', '方差'} <= D._terms('求 $E(X)$ 和 $D(X)$'))
+        self.assertIn('方差', D._terms('$Var(X)=\\lambda$'))
+        self.assertNotIn('期望', D._terms('$P(E)=0.3$'))
+
+    def test_names_replace_ids_in_figures_and_the_kind_is_said_once(self):
+        design = D.validate(design_reply(), CONTEXT)[0]
+        spec = {'type': 'bar_chart', 'title': 'E1 与 E2 对比', 'bars': [{'label': 'E1先验', 'value': 0.6}, {'label': 'E2后验', 'value': 0.09}]}
+        self.assertEqual(D.figure_spec(design, spec)['bars'][0], {'label': '例1先验', 'value': 0.6})
+        self.assertEqual(D.figure_spec(design, spec)['title'], '例1与例2对比')
+        self.assertEqual(D.humanize(design, '用 E1 例题对比，P1 练习当堂做；作业1作业2'), '用例1对比，练1当堂做；作业1作业2')
+        design['figures'] = [{'segment': 'S2', 'spec': spec}]
+        for text in (D.segment_block(design, design['segments'][1], ''), handouts.student_handout(design)):
+            self.assertIn('例1先验', text)
+            self.assertNotIn('E1先验', text)
+
+    def test_a_hint_on_the_handout_does_not_give_away_a_result(self):
+        stem = '先验变为 $P(A_1)=0.2$，$P(A_2)=0.8$，次品率 0.02、0.05 不变。'
+        self.assertEqual(handouts._hint('贝叶斯公式，$P(D)=0.044>0$', stem), '贝叶斯公式')
+        self.assertEqual(handouts._hint('要求 $P(A_1)=0.2>0$ [M13]', stem), '要求 $P(A_1)=0.2>0$')
+        self.assertEqual(handouts._hint('先验从 0.6 降至 0.2，后验随之下降', stem), '先验从 0.6 降至 0.2，后验随之下降')
+
+    def test_segment_text_about_the_data_or_what_is_left_out_is_rewritten(self):
+        design = D.validate(design_reply(), CONTEXT)[0]
+        budget = {'low': 0, 'high': 400}
+        segment = design['segments'][0]
+        for text, word in (('先问分母。连续型密度推广留作课后阅读。', '留作课后'), ('依据诊断，先问分母。', '依据诊断'),
+                           ('关键句可直接说：“分母是全概率。”', '关键句可直接说'), ('先代入 PMF。', 'PMF')):
+            soft = designed.inspect_prose(text, segment, budget, CONTEXT, design)[2]
+            self.assertTrue(any(f'「{word}」' in line for line in soft), (text, soft))
+        self.assertEqual(designed.inspect_prose('先问分母。\n待核对：提问里的 0.3 在例1 里没有。', segment, budget, CONTEXT, design)[2], [])
+
+    def test_segment_text_retelling_the_expected_answer_is_rewritten(self):
+        reply = design_reply()
+        reply['segments'][0]['questions'][0]['expect'] = '0.02 是产线 1 自身的次品率，0.375 是所有次品里产线 1 占的比例'
+        design = D.validate(reply, CONTEXT)[0]
+        budget, segment = {'low': 0, 'high': 400}, design['segments'][0]
+        retold = '提问 1。讲：“0.02 是产线 1 自身的次品率，0.375 是所有次品里产线 1 占的比例，两者不同。”'
+        soft = designed.inspect_prose(retold, segment, budget, CONTEXT, design)[2]
+        self.assertTrue(any('重抄了提问的预期回答或追问' in line for line in soft), soft)
+        self.assertEqual(designed.inspect_prose('提问 1。学生答成 0.02 时，指着分母问它来自哪个条件。', segment, budget, CONTEXT, design)[2], [])
+        soft = designed.inspect_prose('提问 2 在此处提出，学生答错时先问分母。', segment, budget, CONTEXT, design)[2]
+        self.assertIn('正文提到「提问 2」，但这个环节只有 1 个提问', '\n'.join(soft))
+
+    def test_an_answer_is_the_result_and_setting_homework_takes_two_minutes(self):
+        reply = design_reply()
+        reply['items'][2]['answer'] = ('由全概率公式 $P(D)=0.7\\times0.03+0.3\\times0.08=0.045$，满足条件；再由贝叶斯公式 '
+                                       '$P(A_1\\mid D)=0.021/0.045=7/15$，所以来自甲线的后验概率是 7/15，约 0.467，检查两个后验之和为 1。')
+        reply['segments'].append({**reply['segments'][2], 'id': 'S4', 'kind': 'homework', 'title': '布置作业', 'minutes': 3,
+                                  'teacher': ['逐题读作业'], 'items': []})
+        reply['segments'][2]['minutes'] = 6
+        reply['segments'][2]['items'] = ['P1', 'P2']
+        reply['items'] = [i for i in reply['items'] if i['id'] != 'P3']
+        reply['objectives'][1]['checked_by'] = ['H1']
+        text = '\n'.join(D.validate(reply, {**CONTEXT, 'teaching_options': {**OPTIONS, 'examples': 2, 'exercises': 2}})[2])
+        self.assertIn('题目 P1 的答案（answer）是一整段解答', text)
+        self.assertIn('环节 S4「布置作业」占了 3 分钟', text)
+        self.assertNotIn('题目 E1 的答案', text)
 
     def test_word_shows_a_binomial_coefficient_as_a_formula(self):
         import richdoc
@@ -410,7 +579,7 @@ class DesignedPipeline(base.CourseJobTests):
         self.assertEqual((job['status'], job['design_review'], job['lecture_id']), ('succeeded', True, None))
         self.assertEqual(self.count('lectures'), before)
         self.assertEqual(run['response_metadata']['operation'], 'lesson_design')
-        self.assertEqual(run['prompt_version'], 'lesson-design-v1+probability-v1')
+        self.assertEqual(run['prompt_version'], 'lesson-design-v1+probability-v1+tutor-v1')
         payload, user = request_of(type('P', (), {'body': run['request_body']}))
         self.assertEqual(payload['response_format'], {'type': 'json_object'})
         for private in ('designed', 'scope_check', 'input_budget', 'lecture_workflow'):
@@ -607,7 +776,7 @@ class DesignedPipeline(base.CourseJobTests):
         self.assertEqual(user['teacher_feedback'], '例2 换成保险题')
         self.assertEqual(user['previous_design']['items'][1]['id'], 'E2')
         self.assertIn('按教师意见修改', payload['messages'][0]['content'])
-        self.assertEqual(revised['prompt_version'], 'lesson-design-v1+probability-v1+revision')
+        self.assertEqual(revised['prompt_version'], 'lesson-design-v1+probability-v1+tutor-v1+revision')
         self.assertEqual(revised['context']['designed']['feedback']['source_run_id'], run['id'])
 
     def test_retry_reuses_the_frozen_request_and_the_confirmed_design(self):
@@ -672,12 +841,12 @@ class DesignedPipeline(base.CourseJobTests):
         lecture_id = run['lecture_id']
         self.assertTrue(self.client.get(f'/api/lectures/{lecture_id}/package-options').json['designed'])
         archive = ZipFile(BytesIO(self.client.get(f'/api/lectures/{lecture_id}/package').get_data()))
-        self.assertEqual(set(archive.namelist()), {'教师用书.docx', '教师用书.md', '学生学案.docx', '学生学案.md', '学生学案-含答案.docx',
-                                                   '生成记录与核对.docx', '授课包清单.json'})
-        manifest = json.loads(archive.read('授课包清单.json'))
-        self.assertEqual(manifest['package_version'], 'lesson-package-v2')
+        self.assertEqual(set(archive.namelist()), {'教师用书.docx', '附件/教师用书.md', '学生学案.docx', '附件/学生学案.md', '学生学案-含答案.docx',
+                                                   '生成记录与核对.docx', '附件/授课包清单.json'})
+        manifest = json.loads(archive.read('附件/授课包清单.json'))
+        self.assertEqual(manifest['package_version'], 'lesson-package-v2.1')
         self.assertIn('不要发给学生', manifest['note'])
-        sheet = archive.read('学生学案.md').decode()
+        sheet = archive.read('附件/学生学案.md').decode()
         for hidden in ('小许', '[M', '7/15', '预期回答', '诊断'):
             self.assertNotIn(hidden, sheet)
         self.assertIn('- 后验 = 先验 × 似然 ÷ ____', sheet)
@@ -686,7 +855,7 @@ class DesignedPipeline(base.CourseJobTests):
         self.assertNotIn('lines:', printed)                 # ruled space, not the marker
         self.assertNotIn('7/15', printed)
         self.assertIn('7/15', docx_text(archive.read('学生学案-含答案.docx')))
-        book = archive.read('教师用书.md').decode()
+        book = archive.read('附件/教师用书.md').decode()
         for shown in ('· 教师用书', '| 课时 | 20 分钟 · 新授 |', '## 本课要点', '## 答案速查', '## 课后记录'):
             self.assertIn(shown, book)
         record = docx_text(archive.read('生成记录与核对.docx'))
@@ -724,14 +893,14 @@ class DesignedPipeline(base.CourseJobTests):
         outline = self.client.get(f'/api/lectures/{lecture_id}/lesson-slides')
         self.assertEqual(outline.status_code, 200, outline.json)
         data = outline.json
-        self.assertEqual((data['version'], data['visible'], data['segments']), ('lesson-slides-v1', expected['visible'], expected['pages']))
-        self.assertEqual((data['default_template'], data['pages'][-1]['hidden'], data['pages'][0]['layout']), ('teaching-blue', True, 'cover'))
+        self.assertEqual((data['version'], data['visible'], data['segments']), ('lesson-slides-v3', expected['visible'], expected['pages']))
+        self.assertEqual((data['default_template'], data['pages'][-1]['hidden'], data['pages'][0]['layout']), ('teaching-blue', False, 'cover'))
         download = self.client.get(f'/api/lectures/{lecture_id}/lesson-slides/download?template=notebook')
         self.assertEqual(download.status_code, 200)
         self.assertIn(f'filename=lecture-{lecture_id}-slides.pptx', download.headers['Content-Disposition'])
         slides = list(Presentation(BytesIO(download.get_data())).slides)
         self.assertEqual(len(slides), len(expected['slides']))
-        self.assertEqual(slides[-1]._element.get('show'), '0')
+        self.assertEqual([slide._element.get('show') for slide in slides], [None] * len(slides))
         self.assertEqual(self.client.get(f'/api/lectures/{lecture_id}/lesson-slides/download?template=nope').status_code, 400)
         # The package can carry these slides; the run sheet then says which pages each segment uses.
         options = self.client.get(f'/api/lectures/{lecture_id}/package-options').json
@@ -739,19 +908,19 @@ class DesignedPipeline(base.CourseJobTests):
         self.assertIn('notebook', [item['id'] for item in options['slide_templates']])
         archive = ZipFile(BytesIO(self.client.get(f'/api/lectures/{lecture_id}/package?slides=teaching-blue').get_data()))
         self.assertIn('授课课件.pptx', archive.namelist())
-        manifest = json.loads(archive.read('授课包清单.json'))
-        self.assertEqual(manifest['presentation'], {'built_from': 'lesson_design', 'version': 'lesson-slides-v1',
+        manifest = json.loads(archive.read('附件/授课包清单.json'))
+        self.assertEqual(manifest['presentation'], {'built_from': 'lesson_design', 'version': 'lesson-slides-v3',
                                                     'template': 'teaching-blue', 'pages': expected['visible']})
-        book = archive.read('教师用书.md').decode()
+        book = archive.read('附件/教师用书.md').decode()
         self.assertIn('| 题目 | 课件 |', book)
         self.assertIn(lesson_slides.page_range(expected, 'S2') + ' |', book)
-        self.assertIn(f"按课堂设计排版 · {expected['visible']} 页 · 蓝白教学", book)
+        self.assertIn(f"| 配套课件 | {expected['visible']} 页 · 蓝白教学", book)
         self.assertIn(lesson_slides.page_range(expected, 'S2'),
                       docx_text(self.client.get(f'/api/lectures/{lecture_id}/package?format=docx&slides=teaching-blue').get_data()))
-        self.assertNotIn('课件', archive.read('学生学案.md').decode())
+        self.assertNotIn('课件', archive.read('附件/学生学案.md').decode())
         plain = ZipFile(BytesIO(self.client.get(f'/api/lectures/{lecture_id}/package').get_data()))
         self.assertNotIn('授课课件.pptx', plain.namelist())
-        self.assertNotIn('| 课件 |', plain.read('教师用书.md').decode())
+        self.assertNotIn('| 课件 |', plain.read('附件/教师用书.md').decode())
         for query in ('slides=teaching-blue&presentation=1', 'slides=../x', 'slides=nope'):
             self.assertEqual(self.client.get(f'/api/lectures/{lecture_id}/package?{query}').status_code, 400, query)
         # A lecture of the older pipelines has no design to lay out.

@@ -380,16 +380,13 @@ def lesson_deck(lecture):
 
 def lesson_pptx(lecture, template_id):
     """(deck, template, bytes) of the design-built slides on a template; the template id is checked here."""
-    import lesson_slides
     try:
         template = template_record(template_id)
     except ValueError as exc:
         raise ReviewError(str(exc)) from exc
     deck = lesson_deck(lecture)
-    provenance = [f'依据：讲义 #{lecture["id"]} 的课堂设计（{lecture["context"]["lesson_design"].get("version", "lesson-design-v1")}）；'
-                  f'排版 {lesson_slides.VERSION}；模板 {template["name"]}（{template["id"]}）。']
     try:
-        payload = build_lesson_pptx(deck, template['id'], provenance)
+        payload = build_lesson_pptx(deck, template['id'])
     except ValueError as exc:
         raise ReviewError(str(exc), 500) from exc
     return deck, template, payload

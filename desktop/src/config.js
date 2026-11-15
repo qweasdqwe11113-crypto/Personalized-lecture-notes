@@ -1,11 +1,11 @@
 'use strict';
-/* The client's own small settings file (chosen data folder, window size). Missing or damaged
-   files fall back to defaults; writes go through a temporary file so a crash cannot leave half
-   a file behind. */
+/* The client's own small settings file (chosen data folder, window size, update checks). Missing
+   or damaged files fall back to defaults; writes go through a temporary file so a crash cannot
+   leave half a file behind. */
 const fs = require('node:fs');
 const path = require('node:path');
 
-const DEFAULTS = Object.freeze({dataDir: null, bounds: null, lastVersion: null});
+const DEFAULTS = Object.freeze({dataDir: null, bounds: null, lastVersion: null, autoCheckUpdates: true, skippedVersion: null});
 
 function load(file) {
   try {
@@ -15,6 +15,9 @@ function load(file) {
       dataDir: typeof value.dataDir === 'string' && value.dataDir ? value.dataDir : null,
       bounds: validBounds(value.bounds) ? value.bounds : null,
       lastVersion: typeof value.lastVersion === 'string' ? value.lastVersion : null,
+      // Only an explicit "off" turns the start-up check off.
+      autoCheckUpdates: value.autoCheckUpdates !== false,
+      skippedVersion: typeof value.skippedVersion === 'string' && value.skippedVersion ? value.skippedVersion : null,
     };
   } catch {
     return {...DEFAULTS};

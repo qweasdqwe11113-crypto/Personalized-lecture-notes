@@ -24,6 +24,14 @@ def _clean(text):
     return re.sub(r'[ \t]*\[[MV]\d+\]', '', text)
 
 
+def _hint(why, stem):
+    """A step's reason as a hint on the blank handout: a formula carrying a number the problem does not give
+    (「$P(D)=0.044>0$」, a result of an earlier step) would hand the student the answer, so it is left out."""
+    given = D._numbers(stem) | {0, 1}
+    kept = re.sub(r'\$[^$]*\$', lambda m: m[0] if D._numbers(m[0]) <= given else '', _clean(why))
+    return re.sub(r'\s+', ' ', re.sub(r'[，,；;、：:\s]+$|^[，,；;、：:\s]+', '', kept)).strip()
+
+
 def _problem(design, item, answers, worked, heading=''):
     """One problem of the handout. worked: show the full solution even in the blank version."""
     name = D.labels(design)[item['id']]
@@ -45,7 +53,8 @@ def _problem(design, item, answers, worked, heading=''):
         lines += ['', '**解答**（按提示补全每一步）', '']
         room = 2 if len(item['steps']) <= 4 else 1   # a long solution would otherwise fill a page with rules
         for n, step in enumerate(item['steps'], 1):
-            lines += [f'{n}. ' + (f'（{_clean(step["why"])}）' if step['why'] else ''), LINES.format(room)]
+            hint = _hint(step['why'], item['stem'])
+            lines += [f'{n}. ' + (f'（{hint}）' if hint else ''), LINES.format(room)]
         lines += ['', '**答案**　____________']
     else:
         lines += ['', LINES.format(SPACE.get(item['role'], 5) + (1 if item['level'] == 'advanced' else 0))]
@@ -55,8 +64,9 @@ def _problem(design, item, answers, worked, heading=''):
 def student_handout(design, answers=False):
     """The handout as Markdown, in classroom order. answers=True fills every gap and adds the solutions."""
     bank = {item['id']: item for item in design['items']}
+    one = design.get('audience') == 'student'   # one-to-one tutoring: no class to write down
     parts = [f'# {design["title"]} · 学案' + ('（含答案）' if answers else ''),
-             '班级：____________　姓名：____________　日期：____________',
+             ('' if one else '班级：____________　') + '姓名：____________　日期：____________',
              '## 学习目标', '\n'.join(f'{n}. {_clean(o["text"])}' for n, o in enumerate(design['objectives'], 1))]
     first_example = next((item['id'] for segment in design['segments'] for ref in segment['items']
                           for item in [bank[ref]] if item['role'] == 'example'), None)
@@ -74,7 +84,7 @@ def student_handout(design, answers=False):
         elif segment['kind'] in ('concept', 'intro') and segment['board']:
             block.append('\n'.join('- ' + _clean(line) for line in segment['board']))
         for figure in figures:
-            block.append('```figure\n' + json.dumps(figure['spec'], ensure_ascii=False) + '\n```')
+            block.append('```figure\n' + json.dumps(D.figure_spec(design, figure['spec']), ensure_ascii=False) + '\n```')
         block += [_problem(design, item, answers, worked=item['id'] == first_example, heading=block[0]) for item in items]
         if closing:
             block.append('\n'.join('- ' + _clean(point) for point in design['summary']) if answers
@@ -110,14 +120,16 @@ def answer_key(design):
 def after_class(design):
     """A page to write on after the lesson; the prompts follow this lesson's objectives and warm-up."""
     names = D.labels(design)
+    one = design.get('audience') == 'student'   # one student: whether, not how many
     lines = ['## 课后记录', '', '**实际用时与调整**（哪个环节超时、删了什么）', LINES.format(3), '',
-             '**学生表现**（可在「班级与画像」里记为学习证据）', '']
+             '**学生表现**', '']
     for item in design['items']:
         if item['role'] == 'warmup':
-            lines.append(f'- {names[item["id"]]}：答对 ____ 人 / 共 ____ 人')
+            lines.append(f'- {names[item["id"]]}：' + ('□ 答对　□ 答错' if one else '答对 ____ 人 / 共 ____ 人'))
     for number, objective in enumerate(design['objectives'], 1):
         checked = '、'.join(names[ref] for ref in objective['checked_by'])
-        lines.append(f'- 目标 {number}' + (f'（看{checked}）' if checked else '') + '：达成 ____ 人；主要问题：____________')
+        lines.append(f'- 目标 {number}' + (f'（看{checked}）' if checked else '') + '：'
+                     + ('□ 达成　□ 部分达成　□ 未达成' if one else '达成 ____ 人') + '；主要问题：____________')
     lines += ['', '**教学反思**', LINES.format(5)]
     return '\n'.join(lines)
 
@@ -140,14 +152,15 @@ def with_slide_pages(design, body, pages):
     return body + '\n\n' + D.humanize(design, '\n'.join(rows))
 
 
-def teacher_book(design, content, facts, pages=None):
+def teacher_book(design, content, facts, pages=None, sources=()):
     """The teacher's book as Markdown. facts: (label, value) rows describing this lesson and version;
-    pages: {segment id: 「第 3—4 页」} when the package carries the slides built from the same design."""
+    pages: {segment id: 「第 3—4 页」} when the package carries the slides built from the same design;
+    sources: (code, what it is) of the materials the text cites, listed after it so a printed 「[M96]」 reads."""
     cell = lambda text: re.sub(r'\s+', ' ', str(text if text not in (None, '') else '—')).replace('|', '\\|')
     table = ['| 项目 | 内容 |', '| --- | --- |'] + [f'| {label} | {cell(value)} |' for label, value in facts]
-    return '\n\n'.join([
+    cited = ['**资料对照**（正文里方括号中的编号）', '', '| 编号 | 资料 |', '| --- | --- |'] + \
+        [f'| {code} | {cell(label)} |' for code, label in sources]
+    return '\n\n'.join(part for part in [
         f'# {design["title"]} · 教师用书', '\n'.join(table),
-        '> 内容由 AI 生成，程序只核对了结构、时间、数量和编号。授课前请核对重点取舍、推导和答案；'
-        '来源、学生档案与程序检查见《生成记录与核对》。本书含学情和答案，请勿发给学生。',
-        with_slide_pages(design, lesson_body(content), pages), PAGE_BREAK, answer_key(design), PAGE_BREAK,
-        after_class(design)]) + '\n'
+        with_slide_pages(design, lesson_body(content), pages), '\n'.join(cited) if sources else '',
+        PAGE_BREAK, answer_key(design), PAGE_BREAK, after_class(design)] if part) + '\n'

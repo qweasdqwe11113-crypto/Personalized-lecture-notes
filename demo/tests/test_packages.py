@@ -37,14 +37,14 @@ class PackageTests(QuizFixture):
         self.assertEqual(quiz['status'], 'succeeded', quiz)
         archive = ZipFile(BytesIO(self.package(f"?quiz={quiz['id']}").data))
         names = set(archive.namelist())
-        self.assertEqual(names, {'教师授课手册.docx', '教师授课手册.md', '讲义正文-原稿.md', '学生练习.docx',
-                                 '练习-教师版.docx', '授课包清单.json'})
-        manifest = json.loads(archive.read('授课包清单.json'))
+        self.assertEqual(names, {'教师授课手册.docx', '附件/教师授课手册.md', '附件/讲义正文-原稿.md', '学生练习.docx',
+                                 '练习-教师版.docx', '附件/授课包清单.json'})
+        manifest = json.loads(archive.read('附件/授课包清单.json'))
         for item in manifest['files']:
             self.assertEqual(sha256(archive.read(item['name'])).hexdigest(), item['sha256'])
         self.assertEqual(manifest['lecture']['content_sha256'], sha256('# 隔离测试讲义\n历史原稿 [M3]'.encode()).hexdigest())
         self.assertEqual((manifest['quiz']['id'], manifest['quiz']['lecture'], manifest['presentation']), (quiz['id'], self.lecture_id, None))
-        handbook = archive.read('教师授课手册.md').decode()
+        handbook = archive.read('附件/教师授课手册.md').decode()
         # Lecture headings nest below the handbook section; quiz answers and learner snapshot are present.
         self.assertIn('### 隔离测试讲义', handbook)
         self.assertIn('**参考答案**：', handbook)
@@ -59,6 +59,12 @@ class PackageTests(QuizFixture):
         self.assertNotIn(self.before_context['student']['name'], worksheet)
         self.assertIn('参考答案', docx_text(archive.read('练习-教师版.docx')))
 
+    def test_record_says_once_that_the_reference_examples_are_made_up(self):
+        context = {'materials': [], 'reference_examples': [{'name': '双产线基准'}, {'name': '先验变化'}]}
+        text = '\n'.join(packages.sources_section({'lecture': {'context': context}}))
+        self.assertIn('例题采用了课题设定的参考例题（双产线基准、先验变化）：数据是自编的假设数据', text)
+        self.assertNotIn('参考例题', '\n'.join(packages.sources_section({'lecture': {'context': {'materials': []}}})))
+
     def test_revision_export_uses_saved_revision_and_its_report(self):
         with self.fixture_db() as conn:
             conn.execute('''INSERT INTO lecture_revisions (lecture_id,revision_number,base_revision,content,status,recorder,
@@ -67,8 +73,8 @@ class PackageTests(QuizFixture):
                 Jsonb({k: False for k in REVIEW_ITEMS}), Jsonb({'automatic': [{'label': '修订检查', 'status': 'pass', 'detail': '留存'}],
                                                                 'teacher_review': []})))
         archive = ZipFile(BytesIO(self.package('?revision=1').data))
-        self.assertIn('讲义正文-R1.md', archive.namelist())
-        handbook = archive.read('教师授课手册.md').decode()
+        self.assertIn('附件/讲义正文-R1.md', archive.namelist())
+        handbook = archive.read('附件/教师授课手册.md').decode()
         self.assertIn('三、讲义正文（R1）', handbook)
         self.assertIn('修订保存时留存', handbook)
         self.assertIn('修订记录：测试教师', handbook)
@@ -112,9 +118,9 @@ class PackageTests(QuizFixture):
         with patch.object(packages, 'presentation_pptx', deck(self.lecture_id)):
             archive = ZipFile(BytesIO(self.package('?presentation=77').data))
             self.assertEqual(archive.read('授课课件.pptx'), b'PPTX-FIXTURE')
-            manifest = json.loads(archive.read('授课包清单.json'))
+            manifest = json.loads(archive.read('附件/授课包清单.json'))
             self.assertEqual(manifest['presentation']['run_id'], 77)
-            self.assertIn('#77 · 6 页 · 蓝白教学', archive.read('教师授课手册.md').decode())
+            self.assertIn('#77 · 6 页 · 蓝白教学', archive.read('附件/教师授课手册.md').decode())
         with patch.object(packages, 'presentation_pptx', deck(self.lecture_id + 1)):
             self.package('?presentation=77', 400)
 

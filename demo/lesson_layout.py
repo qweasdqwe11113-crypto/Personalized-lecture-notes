@@ -325,7 +325,9 @@ def steps(slide, th, page):
 
 
 def answers(slide, th, page):
-    size, y = page['size'], TOP + 4
+    # A short answer page is not pinned under the title: a third of the free room goes above it, as on point pages.
+    size = page['size']
+    y = TOP + 4 + max(0, (ROOM - 4 - answers_need(page['rows'], size)) / 3)
     for row in page['rows']:
         h = max(size * LS, height(row['answer'], size, WIDTH - LABEL_W))
         write(slide, th, LEFT, y, LABEL_W - 16, size * LS, row['label'], size, th.accent, True, name='题号')
@@ -365,17 +367,8 @@ def figure_page(slide, th, page):
     figure(slide, th, page['figure'], LEFT + 40, TOP + 12, WIDTH - 80, room - 24)
 
 
-def notice(slide, th, page):
-    add_rect(slide, LEFT, TOP, WIDTH, ROOM, fill=th.bg_sub)
-    y = TOP + 24
-    for line in page['lines']:
-        h = height(line, 18, WIDTH - 48)
-        write(slide, th, LEFT + 24, y, WIDTH - 48, h + 2, line, 18, th.text, name='核对说明')
-        y += h + 10
-
-
 PAGES = dict(cover=cover, points=points, problems=problems, steps=steps, answers=answers, summary=summary,
-             homework=homework, figure=figure_page, notice=notice)
+             homework=homework, figure=figure_page)
 
 
 def draw(slide, th, page, progress, label, index, total, skin=None):

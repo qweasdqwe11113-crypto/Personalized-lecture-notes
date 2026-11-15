@@ -576,10 +576,10 @@
    <label for="package-deck">授课课件</label><select id="package-deck"><option value="">不包含课件</option></select>
    <label for="package-format">导出内容</label><select id="package-format"><option value="zip">完整授课包（.zip）</option><option value="docx">仅教师授课手册（Word）</option><option value="md">仅教师授课手册（Markdown）</option></select>
   </form>
-  <ul class="package-contents"><li><strong>教师授课手册</strong>：授课概览、学生档案与本次讲解安排、讲义正文、配套练习答案解析、材料来源、审核待办</li><li><strong>学生练习</strong>：不含答案和学生信息，可直接打印</li><li><strong>授课课件</strong>与<strong>清单</strong>：可编辑 PPTX，及每个文件的 SHA-256</li></ul>
+  <ul class="package-contents"><li><strong>教师授课手册</strong>：授课概览、学生档案与本次讲解安排、讲义正文、配套练习答案解析、材料来源、审核待办</li><li><strong>学生练习</strong>：不含答案和学生信息，可直接打印</li><li><strong>授课课件</strong>：可编辑 PPTX</li><li><strong>附件文件夹</strong>：手册和讲义正文的 Markdown 版，及每个文件的 SHA-256 清单</li></ul>
   <p id="package-status" class="helper" role="status" aria-live="polite"></p>
   <div class="package-actions"><a id="package-download" class="primary" href="#">下载授课包</a><button id="package-new-quiz" type="button" class="secondary">先为这份讲义出题</button></div>
-  <p class="helper">讲义、题目与课件为 AI 生成或修订的待审核内容；学生档案、教师用书和含答案的学案仅供教师使用，请勿与学生学案、学生练习一起分发。</p>
+  <p class="helper">讲义、题目与课件为 AI 生成或修订的待审核内容；学生档案、教师用书、含答案的学案和题目教师版仅供教师使用，请勿与学生学案、学生练习或课后检测学生版一起分发。</p>
  </div>
 </dialog>
 <link rel="stylesheet" href="/static/packages.css"><script defer src="/static/packages.js"></script>

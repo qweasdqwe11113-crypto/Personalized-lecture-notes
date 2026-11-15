@@ -32,6 +32,13 @@ function isNewer(tag, current) {
   return false;
 }
 
+/** Whether to tell the user about a release: it must be newer than this client, and the check made
+    at start-up also stays quiet about the version the user chose to skip and anything older. */
+function offerRelease(tag, current, {automatic = false, skipped = null} = {}) {
+  if (!isNewer(tag, current)) return false;
+  return !(automatic && skipped && !isNewer(tag, skipped));
+}
+
 const ALLOWED_PERMISSIONS = new Set(['clipboard-sanitized-write', 'fullscreen']);
 
-module.exports = {origin, isAppUrl, isLauncherUrl, externalTarget, isNewer, ALLOWED_PERMISSIONS};
+module.exports = {origin, isAppUrl, isLauncherUrl, externalTarget, isNewer, offerRelease, ALLOWED_PERMISSIONS};

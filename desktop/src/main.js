@@ -33,6 +33,7 @@ let quitting = false;
 let stopped = false;
 let busy = false;
 let noSandbox = false;
+let updateChecked = false;
 
 const configFile = () => path.join(app.getPath('userData'), 'desktop.json');
 const dataDir = () => settings.dataDir || paths.defaultDataDir(paths.dataFolderName(!packaged));
@@ -112,6 +113,11 @@ async function boot() {
     const url = await runtime.start();
     busy = false;
     await openWorkspace(url);
+    // Once per run, in the background, after the workspace is open (retries and restarts do not repeat it).
+    if (!updateChecked && settings.autoCheckUpdates) {
+      updateChecked = true;
+      checkUpdates({automatic: true});
+    }
   } catch (error) {
     busy = false;
     await showLauncher({...state, phase: 'failed', lead: '启动没有完成', error: failure(error)});
@@ -251,25 +257,51 @@ function showAbout() {
   });
 }
 
-async function checkUpdates() {
+/**
+ * Looks up the latest GitHub release. From the menu every outcome gets a dialog; the automatic
+ * check after start-up speaks only when there is a newer version the user has not skipped, and
+ * otherwise just writes a line to the log (no release yet, up to date, offline, rate-limited).
+ */
+async function checkUpdates({automatic = false} = {}) {
+  const note = text => { if (runtime) runtime.log.line('client', `检查更新：${text}`); };
+  const say = options => (automatic ? null : dialog.showMessageBox(win, {type: 'info', title: '检查更新', ...options}));
   try {
     const response = await net.fetch(`https://api.github.com/repos/${REPOSITORY}/releases/latest`,
-      {headers: {Accept: 'application/vnd.github+json', 'User-Agent': 'zhiye-desktop'}});
-    if (response.status === 404) return dialog.showMessageBox(win, {type: 'info', title: '检查更新', message: '暂时还没有发布的版本。'});
+      {headers: {Accept: 'application/vnd.github+json', 'User-Agent': 'zhiye-desktop'}, signal: AbortSignal.timeout(15000)});
+    if (response.status === 404) { note('还没有发布的版本'); return say({message: '暂时还没有发布的版本。'}); }
     if (!response.ok) throw new Error(`GitHub 返回 ${response.status}`);
     const release = await response.json();
-    if (!policy.isNewer(release.tag_name, app.getVersion())) {
-      return dialog.showMessageBox(win, {type: 'info', title: '检查更新', message: `已是最新版本（${app.getVersion()}）。`});
+    const current = app.getVersion();
+    if (!policy.offerRelease(release.tag_name, current, {automatic, skipped: settings.skippedVersion})) {
+      note(`最新发布 ${release.tag_name}，当前 ${current}${policy.isNewer(release.tag_name, current) ? '（已选择跳过）' : ''}`);
+      return say({message: `已是最新版本（${current}）。`});
     }
+    note(`发现新版本 ${release.tag_name}`);
+    if (quitting || !win || win.isDestroyed()) return;
     const {response: choice} = await dialog.showMessageBox(win, {
-      type: 'info', buttons: ['前往下载', '以后再说'], defaultId: 0, cancelId: 1, title: '发现新版本',
-      message: `新版本 ${release.tag_name} 可以下载。`, detail: '安装新版本会保留现有数据。',
+      type: 'info', buttons: ['前往下载', '以后再说', ...(automatic ? ['跳过这个版本'] : [])], defaultId: 0, cancelId: 1,
+      title: '发现新版本', message: `新版本 ${release.tag_name} 可以下载。`,
+      detail: automatic
+        ? '安装新版本会保留现有数据。选择「跳过这个版本」后，启动时不再提示它，仍可从「知页 → 检查更新」查看。'
+        : '安装新版本会保留现有数据。',
     });
+    if (choice === 2) {
+      settings = {...settings, skippedVersion: release.tag_name};
+      try { config.save(configFile(), settings); } catch { /* not essential */ }
+    }
     const page = policy.externalTarget(release.html_url);
     if (choice === 0 && page) shell.openExternal(page);
   } catch (error) {
-    dialog.showMessageBox(win, {type: 'warning', title: '检查更新', message: '暂时无法检查更新。', detail: error.message});
+    const reason = error.name === 'TimeoutError' ? '连接超时' : error.message;
+    note(`没有完成（${reason}）`);
+    if (!automatic) dialog.showMessageBox(win, {type: 'warning', title: '检查更新', message: '暂时无法检查更新。', detail: reason});
   }
+}
+
+/** 知页 → 启动时检查更新 */
+function setAutoCheck(item) {
+  settings = {...settings, autoCheckUpdates: item.checked};
+  try { config.save(configFile(), settings); } catch { /* not essential */ }
 }
 
 // ---------------------------------------------------------------- window and menu
@@ -325,7 +357,8 @@ function buildMenu() {
   const template = [
     {label: productName, submenu: [
       {label: `关于${productName}`, click: showAbout},
-      {label: '检查更新…', click: checkUpdates},
+      {label: '检查更新…', click: () => checkUpdates()},
+      {label: '启动时检查更新', type: 'checkbox', checked: settings.autoCheckUpdates, click: setAutoCheck},
       {type: 'separator'},
       {label: '退出', accelerator: 'CmdOrCtrl+Q', click: requestQuit},
     ]},
