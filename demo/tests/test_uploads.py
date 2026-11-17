@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from flask import Flask
-from uploads import ImportError, WebText, clean_text, extract, public_target, register_uploads
+from uploads import ImportError, clean_text, extract, public_target, register_uploads
 
 
 class UploadTests(unittest.TestCase):

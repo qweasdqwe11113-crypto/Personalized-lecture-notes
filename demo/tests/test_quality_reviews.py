@@ -6,7 +6,6 @@ from unittest.mock import patch
 import unittest
 
 from test_profiles import ProfileDatabaseFixture, module
-from psycopg.types.json import Jsonb
 from quality import REVIEW_ITEMS, assess_scope, check_output
 from reviews import retain_feedback_issues
 

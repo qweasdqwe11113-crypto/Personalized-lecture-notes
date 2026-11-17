@@ -43,6 +43,23 @@ def public_channels(channels):
                    'key_present': bool(c['api_key'])} for name, c in channels.items()}
 
 
+def same_service(url, saved_url):
+    """Both addresses name one service: the same scheme, host and port (a default port counts as
+    written out). A saved key goes only there; fixing the path of an address is not a new service."""
+    def origin(value):
+        try:
+            parts = urlsplit(str(value or '').strip())
+            port = parts.port
+        except ValueError:
+            return None
+        scheme = parts.scheme.lower()
+        if scheme not in ('http', 'https') or not parts.hostname:
+            return None
+        return scheme, parts.hostname.lower(), port or (443 if scheme == 'https' else 80)
+    first = origin(url)
+    return first is not None and first == origin(saved_url)
+
+
 def validate_channel(name, data, old):
     if name not in CHANNELS or not isinstance(data, dict):
         raise SettingsError('请选择有效的模型类型。')
@@ -54,7 +71,8 @@ def validate_channel(name, data, old):
         result[field] = value.strip()
     if data.get('clear_key') is True:
         result['api_key'] = ''
-    elif not result['api_key']:
+    elif not result['api_key'] and same_service(result['base_url'], old.get('base_url', '')):
+        # An empty field keeps the saved key, but never sends it to another service's address.
         result['api_key'] = old.get('api_key', '')
     result['base_url'] = result['base_url'].rstrip('/')
     if name == 'vlm' and not result['base_url'] and not result['model']:
@@ -227,7 +245,9 @@ def register_model_settings(app, env_path):
             return jsonify(error='配置字段格式不正确，请使用单行文本。'), 400
         try:
             old = saved()[name]
-            if not key.strip() and config.get('clear_key') is not True:
+            # The address may be typed without a scheme; compare what the listing will actually call.
+            if (not key.strip() and config.get('clear_key') is not True
+                    and same_service(model_import.normalize_base_url(url), old['base_url'])):
                 key = old['api_key']
             return jsonify(model_import.list_models(url, key.strip(), current_models()))
         except ConfigImportError as exc:

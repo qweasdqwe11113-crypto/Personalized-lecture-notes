@@ -224,7 +224,6 @@ class _Deck:
 
 
 def _segment_notes(deck, segment, index):
-    design = deck.design
     lines = [f'第 {index + 1} 环节 · {D.KINDS[segment["kind"]]} · {segment["minutes"]} 分钟' + ('（重点）' if segment['focus'] else ''),
              f'教师用书：{D.ORDINALS[index] if index < len(D.ORDINALS) else index + 1}、{D.segment_title(segment)}']
     if segment['teacher']:

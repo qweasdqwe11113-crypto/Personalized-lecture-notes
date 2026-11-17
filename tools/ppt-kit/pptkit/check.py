@@ -11,7 +11,6 @@ import sys
 from typing import List, Tuple
 
 from pptx import Presentation
-from pptx.util import Emu
 
 EMU_PER_PT = 12700
 CN_RE = re.compile(r"[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]")

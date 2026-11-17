@@ -14,7 +14,7 @@ import urllib.request
 from urllib.parse import urlsplit
 import uuid
 
-from flask import jsonify, request, send_file
+from flask import jsonify, send_file
 import assets
 from qwen import clean_content
 

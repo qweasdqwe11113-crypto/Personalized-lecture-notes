@@ -11,8 +11,8 @@ from zipfile import ZipFile
 
 from test_profiles import ProfileDatabaseFixture, module
 from jobs import JobQueue
-from presentations import MIME, fingerprint, parse_deck, prepare_slides, refine_presentation, deck_fingerprint
-from pptx_export import A, P, build_pptx
+from presentations import MIME, fingerprint, parse_deck, prepare_slides, refine_presentation
+from pptx_export import build_pptx
 from quality import REVIEW_ITEMS
 from pptkit_export import build_pptx as build_kit_pptx, EXPORT_VERSION, check as check_layout
 from presentations import build_pptx as build_versioned_pptx

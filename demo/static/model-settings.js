@@ -10,7 +10,16 @@
  const save=document.getElementById('save-model-settings');
  const versions={llm:0,vlm:0,embedding:0};
  const keyPresent={llm:false,vlm:false,embedding:false};
+ const savedUrl={llm:'',vlm:'',embedding:''};
  let testing=0,saving=false;
+ // A saved key goes only to the service it was saved for (same scheme, host and port). The server
+ // applies the same rule; this line tells the teacher before a test comes back refused.
+ const origin=url=>{try{return new URL(url).origin;}catch{return '';}};
+ function keyHint(name){
+  const now=origin(document.getElementById(name+'-base-url').value.trim());
+  const kept=keyPresent[name]&&now!==''&&now===origin(savedUrl[name]);
+  document.getElementById(name+'-api-key').placeholder=kept?'已配置 · 留空保留原密钥':keyPresent[name]?'服务地址已更换 · 请重新填写密钥，无鉴权的服务可留空':'未配置 · 可填写新密钥';
+ }
  // Inside the desktop client the saved settings can take effect at once: it restarts the service
  // and reloads this window. In a browser the note above tells how to restart.
  const desktop=window.zhiyeDesktop,restartRow=document.querySelector('.model-restart-row');
@@ -26,8 +35,8 @@
    input(name,'model').value=c.model;
    input(name,'api-key').value='';
    input(name,'clear-key').checked=false;
-   keyPresent[name]=Boolean(c.key_present);
-   input(name,'api-key').placeholder=c.key_present?'已配置 · 留空保留原密钥':'未配置 · 可填写新密钥';
+   keyPresent[name]=Boolean(c.key_present);savedUrl[name]=c.base_url;
+   keyHint(name);
   }
  }
  async function request(url,payload){
@@ -58,7 +67,7 @@
   const button=document.getElementById('test-'+name);
   const result=document.getElementById(name+'-test-status');
   for(const field of ['base-url','model','api-key','clear-key'])input(name,field).addEventListener('input',()=>{
-   versions[name]++;result.textContent='配置已修改，请重新测试。';delete result.dataset.state;
+   versions[name]++;keyHint(name);result.textContent='配置已修改，请重新测试。';delete result.dataset.state;
    status.textContent='有未保存的修改。测试成功后，点击“保存配置”并重启服务。';
   });
   button.addEventListener('click',async()=>{

@@ -1,6 +1,5 @@
 """Real transactions and queued, stubbed model replies; never contacts a model."""
 import hashlib
-import json
 import unittest
 from unittest.mock import patch
 
@@ -33,7 +32,7 @@ class SectionSpliceTests(unittest.TestCase):
         result = replacement(edit, f'## 例题与检验\nx + 3 = 5，x = 2。[M3]\n\n{figure}\n\n检验：2 + 3 = 5。')
         self.assertIn(figure, result)
         self.assertIn('## 易错点与小结', result)
-        for text in (f'## 例题与检验\n内容\n\n```python\nprint(1)\n```', '## 例题与检验\n内容\n\n```figure\n{"type":"unknown"}\n```',
+        for text in ('## 例题与检验\n内容\n\n```python\nprint(1)\n```', '## 例题与检验\n内容\n\n```figure\n{"type":"unknown"}\n```',
                      '## 例题与检验\n内容\n\n```figure\n## 偷改别节\n```'):
             with self.subTest(text=text), self.assertRaises(module.ModelError):
                 replacement(edit, text)
