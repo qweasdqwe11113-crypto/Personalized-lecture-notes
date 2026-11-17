@@ -52,6 +52,65 @@ class CatalogTests(ProfileDatabaseFixture):
                 self.assertNotIn('bracket_evidence', [c['code'] for c in report['automatic']])
                 self.assertEqual(report['version'], 'general-text-check-v1+lecture-workflow-v2')
 
+    def test_a_course_subject_adds_subject_rules_and_checks_to_its_own_lessons(self):
+        from classes import SUBJECT_MIGRATION, ensure_course_structure
+        with self.fixture_db() as conn:
+            ensure_course_structure(conn)
+            # A demonstration course made before subjects existed gets its subject once; a later choice stays.
+            conn.execute("UPDATE courses SET subject='general' WHERE preset_key='junior-math'")
+            conn.execute('DELETE FROM schema_migrations WHERE name=%s', (SUBJECT_MIGRATION,))
+            ensure_course_structure(conn)
+            conn.execute("UPDATE courses SET subject='general' WHERE preset_key='university-probability'")
+            ensure_course_structure(conn)
+        presets = {c['preset_key']: c['subject'] for c in self.client.get('/api/courses').json['courses'] if c['preset_key']}
+        self.assertEqual(presets, {'junior-math': 'math', 'university-probability': 'general'})
+        made = self.client.post('/api/courses', json={'name': '概率统计初步', 'stage': '高中', 'subject': 'probability'})
+        self.assertEqual((made.status_code, made.json['course']['subject']), (201, 'probability'))
+        self.assertEqual(self.client.post('/api/courses', json={'name': '力学', 'stage': '高中', 'subject': 'physics'}).status_code, 400)
+        course = made.json['course']
+        saved = self.create(course_id=course['id'], course='', stage='', knowledge_names=['二项分布', '期望'], title='二项分布的期望',
+                            goal='会求二项分布的期望。')
+        goal = saved['task']['goal']
+
+        def context():
+            response = self.client.get('/api/context', query_string={'student_id': 1, 'topic': saved['key']})
+            self.assertEqual(response.status_code, 200, response.json)
+            return response.json
+        ctx = context()
+        prepared = prepare_request(ctx, goal, 'fixture')
+        self.assertEqual(prepared.prompt_version, 'lecture-general-v1+probability-general-v1+expanded-v1+plan-v1')
+        system = json.loads(prepared.body)['messages'][0]['content']
+        self.assertIn('【学科要求：概率统计】', system)
+        self.assertNotIn('【学科要求：概率论】', system)   # the Bayes lesson's own rules stay with the demonstration lessons
+        design = prepare_request({**ctx, 'generation_mode': 'designed-v1'}, goal, 'fixture')
+        self.assertEqual(design.prompt_version, 'lesson-design-v1+probability-general-v1+tutor-v1')
+        self.assertIn('【学科要求：概率统计】', json.loads(design.body)['messages'][0]['content'])
+        report = check_output('## 例题\n设 $P(A)=1.2$，$P(B) = 0.6 \\times 0.5 = 0.3$。', ctx, goal)
+        self.assertIn('+probability-subject-v1', report['version'])
+        checks = {c['code']: c for c in report['automatic']}
+        self.assertEqual(checks['probability_range']['status'], 'warning')
+        self.assertIn('1.2', checks['probability_range']['detail'])
+        self.assertNotIn('0.3', checks['probability_range']['detail'])
+        # A P(…) inside a product counts people, not a probability: 10000 × 0.01 × 0.95 = 95 is fine.
+        count = check_output('真阳性数 = $N \\times P(A_1) \\times P(B\\mid A_1) = 10000 \\times 0.01 \\times 0.95 = 95$，'
+                             '$2P(A) = 1.2$，$P(A) + P(B) = 1.3$', ctx, goal)
+        self.assertEqual({c['code']: c for c in count['automatic']}['probability_range']['status'], 'pass')
+        self.assertNotIn('probability_conditions', checks)   # 互斥、完备 belong to the Bayes lesson, not every probability lesson
+
+        # The course decides: changed, the next generation of the same lesson follows; left out of an edit, it stays.
+        edit = dict(name=course['name'], stage=course['stage'])
+        self.assertEqual(self.client.put(f'/api/courses/{course["id"]}', json={**edit, 'subject': 'math'}).json['course']['subject'], 'math')
+        self.assertEqual(self.client.put(f'/api/courses/{course["id"]}', json=edit).json['course']['subject'], 'math')
+        ctx = context()
+        self.assertEqual(prepare_request(ctx, goal, 'fixture').prompt_version, 'lecture-general-v1+math-general-v1+expanded-v1+plan-v1')
+        self.assertNotIn('probability_range', [c['code'] for c in check_output('$P(A)=1.2$', ctx, goal)['automatic']])
+        self.client.put(f'/api/courses/{course["id"]}', json={**edit, 'subject': 'general'})
+        self.assertEqual(prepare_request(context(), goal, 'fixture').prompt_version, 'lecture-general-v1+expanded-v1+plan-v1')
+        # A demonstration lesson keeps its own family whatever its course says.
+        preset = prepare_request(module.get_context(1, 'linear'), '', 'fixture').prompt_version
+        self.assertTrue(preset.startswith('lecture-math-v3+'), preset)
+        self.assertNotIn('general-v1', preset)
+
     def test_edit_preserves_point_ids_and_history_but_rejects_stale_revision(self):
         saved = self.create()
         key = saved['key']

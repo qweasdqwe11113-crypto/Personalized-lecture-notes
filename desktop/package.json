@@ -8,6 +8,7 @@
   "license": "MIT",
   "homepage": "https://github.com/qweasdqwe11113-crypto/Personalized-lecture-notes",
   "main": "src/main.js",
+  "desktopName": "zhiye.desktop",
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "test": "node --test \"test/*.test.js\"",
@@ -19,8 +20,8 @@
     "node": ">=22"
   },
   "devDependencies": {
-    "electron": "38.4.0",
-    "electron-builder": "26.0.12"
+    "electron": "45.3.3",
+    "electron-builder": "26.18.0"
   },
   "optionalDependencies": {
     "@embedded-postgres/linux-x64": "17.6.0-beta.15",

@@ -32,7 +32,23 @@ async function refreshRuns() {
     return button;
   }));
   if (!data.runs.length) $('generation-runs').append(el('p', '尚无保存完整输入的新请求。既有讲义在“最近生成”查看。', 'helper'));
+  $('retry-interrupted').hidden = !data.interrupted;
+  $('retry-interrupted').textContent = `重试全部中断的任务（${data.interrupted || 0}）`;
 }
+$('retry-interrupted').onclick = async () => {
+  const button = $('retry-interrupted'), note = $('retry-interrupted-note');
+  button.disabled = true;
+  try {
+    const data = await api('/api/jobs/retry-interrupted', {method: 'POST'});
+    note.textContent = `已按原输入重新排队 ${data.queued} 份，在「后台任务」查看进度。`
+      + (data.skipped.length ? `另有 ${data.skipped.length} 份没有排上：${data.skipped[0].error}` : '');
+  } catch (err) { note.textContent = err.message; }
+  finally {
+    note.hidden = false; button.disabled = false;
+    refreshRuns().catch(() => {});
+    if (typeof window.refreshWorkspaceJobs === 'function') window.refreshWorkspaceJobs().catch(() => {});
+  }
+};
 function traceError(message) {
   $('trace-dialog-error').textContent = message || '';
   $('trace-dialog-error').hidden = !message;
@@ -61,9 +77,14 @@ function drawTrace(run) {
     ['结束时间', run.finished_at ? new Date(run.finished_at).toLocaleString('zh-CN') : '尚未确认'],
     ['耗时', run.elapsed_seconds === null ? '未记录' : `${Number(run.elapsed_seconds).toFixed(2)} 秒`],
     ['输入 SHA-256', run.request_sha256], ['模型用量', JSON.stringify(run.usage)],
-    ...(run.response_metadata.stages ? [['分章节调用记录', '下面显示的冻结请求是大纲阶段；各章节请求由它、冻结上下文和大纲推导。'
-      + run.response_metadata.stages.map(s => `\n${s.stage === 'outline' ? '大纲' : s.stage} · 第 ${s.attempt} 次 · ${s.characters} 汉字 · ${s.seconds} 秒`
-        + (s.problems.length ? ' · 未通过：' + s.problems[0] : '') + ' · 请求 SHA-256 ' + s.request_sha256.slice(0, 12)).join('')]] : []),
+    ...(run.response_metadata.stages ? [['分阶段调用记录', (run.response_metadata.generation_mode === 'designed-v1'
+        ? '下面显示的冻结请求是课堂设计阶段；各环节请求由它、冻结上下文和课堂设计推导。'
+        : '下面显示的冻结请求是大纲阶段；各章节请求由它、冻结上下文和大纲推导。')
+      + (run.response_metadata.stages.length ? '' : '\n没有完成的模型调用。')
+      + run.response_metadata.stages.map(s => `\n${({outline: '大纲', design: '课堂设计', 'design-patch': '课堂设计（局部修正）'})[s.stage] || s.stage} · 第 ${s.attempt} 次 · ${s.characters} 汉字 · ${s.seconds} 秒`
+        + (s.total_tokens ? ` · ${s.total_tokens} tokens` : '')
+        + (s.problems.length ? ' · 未通过：' + s.problems.slice(0, 3).join('；') + (s.problems.length > 3 ? `；另有 ${s.problems.length - 3} 条` : '') : '')
+        + ' · 请求 SHA-256 ' + s.request_sha256.slice(0, 12)).join('')]] : []),
     ['失败分类', run.error_code ? `${run.error_stage} / ${run.error_code}` : '无已记录失败']
   ]) $('trace-metadata').append(el('dt', label), el('dd', value));
   const context = run.context;

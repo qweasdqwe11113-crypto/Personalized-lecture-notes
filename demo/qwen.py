@@ -1,6 +1,7 @@
 """Qwen transport. Credentials and raw service errors never enter saved traces."""
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from email.utils import parsedate_to_datetime
 import json
 import os
 import re
@@ -20,11 +21,39 @@ class ModelResult:
 
 
 class ModelError(ValueError):
-    def __init__(self, code, message, stage='model', partial=None):
+    def __init__(self, code, message, stage='model', partial=None, retryable=False):
         super().__init__(message)
         self.code = code
         self.stage = stage
         self.partial = partial or ModelResult('')
+        self.retryable = retryable   # nothing of the reply arrived, and the service may answer if asked again
+
+
+RETRY_STATUS = {429, 500, 502, 503, 504}
+RETRY_WAITS = (5, 20, 40)   # seconds before the 1st, 2nd and 3rd retry when the service names no time
+RETRY_AFTER_LIMIT = 60
+
+
+def model_retries():
+    """How many times a request that got no reply at all is sent again (MODEL_RETRIES, 0–3, default 2)."""
+    try:
+        return max(0, min(3, int(os.environ.get('MODEL_RETRIES', '2'))))
+    except ValueError:
+        return 2
+
+
+def _retry_after(value):
+    """Seconds from a Retry-After header (a number or an HTTP date), or None."""
+    if not value:
+        return None
+    try:
+        return max(0.0, float(value))
+    except ValueError:
+        pass
+    try:
+        return max(0.0, parsedate_to_datetime(value).timestamp() - time.time())
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 def config_flags():
@@ -143,31 +172,57 @@ def call_qwen(prepared, on_attempt):
     except ValueError:
         raise ModelError('invalid_endpoint', '服务地址格式不正确，请在「系统设置」检查语言模型的服务地址。', 'configuration') from None
     on_attempt()  # Commit the attempt before network I/O; never recompute the body.
+    # A rate limit, a busy service or a dropped connection before any of the reply arrived is waited out and the
+    # same bytes are sent again; a timeout is not (the service may still be working), nor is a reply cut short.
+    retries = model_retries()
+    for attempt in range(retries + 1):
+        try:
+            result = _exchange(req)
+            break
+        except ModelError as exc:
+            if not exc.retryable or attempt == retries:
+                raise
+            hinted = exc.partial.metadata.get('retry_after')
+            time.sleep(min(hinted, RETRY_AFTER_LIMIT) if hinted is not None else RETRY_WAITS[attempt])
+    output = _reply(result)
+    if attempt:
+        output.metadata['transport_retries'] = attempt
+    return output
+
+
+def _exchange(req):
+    """One send of the request: the decoded reply, or a ModelError that says whether sending again may help."""
     try:
         with urllib.request.urlopen(req, timeout=request_timeout()) as response:
             # The frozen body decides the transport; old saved requests stay non-streaming.
             headers = getattr(response, 'headers', None)
             if 'text/event-stream' in ((headers.get('Content-Type') if headers else '') or ''):
-                result = _read_stream(response)
-            else:
-                result = json.load(response)
+                return _read_stream(response)   # its errors are never retried: text may already be on the page
+            return json.load(response)
     except ModelError:
         raise
     except urllib.error.HTTPError as exc:
         code = exc.code
+        wait = _retry_after(exc.headers.get('Retry-After') if exc.headers else None)
         exc.close()
+        metadata = {'http_status': code, **({'retry_after': wait} if wait is not None else {})}
         raise ModelError('http_error', f'模型服务返回 HTTP {code}，请检查服务配置或稍后重试。',
-                         partial=ModelResult('', metadata={'http_status': code})) from None
+                         partial=ModelResult('', metadata=metadata), retryable=code in RETRY_STATUS) from None
     except urllib.error.URLError as exc:
         timeout = isinstance(exc.reason, TimeoutError)
         raise ModelError('timeout' if timeout else 'unreachable',
-                         '模型请求超时，请稍后重试。' if timeout else '无法连接模型服务，请检查网络，并在「系统设置」确认服务地址。') from None
+                         '模型请求超时，请稍后重试。' if timeout else '无法连接模型服务，请检查网络，并在「系统设置」确认服务地址。',
+                         retryable=not timeout) from None
     except TimeoutError:
         raise ModelError('timeout', '模型请求超时，请稍后重试。') from None
     except (json.JSONDecodeError, UnicodeDecodeError):
         raise ModelError('invalid_json', '模型服务没有返回有效 JSON。') from None
     except OSError:
-        raise ModelError('connection_error', '模型连接中断，请稍后重试。') from None
+        raise ModelError('connection_error', '模型连接中断，请稍后重试。', retryable=True) from None
+
+
+def _reply(result):
+    """A decoded chat/completions reply as a ModelResult, or the ModelError it amounts to."""
     try:
         choice = result['choices'][0]
         raw_content = choice['message'].get('content')

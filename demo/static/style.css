@@ -123,3 +123,4 @@ dialog.lightbox::backdrop {
 /* Display formulas and figures that open in the zoom view. */
 .zoomable { cursor: zoom-in; }
 .zoomable:focus-visible { outline: 3px solid #bfd0ff; outline-offset: 4px; border-radius: 4px; }
+.delete-dialog-lines{margin:4px 0 12px;padding-left:20px;font-size:14px;line-height:1.8}.delete-entry{color:#934626}.delete-confirm{background:#a8442a;border-color:#a8442a}.delete-confirm:disabled{opacity:.5}#delete-dialog-name-field{margin-top:12px}

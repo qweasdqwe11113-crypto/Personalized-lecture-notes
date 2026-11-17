@@ -3,8 +3,10 @@
 Real PostgreSQL in a disposable schema for the pipeline; every model reply is an explicit fixture.
 """
 import copy
+from itertools import count
 import json
 import sys
+from types import SimpleNamespace
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -18,6 +20,7 @@ from docx import Document
 import design as D
 import designed
 import handouts
+import qwen
 import style
 from jobs import JobQueue
 from progress import ProgressHub
@@ -150,6 +153,11 @@ class DesignRules(unittest.TestCase):
         reply = design_reply()
         reply['items'][0]['stem'] = '小许抽到一件次品，求它来自 A1 的概率。'
         self.assertIn('学生姓名', '\n'.join(D.validate(reply, CONTEXT)[2]))
+        # The model is told 「该生」 instead of the name; that does not belong on the handout either.
+        reply['items'][0]['stem'] = '该生抽到一件次品，求它来自 A1 的概率。'
+        self.assertIn('学生姓名', '\n'.join(D.validate(reply, CONTEXT)[2]))
+        reply['items'][0]['stem'] = '应该生产多少件，才能让次品期望不超过 1？'
+        self.assertNotIn('学生姓名', '\n'.join(D.validate(reply, CONTEXT)[2]))
         anonymous = {**CONTEXT, 'personalization_mode': 'none', 'personalization_plan': []}
         self.assertIn('learner 应为空', '\n'.join(D.validate(design_reply(), anonymous)[2]))
 
@@ -240,6 +248,40 @@ class DesignRules(unittest.TestCase):
         self.assertIn('两种写法', worth)
         self.assertEqual(D.mixed_notation(D.validate(design_reply(), CONTEXT)[0]), [])
         self.assertEqual(D.humanize(D.validate(design_reply(), CONTEXT)[0], '- E1 留在行首；看 E2 。'), '- 例1留在行首；看例2。')
+
+    def test_a_partial_correction_merges_by_id_and_rejects_what_is_not_one(self):
+        base = design_reply()
+        merged = D.merge_patch(base, {
+            'segments': [{'id': 'S3', 'minutes': 12, 'items': ['P1', 'P2', 'P4']}],
+            'items': [{'id': 'E2', 'answer': '约 0.091'},
+                      dict(item('P4', 'practice', '占比 0.5、0.5，次品率 0.01、0.03，求来自甲线的后验概率。', '0.25'))],
+            'remove': ['P3'],
+            'summary': ['先写先验，再乘似然，最后除以全概率']})
+        self.assertEqual(base, design_reply(), 'the base is not changed')
+        self.assertEqual([s['minutes'] for s in merged['segments']], [3, 8, 12])
+        self.assertEqual(merged['segments'][2]['teacher'], ['看学生分母是否写全'])
+        self.assertEqual(merged['items'][1]['answer'], '约 0.0909'.replace('0.0909', '0.091'))
+        self.assertEqual(merged['items'][1]['stem'], base['items'][1]['stem'])
+        self.assertEqual([i['id'] for i in merged['items']], ['E1', 'E2', 'P1', 'P2', 'H1', 'P4'])
+        self.assertEqual(merged['objectives'][1]['checked_by'], ['H1'])   # P3 left every list
+        self.assertEqual(merged['summary'], ['先写先验，再乘似然，最后除以全概率'])
+        self.assertEqual(D.merge_patch(base, base), base)   # a model that sends everything back replaces everything
+        for bad in ({}, [], {'notes': 'x'}, {'remove': 'P3'}, {'items': [{'answer': '1'}]}, {'segments': [{'id': 'S7'}]}):
+            with self.subTest(bad=bad), self.assertRaises(D.DesignError):
+                D.merge_patch(base, bad)
+
+    def test_blank_list_entries_are_dropped_and_an_object_entry_names_its_place(self):
+        reply = design_reply()
+        reply['segments'][0]['board'] = ['$P(A_k\\mid B)$ 的公式', '', '  ', '分母是全概率']   # the model spacing the board out
+        reply['segments'][1]['teacher'] = ['', '板演例1', '学生口述例2', ' ']
+        reply['summary'] = ['后验 = 先验 × 似然 ÷ 全概率', '']
+        design, hard, _ = D.validate(reply, CONTEXT)
+        self.assertEqual(hard, [])
+        self.assertEqual(design['segments'][0]['board'], ['$P(A_k\\mid B)$ 的公式', '分母是全概率'])
+        self.assertEqual(design['segments'][1]['teacher'], ['板演例1', '学生口述例2'])
+        self.assertEqual(design['summary'], ['后验 = 先验 × 似然 ÷ 全概率'])
+        reply['segments'][0]['board'] = ['公式', {'text': '分母'}]
+        self.assertIn('环节 S1的板书（board）的第 2 条应为文字', '\n'.join(D.validate(reply, CONTEXT)[1]))
 
     def test_student_handout_follows_class_order_and_keeps_teacher_material_out(self):
         design, hard, soft = D.validate(with_notes(), CONTEXT)
@@ -357,7 +399,8 @@ class DesignRules(unittest.TestCase):
         design, hard, soft = D.validate(reply, CONTEXT)
         self.assertEqual(hard, [])
         text = '\n'.join(soft)
-        self.assertIn('第 2 条目标写由 P2 检验，但 P2 的题干、步骤和答案里没有这条目标的内容（如「变化」「先验」）', text)
+        self.assertIn('第 2 条目标写由 P2 检验，但 P2 的题干、步骤和答案里没有这条目标的内容（如「先验变化」）', text)
+        self.assertEqual([p for p in D.worth_retry(soft) if '第 2 条目标' in p], [])   # shown to the teacher, not retried
         self.assertIn('H2 用的是 E2 的同一组数据，问的结果 E2 已经算过', text)
         self.assertNotIn('H1 用的是', text)
         codes = {code: (passed, detail) for code, _, passed, detail in D.report(design, CONTEXT)}
@@ -366,6 +409,9 @@ class DesignRules(unittest.TestCase):
         self.assertEqual(codes['design_variety'], (False, '作业2重复例2的数据和结果。换数据、换情境或换问法。'))
         # Words most problems use, and objectives with nothing distinctive, are not judged.
         self.assertEqual(D.objective_gaps(D.validate(design_reply(), CONTEXT)[0]), [])
+        # Nor is one with a single distinctive word: one shared pair of characters says too little.
+        design['objectives'][1]['text'] = '知道先验'
+        self.assertEqual(D.objective_gaps(design), [])
         # A formula counts as its words: P(A_1|D) over P(D) is a conditional probability with a denominator.
         self.assertLessEqual({'条件', '件概', '分母', '交集'}, D._terms('$\\frac{P(A_1\\cap D)}{P(D)}=P(A_1\\mid D)$'))
         self.assertNotIn('text', D._terms('$\\text{Poisson}(4)$'))
@@ -639,27 +685,95 @@ class DesignedPipeline(base.CourseJobTests):
         self.assertTrue(all(s['status'] == 'succeeded' and s['lecture_id'] for s in status), status)
         self.assertEqual(self.post(self.payload(generation_mode='designed-v1')).status_code, 400)  # needs lesson settings
 
-    def test_design_reminders_get_one_retry_with_the_concrete_problems(self):
-        seen = []
-
+    def patched(self, patch_reply, seen=None):
+        """A model whose first design is three minutes short (two reminders) and whose correction is patch_reply."""
         def model(prepared, on_attempt):
             payload, user = request_of(prepared)
             if 'target_segment' in user:
                 return self.staged(prepared, on_attempt)
-            seen.append(payload['messages'])
+            if seen is not None:
+                seen.append(payload)
             on_attempt()
-            reply = design_reply()
             if len(payload['messages']) == 2:
+                reply = design_reply()
                 reply['segments'][2]['minutes'] = 6
-            return module.ModelResult(json.dumps(reply, ensure_ascii=False))
+                return module.ModelResult(json.dumps(reply, ensure_ascii=False), {'total_tokens': 30})
+            return module.ModelResult(patch_reply if isinstance(patch_reply, str) else json.dumps(patch_reply, ensure_ascii=False),
+                                      {'total_tokens': 5})
+        return model
+
+    def test_design_reminders_get_one_partial_correction_with_the_concrete_problems(self):
+        seen = []
+        job, run = self.run_job(self.patched({'segments': [{'id': 'S3', 'minutes': 9}]}, seen), self.new_payload(design_review=False))
+        self.assertEqual(job['status'], 'succeeded', run['error_message'])
+        messages = seen[1]['messages']
+        self.assertEqual([m['role'] for m in messages], ['system', 'user', 'assistant', 'user'])
+        self.assertIn('局部修正 lesson-design-patch-v1', messages[3]['content'])
+        self.assertIn('各环节合计 17 分钟，授课时长是 20 分钟', messages[3]['content'])
+        self.assertIn('有 3 道当堂练习却只有 6 分钟', messages[3]['content'])
+        self.assertEqual((seen[1]['response_format'], seen[1]['stream']), ({'type': 'json_object'}, True))
+        stages = [(s['stage'], s['attempt'], bool(s['problems'])) for s in run['response_metadata']['stages']]
+        self.assertEqual(stages[:2], [('design', 1, True), ('design-patch', 2, False)])
+        self.assertEqual(run['response_metadata']['design_reminders'], [])
+        merged = run['response_metadata']['design']
+        self.assertEqual([s['minutes'] for s in merged['segments']], [3, 8, 9])
+        self.assertEqual(merged['segments'][2]['teacher'], ['看学生分母是否写全'])   # what the patch left out stays
+        self.assertEqual(merged['items'][0]['answer'], '0.375')
+        self.assertEqual(run['usage']['total_tokens'], 30 + 5 + 2 * 11)
+
+    def test_a_correction_not_asked_about_the_time_cannot_change_the_minutes(self):
+        def model(prepared, on_attempt):
+            payload, user = request_of(prepared)
+            if 'target_segment' in user:
+                return self.staged(prepared, on_attempt)
+            on_attempt()
+            if len(payload['messages']) == 2:
+                reply = design_reply()
+                reply['segments'][2]['teacher'] = ['巡视，看学生分母是否写全']
+                return module.ModelResult(json.dumps(reply, ensure_ascii=False))
+            return module.ModelResult(json.dumps({'segments': [{'id': 'S3', 'minutes': 10, 'teacher': ['看学生分母是否写全']}]},
+                                                 ensure_ascii=False))
         job, run = self.run_job(model, self.new_payload(design_review=False))
         self.assertEqual(job['status'], 'succeeded', run['error_message'])
-        self.assertEqual([m['role'] for m in seen[1]], ['system', 'user', 'assistant', 'user'])
-        self.assertIn('各环节合计 17 分钟，授课时长是 20 分钟', seen[1][3]['content'])
-        self.assertIn('有 3 道当堂练习却只有 6 分钟', seen[1][3]['content'])
-        stages = [(s['stage'], s['attempt'], bool(s['problems'])) for s in run['response_metadata']['stages']]
-        self.assertEqual(stages[:2], [('design', 1, True), ('design', 2, False)])
-        self.assertEqual(run['response_metadata']['design_reminders'], [])
+        first, patch = run['response_metadata']['stages'][:2]
+        self.assertIn('巡视', first['problems'][0])
+        self.assertEqual(patch['problems'], [])
+        design = run['response_metadata']['design']
+        self.assertEqual((design['segments'][2]['teacher'], design['segments'][2]['minutes']), (['看学生分母是否写全'], 9))
+
+    def test_a_correction_that_clears_only_a_note_is_kept_when_the_retry_reminders_stay_as_many(self):
+        def model(prepared, on_attempt):
+            payload, user = request_of(prepared)
+            if 'target_segment' in user:
+                return self.staged(prepared, on_attempt)
+            on_attempt()
+            if len(payload['messages']) == 2:
+                reply = design_reply()
+                reply['segments'][2]['minutes'] = 6
+                reply['objectives'][1]['checked_by'] = ['P2', 'H1']   # an unchecked objective: a note, not a retry reason
+                return module.ModelResult(json.dumps(reply, ensure_ascii=False))
+            return module.ModelResult(json.dumps({'objectives': design_reply()['objectives']}, ensure_ascii=False))
+        job, run = self.run_job(model, self.new_payload(design_review=False))
+        self.assertEqual(job['status'], 'succeeded', run['error_message'])
+        first, patch = run['response_metadata']['stages'][:2]
+        self.assertEqual((len(first['problems']), len(patch['problems'])), (3, 2))
+        self.assertEqual(run['response_metadata']['design']['objectives'][1]['checked_by'], ['P3', 'H1'])
+        self.assertEqual(len(run['response_metadata']['design_reminders']), 2)
+
+    def test_a_correction_that_does_not_help_or_breaks_the_design_keeps_the_first_one(self):
+        for name, reply in [('still short', {'segments': [{'id': 'S3', 'minutes': 6}]}),
+                            ('missing item', {'segments': [{'id': 'S3', 'minutes': 9, 'items': ['P1', 'P2', 'P9']}]}),
+                            ('new segment', {'segments': [{'id': 'S9', 'minutes': 3}]}),
+                            ('unknown field', {'segments': [{'id': 'S3', 'minutes': 9}], 'remarks': '改好了'}),
+                            ('not json', '好的，已按意见修改。')]:
+            with self.subTest(name):
+                job, run = self.run_job(self.patched(reply), self.new_payload(design_review=False))
+                self.assertEqual(job['status'], 'succeeded', run['error_message'])
+                stages = run['response_metadata']['stages']
+                self.assertEqual([(s['stage'], s['attempt']) for s in stages[:2]], [('design', 1), ('design-patch', 2)])
+                self.assertTrue(stages[1]['problems'])
+                self.assertEqual([s['minutes'] for s in run['response_metadata']['design']['segments']], [3, 8, 6])
+                self.assertEqual(len(run['response_metadata']['design_reminders']), 2)
 
     def test_a_recomputed_formula_alone_is_shown_but_does_not_cost_a_second_design_call(self):
         calls = []
@@ -681,6 +795,78 @@ class DesignedPipeline(base.CourseJobTests):
         self.assertIn('题目 E2 的算式复算不一致', run['response_metadata']['design_reminders'][0])
         report = {c['code']: c['status'] for c in run['citation_check']['quality_report']['automatic']}
         self.assertEqual(report['arithmetic'], 'warning')
+
+    def test_the_design_is_streamed_and_the_page_sees_a_growing_count_not_the_json(self):
+        seen = []
+
+        def model(prepared, on_attempt):
+            payload, user = request_of(prepared)
+            if 'target_segment' in user:
+                return self.staged(prepared, on_attempt)
+            seen.append(payload)
+            on_attempt()
+            reply = design_reply()
+            if len(payload['messages']) == 2:
+                reply['segments'][2]['minutes'] = 6   # reminders, so the correction request is streamed too
+            text = json.dumps(reply, ensure_ascii=False)
+            for start in range(0, len(text), 300):
+                qwen.stream_listener()(text[start:start + 300])
+            return module.ModelResult(text)
+        clock = count(0, 0.6)
+        with patch.object(designed, 'time', SimpleNamespace(monotonic=lambda: next(clock))), \
+                patch.object(module.HUB, 'stage', wraps=module.HUB.stage) as stage, patch.object(module.HUB, 'write', wraps=module.HUB.write) as write:
+            job, run = self.run_job(model)
+        self.assertEqual(job['status'], 'succeeded', run['error_message'])
+        for payload in seen:
+            self.assertEqual((payload['stream'], payload['stream_options'], payload['response_format']),
+                             (True, {'include_usage': True}, {'type': 'json_object'}))
+        self.assertEqual(len(seen), 2)
+        labels = [c.args[1] for c in stage.call_args_list if '已写' in c.args[1]]
+        first = [int(label.split('已写 ')[1].split(' 字')[0]) for label in labels if label.startswith('课堂设计：')]
+        self.assertGreater(len(first), 2)
+        self.assertEqual(first, sorted(first))
+        self.assertTrue(any(label.startswith('课堂设计（按检查意见修改）：已写') for label in labels))
+        self.assertFalse(any('"segments"' in str(c.args) for c in write.call_args_list))   # no raw JSON on the page
+        _, plain = self.run_job(self.staged)
+        self.assertEqual(run['response_metadata']['design'], plain['response_metadata']['design'])
+
+    def test_an_objective_without_shared_words_alone_does_not_cost_a_second_design_call(self):
+        calls = []
+
+        def unchecked(reply):
+            reply['objectives'][1]['checked_by'] = ['P2', 'H1']   # 练2 is a plain conditional probability
+            return reply
+
+        def model(prepared, on_attempt):
+            payload, user = request_of(prepared)
+            if 'target_segment' in user:
+                return self.staged(prepared, on_attempt)
+            calls.append(payload['messages'])
+            on_attempt()
+            return module.ModelResult(json.dumps(unchecked(design_reply()), ensure_ascii=False))
+        job, run = self.run_job(model, self.new_payload(design_review=False))
+        self.assertEqual(job['status'], 'succeeded', run['error_message'])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(run['response_metadata']['design_reminders']), 1)
+        self.assertIn(D.UNCHECKED, run['response_metadata']['design_reminders'][0])
+
+        calls.clear()
+
+        def with_time(prepared, on_attempt):
+            payload, user = request_of(prepared)
+            if 'target_segment' in user:
+                return self.staged(prepared, on_attempt)
+            calls.append(payload['messages'])
+            on_attempt()
+            reply = unchecked(design_reply())
+            if len(payload['messages']) == 2:
+                reply['segments'][2]['minutes'] = 6
+            return module.ModelResult(json.dumps(reply, ensure_ascii=False))
+        job, run = self.run_job(with_time, self.new_payload(design_review=False))
+        self.assertEqual(job['status'], 'succeeded', run['error_message'])
+        self.assertEqual(len(calls), 2)   # the time is worth a retry, and the request carries both reminders as written
+        self.assertIn('各环节合计 17 分钟，授课时长是 20 分钟', calls[1][3]['content'])
+        self.assertIn('第 2 条目标写由 P2 检验，但 P2 的题干、步骤和答案里没有这条目标的内容（如「先验变化」）', calls[1][3]['content'])
 
     def test_a_design_that_stays_tight_is_kept_with_its_reminders_and_a_broken_one_fails(self):
         def tight(prepared, on_attempt):
@@ -709,6 +895,21 @@ class DesignedPipeline(base.CourseJobTests):
         self.assertIn('引用了不存在的题目 E7', run['error_message'])
         self.assertEqual(self.count('lectures'), before)
         self.assertEqual(self.client.get(f'/api/lesson-designs/{run["id"]}').status_code, 404)
+
+    def test_a_failed_design_keeps_what_its_calls_cost_and_what_each_was_told(self):
+        def broken(prepared, on_attempt):
+            on_attempt()
+            reply = design_reply()
+            reply['segments'][1]['items'] = ['E1', 'E7']
+            return module.ModelResult(json.dumps(reply, ensure_ascii=False), {'total_tokens': 7})
+        job, run = self.run_job(broken)
+        self.assertEqual((job['status'], run['error_code']), ('failed', 'invalid_design'))
+        self.assertEqual((run['usage']['model_calls'], run['usage']['total_tokens']), (2, 14))
+        stages = run['response_metadata']['stages']
+        self.assertEqual([(s['stage'], s['attempt']) for s in stages], [('design', 1), ('design', 2)])
+        for stage in stages:
+            self.assertIn('引用了不存在的题目 E7', '\n'.join(stage['problems']))
+        self.assertEqual(run['response_metadata']['generation_mode'], 'designed-v1')
 
     def test_segment_notes_are_rewritten_once_for_narration_and_fail_on_a_missing_source(self):
         seen = []

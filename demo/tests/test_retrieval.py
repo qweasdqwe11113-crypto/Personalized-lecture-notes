@@ -228,7 +228,7 @@ class RetrievalTests(ProfileDatabaseFixture):
     def test_adopt_is_idempotent_for_one_upload(self):
         record = {'title': '课件摘要', 'filename': 'lesson.txt', 'source_url': '',
                   'content': '全概率要求划分两两互斥且覆盖整个样本空间。'}
-        with patch.object(module, 'read_upload', return_value=record):
+        with patch('retrieval_api.read_upload', return_value=record):   # the route lives in retrieval_api.py
             first = self.client.post('/api/retrieval/adopt', json={'upload_id': 'abc', 'knowledge_id': 12})
             second = self.client.post('/api/retrieval/adopt', json={'upload_id': 'abc', 'knowledge_id': 12})
         self.assertEqual(first.status_code, 201)

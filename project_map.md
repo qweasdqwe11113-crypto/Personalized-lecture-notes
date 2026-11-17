@@ -31,7 +31,7 @@ flowchart TD
 | 入口 | 说明 |
 | --- | --- |
 | `run_demo.sh` | 检查依赖与 `.env`，运行 `demo/init_db.py`，再启动 `demo/app.py`（默认 127.0.0.1:5055） |
-| `demo/app.py` | 讲义上下文与生成、导出、学生接口；创建共享任务队列与生成锁，注册其余模块的路由；所有请求先检查 Host 是本机名字（防 DNS 重绑定），写请求再检查 Origin 与大小 |
+| `demo/app.py` | 讲义上下文与生成、任务接口、生成记录与讲义查看；创建共享任务队列与生成锁，注册其余模块的路由（导出在 `exports.py`，学生档案在 `profiles.py`，引导与课程班级选择在 `workspace.py`，检索索引在 `retrieval_api.py`）；所有请求先检查 Host 是本机名字（防 DNS 重绑定），写请求再检查 Origin 与大小 |
 | `demo/schema.sql`、`demo/init_db.py` | 表结构与增量初始化；种子数据在 `seed.json`、`university_seed.json` |
 | `demo/tests/` | 单元与集成测试；`serve_*_fixture.py` 为固定响应的离线沙盒（5056 端口） |
 | `.github/workflows/tests.yml` | 推送到 `main` 和涉及服务代码的 Pull Request：先 `ruff check demo tools`（规则在 `ruff.toml`，只查语法错误、未使用的导入和未定义的名字；版本固定在 `requirements-dev.txt`），再在 PostgreSQL 服务容器里运行 `demo/init_db.py` 和 `demo/tests` |
@@ -58,7 +58,8 @@ flowchart TD
 | `reviews.js` | `reviews.py` | 版本切换、问题记录、编辑与审核、程序检查面板 |
 | `section-editor.js` | `sections.py` | 按章节生成候选并另存修订 |
 | `design-review.js` | `designed.py` | 确认课堂设计：预览、改时间 / 重点 / 题干答案、按意见重做、确认后开始写详案（`/api/lesson-designs/<记录>` 及其 `check`、`expand`、`revise`） |
-| `traces.js` | `runs.py` | 查看生成输入、失败重试 |
+| `traces.js` | `runs.py` | 查看生成输入、失败重试、一次重发全部「服务重启中断」的记录 |
+| `deletion.js` | `deletion.py` | 删除前的确认弹窗：列出将一并删除的内容，删学生时要输入姓名 |
 | `profile-comparison.js`、`lecture-comparison.js` | `profiles.py`、`comparisons.py` | 画像对照、讲义比较 |
 | `quizzes.js`（配套出题） | `quizzes.py` | 以当前讲义版本出题 |
 | `presentations.js` | `presentations.py` | 生成课件、预览、单页微调 |
@@ -76,8 +77,9 @@ flowchart TD
 | `classes.py` | 课程 → 班级 → 学生：课程与班级增改、选课（一门课程每名学生只在一个班）、班级画像汇总（`class_state` 规则）、班级讲义上下文、一次性迁移 `ensure_course_structure`；知识点库同名规则 `name_key` / `library_names`（全角半角、空格、大小写不计），备课、识别确认、新增改名和 CSV 导入共用 |
 | `catalog.py` | 合并预置与自建备课（每份属于一门课程，`course_id`）；课程备课从知识点库勾选（`knowledge_ids`），新名称加入知识点库；复制；把课程或班级资料收录为知识点材料（班级资料带 `class_id`） |
 | `knowledge.py` | 课程知识点库与知识点识别：按页或标题切片、去页眉页脚、找编号标题（规则），模型细分（`prompts/knowledge-recognition-v2.md`，附库中已有名称以便沿用），草稿 `knowledge_drafts`，教师确认后写入知识点与资料片段；后台队列 `KnowledgeQueue` 与其他模型调用共用并发闸门 |
-| `profiles.py` | 学习证据、掌握状态、修改历史与画像对照；证据写入须教师确认 |
+| `profiles.py` | 学习证据、掌握状态、修改历史与画像对照；证据写入须教师确认；学生档案的接口（`register_profiles`） |
 | `roster_import.py` | 学生名单与学习证据 CSV 的预览、指纹校验和整批事务导入；证据按名称对应课程知识点库（`classes.library_ids`），指纹只覆盖文件涉及的学生与知识点 |
+| `deletion.py` | 删除上传资料、学生、讲义（含其生成记录）、阅卷记录：先返回影响范围预览；有进行中的任务或属于实验对照的记录时拒绝；删学生要输入姓名确认，同时清掉画像证据、练习与课程任务里的引用 |
 | `uploads.py`、`assets.py`、`vision.py` | 文件与网址导入、正文与图片提取、图片规范化与指纹、视觉模型识读 |
 
 **检索与讲义生成**
@@ -87,15 +89,15 @@ flowchart TD
 | `retrieval.py`、`embed.py` | 分块、索引、余弦排序（pgvector 可替换），嵌入客户端 |
 | `lecture_policy.py` | 本次讲解安排、证据提醒、材料与上下文字符预算 |
 | `teaching.py` | 授课设置校验与篇幅规则 |
-| `prompts.py`、`prompts/` | 组装请求、只序列化一次并计算 SHA-256、标记提示词版本 |
+| `prompts.py`、`prompts/` | 组装请求、只序列化一次并计算 SHA-256、标记提示词版本；一对一的请求把学生姓名换成「该生」（`without_name`，出题、章节修改、课件同样调用） |
 | `jobs.py`、`runs.py` | 有界任务队列（多工作线程、批量额度）、取消与重试、重启恢复；运行记录与讲义同事务保存 |
 | `gate.py` | 模型并发闸门：全进程共用，`MODEL_CONCURRENCY` 个额度；额度为 1 时等同原来的全局锁 |
 | `design.py` | 课堂设计（`lesson-design-v1`）：解析模型给出的 JSON（含 LaTeX 反斜杠修复）、校验结构 / 时间 / 数量 / 引用（`hard` 不可用，`soft` 提醒），以及目标与检验题是否对应（`objective_gaps`）、练习是否重抄前面题目的数据（`repeated_items`）、答案是否写成整段、一对一辅导里的班级课用词、同一结果前后写的值是否一致、板书上的结果是否是题目算出的（`mismatched_values`、`board_slips`）、目标是否由练习或作业检验、老师和学生用不上的写法（`wording`：关于数据或生成过程的话、省略号、英文缩写）；`audience` 记录对象（student / class / general）；题目显示名、各环节篇幅上限；把设计排成教师详案的各部分（要点、课堂流程表、环节、题目块、板书、作业）。题目块 `item_block` 是所有文档共用的唯一出处 |
-| `designed.py` | 默认写作方式（`designed-v1`）：课堂设计 → 校验、重试一次 →（可停下等教师确认）→ 新授 / 例题 / 重点环节各一次调用（并行）→ 程序拼装；确认、检查、按意见重做的接口 |
+| `designed.py` | 默认写作方式（`designed-v1`）：课堂设计 → 校验，结构有错整份重做、只有提醒则局部修正（`design-patch`，按编号合并）→（可停下等教师确认）→ 新授 / 例题 / 重点环节各一次调用（并行）→ 程序拼装；确认、检查、按意见重做的接口 |
 | `style.py` | 文本指标：系统话术、免责声明、旁白、套话、排比、汉字数量、重复片段；用于环节重写的依据、程序检查的「表达提醒」和 `scale/quality_baseline.py` |
 | `sectioned.py` | 旧版分章节生成：大纲 → 各章节单独调用（有空闲额度时并行）→ 校验、重写一次 → 拼接 |
 | `repair.py` | 出题与课件的结构化输出未通过校验时，带问题自动重试一次 |
-| `qwen.py`、`model_runtime.py` | OpenAI 兼容调用（含流式 SSE）、错误分类、超时 |
+| `qwen.py`、`model_runtime.py` | OpenAI 兼容调用（含流式 SSE）、错误分类、超时；429 / 5xx / 连接中断按 `MODEL_RETRIES` 等待后重发（优先用 `Retry-After`），流式输出开始后不重发 |
 | `progress.py` | 运行中的实时正文（仅内存、仅显示），供 `/api/jobs/<id>/stream` 推送 |
 | `quality.py` | 章节、篇幅、引用编号、范围与已知问题词语检查；新流程追加算式复算、图与公式标记；按课堂设计生成的讲义改查环节结构，并加入 `design.report` 的时间 / 数量 / 目标 / 讲解安排检查和表达提醒 |
 | `mathcheck.py` | 重算纯数字等式、把写出的解代回方程；不认识的式子跳过 |
@@ -120,8 +122,11 @@ flowchart TD
 | `evaluation.py`、`experiment.py` | 当前版本固定对照；历史文件式实验 |
 | `rendering.py`、`model_settings.py`、`model_import.py` | 安全渲染与图片附录；模型配置的查看、测试与保存；快速配置（识别粘贴的配置、检测本机模型服务、读取模型列表，只填表单不保存） |
 | `edition.py` | 是否在桌面客户端里运行（`ZHIYE_EDITION=release`：空库、无预置课程）与数据目录（`ZHIYE_DATA_DIR`，存放 `.env` 和 `.runtime/`，默认项目根目录）；`app.py`、`init_db.py`、`catalog.py`、`presentations.py` 共用 |
-| `richdoc.py` | 导出用：LaTeX 转 Word 原生公式、图转图片、表格；`app.py` 与 `packages.py` 共用 |
-| `scale/` | 可选的扩展语料、合成班级装载（`load.py`）、检索评测（`eval_retrieval.py`）、生成基准（`bench.py`）、已保存讲义的文本指标（`quality_baseline.py`，只读）和新旧写作方式对照（`design_compare.py`，加 `--real` 才调用模型） |
+| `richdoc.py` | 导出用：LaTeX 转 Word 原生公式、图转图片、表格；`exports.py` 与 `packages.py` 共用 |
+| `exports.py` | 讲义原稿与教师修订稿的下载（Markdown、纯文本、HTML、Word） |
+| `workspace.py` | 存在数据库里的工作空间设置：新手引导是否看过、页面顶部最后选的课程与班级 |
+| `retrieval_api.py` | 检索索引的接口：各知识点的索引状态、建索引、把上传资料收录为材料 |
+| `scale/` | 可选的扩展语料、合成班级装载（`load.py`）、检索评测（`eval_retrieval.py`）、生成基准（`bench.py`）、已保存讲义的文本指标（`quality_baseline.py`，只读）、新旧写作方式对照（`design_compare.py`，加 `--real` 才调用模型）和默认写作方式的固定评测集（`evalset.json` 12 节课分 dev / holdout，`evalset.py` 在临时 schema 里按页面的接口建课并生成，`--modes profile none` 输出盲评材料；测试 `test_evalset.py`） |
 
 ## 4. 关键流程
 
@@ -152,7 +157,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-    R["冻结的请求<br/>只要课堂设计"] --> D["design.py 校验<br/>不合格带问题重试一次"]
+    R["冻结的请求<br/>只要课堂设计"] --> D["design.py 校验<br/>结构错误整份重做一次<br/>只有提醒则局部修正一次"]
     D --> S{"先让教师确认？"}
     S -->|是| C["设计记为已完成的生成记录<br/>教师查看、修改或要求重做"]
     C --> E["确认后另建任务<br/>上下文带确认后的设计"]
@@ -290,7 +295,7 @@ flowchart TD
 
 ## 6.1 桌面客户端
 
-Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中打开服务页面。服务代码与网页版完全相同，客户端只通过环境变量传入数据库地址、端口、数据目录和版本。
+Electron（45.x，打包工具 electron-builder 26.18）主进程启动自带的 PostgreSQL 和 Python 服务（`app.py` 用 waitress 提供页面，单进程 16 个线程），再在窗口中打开服务页面。服务代码与网页版完全相同，客户端只通过环境变量传入数据库地址、端口、数据目录和版本。
 
 | 文件 | 职责 |
 | --- | --- |
@@ -306,7 +311,7 @@ Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中
 | `scripts/stage.mjs`、`prune.mjs` | 准备 `build/resources`：便携 Python 及依赖（`prune.mjs` 删去 Tcl/Tk 与标准库测试，按平台只扫描原生库目录）、服务代码白名单（不含演示数据文件）、PostgreSQL |
 | `scripts/smoke.mjs`、`dist.mjs`、`dev.mjs` | 无界面冒烟测试、打包、从源码运行 |
 | `scripts/linux-sandbox.cjs` | Linux 上判断能否使用 Chromium 沙箱，不能时加 `--no-sandbox`；`dev.mjs` 调用它，打包时 `afterPack` 把程序改名为 `<名称>-bin`，原名换成启动脚本 |
-| `scripts/deb-after-install.tpl` | .deb 的安装后脚本：`/usr/bin` 链接指向启动脚本、`chrome-sandbox` 总是设为 root 所有且 4755、装入 AppArmor 配置；基于 electron-builder 的模板，`${…}` 由它替换，脚本里的 shell 变量不能写花括号 |
+| `scripts/deb-after-install.tpl` | .deb 的安装后脚本：`/usr/bin` 链接指向启动脚本、`chrome-sandbox` 总是设为 root 所有且 4755、装入 AppArmor 配置；基于 electron-builder 26.18 的模板（只改了 `chrome-sandbox` 那一段），`${…}` 由它替换，脚本里的 shell 变量不能写花括号 |
 | `electron-builder.config.cjs` | 应用名、安装包名（含 .deb 包名 `zhiye`、依赖和推荐的中文字体）和安装选项，只构建正式版；`files` 排除 `node_modules/@embedded-postgres`，安装包里只有 `resources/postgres` 这一份 PostgreSQL |
 
 ## 7. 修改时的关联检查
@@ -321,7 +326,9 @@ Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中
 | 知识点库与识别 | `knowledge.py`、`knowledge.js`、`course-manager.js` 的勾选列表 | 草稿版本（`version`）与确认、同名合并、`renumber` 的章节排序、来源片段格式 `#p起-止`（`sourceHref` 据此跳页）、`test_knowledge.py` |
 | 检索 | `retrieval.py`、`embed.py`、`app.get_context()` | 索引更新、知识点范围、检索快照、无画像模式 |
 | 讲义结构与篇幅 | `lecture_policy.py`、`teaching.py`、`prompts.py` | `quality.py`、字符预算、历史版本 |
+| 新的模型请求 | 组装请求的模块 | 带学生信息的请求体序列化前过一遍 `prompts.without_name(…, learner_name(context))`，在 `test_name_privacy.py` 里补一条 |
 | 队列与重试 | `jobs.py`、`runs.py`、`gate.py`、`jobs.js` | 取消、并发额度的获取与释放、失败状态、重启恢复 |
+| 删除数据 | `deletion.py`、`deletion.js` | 新增引用学生、讲义、上传资料或阅卷记录的表时，同时改 `deletion.py` 的删除顺序和预览计数，并在 `test_deletion.py` 里补一条 |
 | 课堂设计与按环节写作 | `design.py`、`designed.py`、`prompts/lecture-design-*.md`、`lecture-subject-*.md`、`design-review.js` | 设计的字段要同时改校验、排版和提示词里的 JSON 格式；`validate` 对自己的输出再校验结果不变（教师修改后重新提交依赖这一点）；`prompts.designed_view` 决定模型能看到的上下文；`sections.prepare_section` 的调整请求；`test_lesson_design.py`、离线沙盒 `serve_design_fixture.py`（5057 端口） |
 | 分章节生成（旧版） | `sectioned.py`、`prompts/lecture-sectioned-*.md` | 冻结上下文里的 `sectioned`、章节配额与篇幅检查一致、`test_pipeline_v3.py` |
 | 公式与图 | `figures.py`、`richdoc.py`、`app.js` 的 `renderMarkdown` | 网页、HTML、Word、纯文本四种输出，`prompts/lecture-format-rich-v1.md` 里的图格式 |

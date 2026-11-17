@@ -72,6 +72,23 @@ def recent_runs(conn):
         ORDER BY r.id DESC LIMIT 10''').fetchall()
 
 
+def interrupted_runs(conn, limit=60):
+    """Runs a restart cut off (jobs.JobQueue.recover) that nobody has sent again yet, oldest first."""
+    return conn.execute('''SELECT r.id FROM generation_runs r WHERE r.status='failed' AND r.error_code='process_interrupted'
+        AND NOT EXISTS (SELECT 1 FROM generation_jobs j WHERE j.parent_run_id=r.id) ORDER BY r.id LIMIT %s''',
+                        (limit,)).fetchall()
+
+
+def recent_costs(conn, mode, limit=10):
+    """Tokens and seconds of the latest complete lessons written the same way and straight through (a lesson
+    written from a confirmed design had its design paid for by an earlier run), newest first."""
+    return conn.execute('''SELECT (usage->>'total_tokens')::float AS tokens, elapsed_seconds::float AS seconds
+        FROM generation_runs WHERE status='succeeded' AND lecture_id IS NOT NULL
+        AND COALESCE(context->>'generation_mode','single')=%s AND jsonb_typeof(usage->'total_tokens')='number'
+        AND elapsed_seconds IS NOT NULL AND NOT context ? 'section_edit' AND NOT context ? 'ppt_export'
+        AND COALESCE(context->'designed'->>'confirmed','')='' ORDER BY id DESC LIMIT %s''', (mode, limit)).fetchall()
+
+
 def run_detail(conn, run_id):
     row = conn.execute('SELECT * FROM generation_runs WHERE id=%s', (run_id,)).fetchone()
     if not row:

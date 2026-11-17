@@ -10,6 +10,7 @@ from pathlib import Path
 import time
 
 from werkzeug.serving import make_server
+from qwen import stream_listener
 from test_lesson_design import DesignedPipeline, module, with_notes
 
 NOTES = {
@@ -55,7 +56,13 @@ def model(prepared, attempted):
         reply['title'] = '贝叶斯公式（隔离测试，非真实模型输出）'
         if user.get('teacher_feedback'):
             reply['focus']['not_today'].append('按意见调整：' + user['teacher_feedback'][:40])
-        return module.ModelResult(json.dumps(reply, ensure_ascii=False), {'total_tokens': 1200})
+        text = json.dumps(reply, ensure_ascii=False)
+        listener = stream_listener()
+        for start in range(0, len(text), 120):   # streamed over a few seconds, as a real design is
+            if listener:
+                listener(text[start:start + 120])
+            time.sleep(0.25)
+        return module.ModelResult(text, {'total_tokens': 1200})
     return module.ModelResult(NOTES.get(user['target_segment'], '- 巡视时看分母是否写全。'), {'total_tokens': 400})
 
 

@@ -1,5 +1,8 @@
 """Teacher-confirmed profile changes. Evidence never infers mastery automatically."""
 from datetime import datetime, timedelta, timezone
+import re
+
+from flask import jsonify, request
 
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
@@ -273,3 +276,77 @@ def record_evidence(conn, student_id, data):
         revision=%s,updated_at=now() WHERE student_id=%s AND knowledge_id=%s''',
         (confirmed_state, performance if decision == 'update' else old['evidence'],
          evidence['id'] if decision == 'update' else old['evidence_id'], revision + 1, student_id, knowledge_id))
+
+
+def register_profiles(app, db, course_knowledge_ids):
+    """The student record pages: list, create, profile, knowledge states and evidence. course_knowledge_ids(course)
+    narrows a profile to one course's knowledge points."""
+    @app.get('/api/students/<int:student_id>/profile')
+    def student_profile(student_id):
+        """With course_id, only that course's knowledge points; the record itself is shared."""
+        course_id = request.args.get('course_id', type=int)
+        points = course_knowledge_ids(course_id) if course_id is not None else None
+        with db() as conn:
+            conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
+            result = get_profile(conn, student_id, points)
+        return jsonify(result)
+
+
+    @app.get('/api/students')
+    def list_students():
+        with db() as conn:
+            return jsonify(students=conn.execute('''SELECT s.*,COALESCE(array_agg(m.class_id ORDER BY m.class_id)
+                FILTER (WHERE m.class_id IS NOT NULL),'{}') AS class_ids FROM students s
+                LEFT JOIN class_students m ON m.student_id=s.id GROUP BY s.id ORDER BY s.id''').fetchall())
+
+
+    @app.post('/api/students')
+    def create_student():
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            raise ProfileError('请填写学生档案。')
+        name = text_field(data, 'name', '姓名', 80)
+        subtitle = text_field(data, 'subtitle', '年级或学生说明', 80)
+        profile = text_field(data, 'profile', '学生信息与学习特点', 600)
+        with db() as conn:
+            conn.execute('LOCK TABLE students IN EXCLUSIVE MODE')
+            row = conn.execute('''INSERT INTO students(id,name,subtitle,profile)
+                VALUES ((SELECT COALESCE(max(id),0)+1 FROM students),%s,%s,%s) RETURNING *''',
+                (name, subtitle, profile)).fetchone()
+        return jsonify(student=row), 201
+
+
+    @app.post('/api/students/<int:student_id>/profile')
+    def save_student_profile(student_id):
+        course_id = request.args.get('course_id', type=int)
+        with db() as conn:
+            update_profile(conn, student_id, request.get_json(silent=True))
+            result = get_profile(conn, student_id, course_knowledge_ids(course_id) if course_id is not None else None)
+        return jsonify(result)
+
+
+    @app.get('/api/students/<int:student_id>/knowledge-states')
+    def student_knowledge_states(student_id):
+        """Current state and version per requested point, resolved through copy aliases to the diagnosed identity."""
+        raw = request.args.get('ids', '')
+        if not re.fullmatch(r'[0-9]{1,9}(,[0-9]{1,9}){0,49}', raw):
+            return jsonify(error='请选择有效的知识点。'), 400
+        with db() as conn:
+            conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
+            if not conn.execute('SELECT 1 FROM students WHERE id=%s', (student_id,)).fetchone():
+                return jsonify(error='学生不存在。'), 404
+            rows = conn.execute('''SELECT k.id,k.name,COALESCE(a.canonical_id,k.id) AS canonical_id,
+                COALESCE(s.state,'unknown') AS state,COALESCE(s.revision,0) AS revision,s.evidence
+                FROM knowledge_points k LEFT JOIN knowledge_aliases a ON a.knowledge_id=k.id
+                LEFT JOIN student_knowledge s ON s.knowledge_id=COALESCE(a.canonical_id,k.id) AND s.student_id=%s
+                WHERE k.id=ANY(%s) ORDER BY k.id''', (student_id, [int(i) for i in raw.split(',')])).fetchall()
+        return jsonify(states=[{**row, 'label': STATE_LABELS[row['state']]} for row in rows])
+
+
+    @app.post('/api/students/<int:student_id>/evidence')
+    def save_student_evidence(student_id):
+        course_id = request.args.get('course_id', type=int)
+        with db() as conn:
+            record_evidence(conn, student_id, request.get_json(silent=True))
+            result = get_profile(conn, student_id, course_knowledge_ids(course_id) if course_id is not None else None)
+        return jsonify(result), 201

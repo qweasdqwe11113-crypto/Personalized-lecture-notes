@@ -11,10 +11,11 @@ import unicodedata
 from flask import jsonify, request
 from psycopg.types.json import Jsonb
 
-from courses import PRESET_COURSES
+from courses import PRESET_COURSES, SUBJECTS
 from profiles import STATE_LABELS, ProfileError, json_dates
 
 MIGRATION = 'course-class-v1'
+SUBJECT_MIGRATION = 'course-subject-v1'
 STATE_ORDER = ('needs_support', 'partial', 'mastered', 'unknown')
 # A class-level judgement is a stated rule over confirmed states, shown to the teacher as such.
 CLASS_RULE = '按已诊断学生计：需要补充 ≥30% 记为需要补充，已掌握 ≥70% 记为已掌握，其余为部分掌握；无人诊断记为未知。'
@@ -39,10 +40,15 @@ def ensure_course_structure(conn, presets=True):
     """
     if presets:
         for key, preset in PRESET_COURSES.items():
-            conn.execute('''INSERT INTO courses(preset_key,name,stage,description) VALUES (%s,%s,%s,%s)
-                ON CONFLICT DO NOTHING''', (key, preset['name'], preset['stage'], preset['description']))
+            conn.execute('''INSERT INTO courses(preset_key,name,stage,description,subject) VALUES (%s,%s,%s,%s,%s)
+                ON CONFLICT DO NOTHING''', (key, preset['name'], preset['stage'], preset['description'], preset['subject']))
     if not conn.execute('SELECT 1 FROM schema_migrations WHERE name=%s', (MIGRATION,)).fetchone():
         attach_legacy(conn)
+    if not conn.execute('SELECT 1 FROM schema_migrations WHERE name=%s', (SUBJECT_MIGRATION,)).fetchone():
+        # Demonstration courses made before subjects existed get theirs once; a teacher's later choice stays.
+        for key, preset in PRESET_COURSES.items():
+            conn.execute("UPDATE courses SET subject=%s WHERE preset_key=%s AND subject='general'", (preset['subject'], key))
+        conn.execute('INSERT INTO schema_migrations(name) VALUES (%s)', (SUBJECT_MIGRATION,))
     backfill_library(conn)
 
 
@@ -86,7 +92,7 @@ def backfill_library(conn):
 
 
 def course_rows(conn):
-    return conn.execute('SELECT id,preset_key,name,stage,description FROM courses ORDER BY id').fetchall()
+    return conn.execute('SELECT id,preset_key,name,stage,description,subject FROM courses ORDER BY id').fetchall()
 
 
 def enrollment(conn):
@@ -142,15 +148,18 @@ def save_course(conn, data, course_id=None):
     name = field(data, 'name', '课程名称', 80)
     stage = field(data, 'stage', '学段', 40, optional=True)
     description = field(data, 'description', '课程说明', 600, optional=True)
+    subject = data.get('subject')   # left out by older pages: a new course is 'general', an edit keeps its own
+    if subject is not None and subject not in SUBJECTS:
+        raise ClassError('请选择学科：数学、概率统计或其他。')
     clash = conn.execute('SELECT id FROM courses WHERE name=%s AND stage=%s AND id IS DISTINCT FROM %s',
                          (name, stage, course_id)).fetchone()
     if clash:
         raise ClassError('已有同名同学段的课程，请换一个名称。', 409)
     if course_id is None:
-        return conn.execute('INSERT INTO courses(name,stage,description) VALUES (%s,%s,%s) RETURNING *',
-                            (name, stage, description)).fetchone()
-    row = conn.execute('UPDATE courses SET name=%s,stage=%s,description=%s WHERE id=%s RETURNING *',
-                       (name, stage, description, course_id)).fetchone()
+        return conn.execute('INSERT INTO courses(name,stage,description,subject) VALUES (%s,%s,%s,%s) RETURNING *',
+                            (name, stage, description, subject or 'general')).fetchone()
+    row = conn.execute('UPDATE courses SET name=%s,stage=%s,description=%s,subject=COALESCE(%s,subject) WHERE id=%s RETURNING *',
+                       (name, stage, description, subject, course_id)).fetchone()
     if not row:
         raise ClassError('课程不存在。', 404)
     # Lesson copies keep course and stage text for prompts and exports; follow the rename.

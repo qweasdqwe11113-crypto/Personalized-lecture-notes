@@ -6,7 +6,7 @@ const {spawn, spawnSync} = require('node:child_process');
 
 const WIN = process.platform === 'win32';
 // Variables the service or PostgreSQL would read as their own configuration.
-const OWNED = /^(QWEN_|VLM_|PPT_AESTHETIC_|MODEL_CONCURRENCY$|DATABASE_URL$|PORT$|ZHIYE_|PYTHON|PG[A-Z]|LD_LIBRARY_PATH$|FLASK_)/i;
+const OWNED = /^(QWEN_|VLM_|PPT_AESTHETIC_|MODEL_CONCURRENCY$|MODEL_RETRIES$|DATABASE_URL$|PORT$|ZHIYE_|PYTHON|PG[A-Z]|LD_LIBRARY_PATH$|FLASK_)/i;
 
 function cleanEnv(extra = {}, base = process.env) {
   const env = {};

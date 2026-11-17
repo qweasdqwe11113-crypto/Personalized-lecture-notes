@@ -95,8 +95,25 @@
       if (scope) { const attach = el('button', '收录到备课', 'secondary'); attach.type = 'button'; attach.onclick = () => openAttach(item); list.push(attach); }
       const pictures = el('button', '图片识读', 'secondary'); pictures.type = 'button'; pictures.onclick = () => preview.click();
       const download = el('a', '下载原文件', 'secondary'); download.href = '/api/uploads/' + item.id + '/download'; download.download = item.filename;
-      return [...list, pictures, download];
+      return [...list, pictures, download, deleteButton(item)];
     };
+  }
+  function deleteButton(item) {
+    const button = el('button', '删除…', 'secondary delete-entry'); button.type = 'button';
+    button.onclick = async () => {
+      try {
+        const p = await api('/api/uploads/' + encodeURIComponent(item.id) + '/delete-preview');
+        const done = await confirmDeletion({title: `删除资料「${p.title}」`, lines: [
+          '上传的原文件',
+          p.materials ? `已收录的课程材料 ${p.materials} 条（以后生成不再引用）` : '',
+          p.images ? `识读的页面图片 ${p.images} 张及识读结果` : '',
+          p.knowledge_draft ? '这份资料的知识点识别草稿（已加入知识点库的知识点保留）' : '',
+          p.lectures_citing ? `有 ${p.lectures_citing} 份讲义用过它：讲义里保留当时的材料文字，来源链接会显示「原资料已删除」` : ''],
+          action: () => postDelete('/api/uploads/' + encodeURIComponent(item.id) + '/delete', {with_materials: true})});
+        if (done) { status(`已删除「${p.title}」。`); await refreshUploads(); }
+      } catch (e) { status(e.message, true); }
+    };
+    return button;
   }
   async function refreshUploads() {
     const m = mode(), version = ++listVersion;
