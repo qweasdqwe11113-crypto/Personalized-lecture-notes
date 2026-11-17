@@ -58,7 +58,17 @@
           openWorkspacePage('grading');
           open(row.id).catch(e => message(e.message));
         };
-        $('grading-history').append(button);
+        const remove = el('button', '删除…', 'secondary delete-entry'); remove.type = 'button';
+        remove.disabled = ['reading', 'grading'].includes(row.status);
+        remove.onclick = async () => {
+          try {
+            const done = await confirmDeletion({title: `删除阅卷记录「${row.filename}」`,
+              lines: ['上传的答卷、识读出的答卷文字和评分结果'], action: () => postDelete(`/api/grading/${row.id}/delete`)});
+            if (done) history();
+          } catch (e) { historyError(e.message); }
+        };
+        const item = el('div', undefined, 'grading-history-row'); item.append(button, remove);
+        $('grading-history').append(item);
       }
     } catch(e) { historyError(e.message); }
   }

@@ -19,18 +19,33 @@ TOPICS = {
 # Demonstration courses and their seeded classes. Preset lessons find their course by key,
 # so a teacher may rename the course without detaching the examples.
 PRESET_COURSES = {
-    'junior-math': {'name': '初中数学', 'stage': '初中', 'description': '预置演示课程：等式性质、一步方程与两步方程。',
+    'junior-math': {'name': '初中数学', 'stage': '初中', 'subject': 'math', 'description': '预置演示课程：等式性质、一步方程与两步方程。',
                     'class': '演示班级', 'student_ids': [1, 2, 3], 'chapter': '等式与一元一次方程',
                     'class_profile': '预置虚拟学生，用于演示个性化与班级讲义；三人分别代表基础补充、易错点巩固和迁移应用。'},
-    'university-probability': {'name': '大学概率论', 'stage': '大学', 'description': '预置演示课程：条件概率、全概率与贝叶斯公式。',
+    'university-probability': {'name': '大学概率论', 'stage': '大学', 'subject': 'probability',
+                               'description': '预置演示课程：条件概率、全概率与贝叶斯公式。',
                                'class': '演示班级', 'student_ids': [11, 12, 13], 'chapter': '条件概率与贝叶斯公式',
                                'class_profile': '预置虚拟学生，用于演示个性化与班级讲义；三人分别代表基础补充、易错点巩固和迁移应用。'},
 }
 
 
 def course_family(topic):
+    """The demonstration lessons' own rules (linear equations, Bayes); a teacher's lesson is 'general'."""
     return topic.get('prompt_family') or ('general' if topic.get('custom') else
         'probability' if topic.get('course') == '大学概率论' else 'math')
+
+
+# The subject a course is taught as. It adds subject-wide rules to a teacher's own lessons; the
+# demonstration lessons keep their narrower family rules above.
+SUBJECTS = {'general': '其他', 'math': '数学', 'probability': '概率统计'}
+
+
+def subject_of(topic):
+    """'math' or 'probability' for a teacher's own lesson in such a course, else None."""
+    if course_family(topic) != 'general':
+        return None
+    subject = topic.get('subject')
+    return subject if subject in ('math', 'probability') else None
 
 
 REFERENCE_EXAMPLES = [

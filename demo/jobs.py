@@ -58,7 +58,7 @@ class JobQueue:
             self.condition.notify_all()
         return self.detail(job_id)
 
-    def retry(self, run_id):
+    def retry(self, run_id, bulk=False):
         with self.db() as conn:
             run = run_detail(conn, run_id)
         if not run:
@@ -68,7 +68,7 @@ class JobQueue:
         if not run['integrity_valid'] or not run['request_payload']:
             raise JobError('原输入校验不一致，不能重试。', 409)
         prepared = PreparedRequest(run['request_body'], run['request_sha256'], run['prompt_version'], run['input_version'])
-        return self.submit(run['student_id'], run['topic_key'], run['goal'], run['context'], prepared, parent=run_id)
+        return self.submit(run['student_id'], run['topic_key'], run['goal'], run['context'], prepared, parent=run_id, bulk=bulk)
 
     def cancel(self, job_id):
         with self.condition:

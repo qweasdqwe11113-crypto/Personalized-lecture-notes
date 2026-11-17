@@ -387,7 +387,7 @@ def register_uploads(app, root, check_scope=None):
         with closing(connect()) as conn:
             row = conn.execute('SELECT filename,raw FROM uploads WHERE id=?', (upload_id,)).fetchone()
         if row is None:
-            return jsonify(error='资料不存在。'), 404
+            return jsonify(error='原资料已删除或不存在；用到它的讲义保留了当时的材料文字。'), 404
         if request.args.get('inline') == '1' and row['filename'].lower().endswith('.pdf'):
             # Source links open a PDF at the cited page (#page=N); only PDFs are ever shown inline.
             response = send_file(BytesIO(row['raw']), as_attachment=False, download_name=row['filename'], mimetype='application/pdf')

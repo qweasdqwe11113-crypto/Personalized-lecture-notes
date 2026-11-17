@@ -99,6 +99,16 @@ def evaluate(embedder, examples=8, seed=7, cutoffs=(1, 3, 6)):
     return report
 
 
+def texts(examples=8, seed=7):
+    """How many texts one evaluation embeds: every chunk of both chapters and every question."""
+    total = 0
+    for name in COURSES:
+        course = load_course(name, examples, seed)
+        total += sum(len(chunk_text(m['content'])) for point in course['points'] for m in point['materials'])
+        total += sum(len(point['queries']) for point in course['points'])
+    return total
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     parser.add_argument('--embedder', choices=['hash', 'qwen'], default='hash')
@@ -113,7 +123,7 @@ def main():
         embedder = QwenEmbedder()
         if not embedder.configured():
             raise SystemExit('嵌入模型尚未配置，请先在系统设置或 .env 中填写。')
-        print(f'将调用真实嵌入模型 {embedder.model}（约 400 段文本）。')
+        print(f'将调用真实嵌入模型 {embedder.model}（{texts(args.examples, args.seed)} 段文本）。')
     else:
         from embed import HashingEmbedder
         embedder = HashingEmbedder(1024)

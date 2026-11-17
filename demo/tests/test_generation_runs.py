@@ -8,6 +8,7 @@ import urllib.error
 
 from test_profiles import ProfileDatabaseFixture, module
 import qwen
+import unittest
 
 SECRET = 'fixture-secret-never-store'
 
@@ -16,7 +17,7 @@ class GenerationTraceTests(ProfileDatabaseFixture):
     def setUp(self):
         super().setUp()
         self.environment = patch.dict(os.environ, {'QWEN_API_KEY': SECRET,
-            'QWEN_BASE_URL': 'https://qwen.example.invalid/v1'})
+            'QWEN_BASE_URL': 'https://qwen.example.invalid/v1', 'MODEL_RETRIES': '0'})
         self.environment.start()
         self.addCleanup(self.environment.stop)
 
@@ -251,3 +252,93 @@ class GenerationTraceTests(ProfileDatabaseFixture):
         finally:
             module.GENERATION_LOCK.release()
         self.assertEqual(self.counts()['generation_runs'], 0)
+
+
+class TransportRetryTests(unittest.TestCase):
+    """call_qwen waits and sends the same bytes again when nothing of the reply arrived; time.sleep is patched."""
+
+    class Prepared:
+        body = '{"model": "fixture", "messages": []}'
+
+    def call(self, effects, retries=None):
+        sent, attempts = [], []
+
+        def transport(req, timeout):
+            sent.append(req.data)
+            effect = effects[min(len(sent), len(effects)) - 1]
+            if isinstance(effect, BaseException):
+                raise effect
+            return BytesIO(json.dumps(effect).encode())
+        environment = {'QWEN_BASE_URL': 'https://qwen.example.invalid/v1', 'QWEN_API_KEY': SECRET}
+        if retries is not None:
+            environment['MODEL_RETRIES'] = retries
+        with patch.dict(os.environ, environment), patch.object(qwen.urllib.request, 'urlopen', side_effect=transport), \
+                patch.object(qwen.time, 'sleep') as sleep:
+            try:
+                result = qwen.call_qwen(self.Prepared(), lambda: attempts.append(1))
+            except qwen.ModelError as exc:
+                result = exc
+        self.assertEqual(len(attempts), 1)                 # the attempt is committed once, before the first send
+        self.assertEqual(set(sent), {self.Prepared.body.encode()})
+        return result, len(sent), [c.args[0] for c in sleep.call_args_list]
+
+    def busy(self, code=429, after=None):
+        headers = {'Retry-After': after} if after is not None else {}
+        return urllib.error.HTTPError('https://qwen.example.invalid/v1/chat/completions', code, 'busy', headers, BytesIO(b''))
+
+    def reply(self):
+        return {'choices': [{'message': {'content': '正文'}, 'finish_reason': 'stop'}], 'usage': {'total_tokens': 3}}
+
+    def test_a_rate_limit_is_waited_out_as_the_service_asks_or_by_the_default_waits(self):
+        result, sent, waits = self.call([self.busy(after='3'), self.busy(), self.reply()])
+        self.assertEqual((result.content, sent, waits), ('正文', 3, [3.0, 20]))
+        self.assertEqual(result.metadata['transport_retries'], 2)
+        result, sent, waits = self.call([self.busy(503, after='600'), self.reply()])
+        self.assertEqual((sent, waits), (2, [60]))         # a long Retry-After is capped
+        date = 'Wed, 21 Oct 2015 07:28:00 GMT'             # a date in the past: send again at once
+        self.assertEqual(self.call([self.busy(after=date), self.reply()])[2], [0.0])
+
+    def test_a_service_that_stays_busy_fails_after_the_set_number_of_retries(self):
+        error, sent, waits = self.call([self.busy(503)])
+        self.assertEqual((error.code, error.partial.metadata['http_status'], sent, waits), ('http_error', 503, 3, [5, 20]))
+        self.assertEqual(self.call([self.busy(503)], retries='3')[1:], (4, [5, 20, 40]))
+        self.assertEqual(self.call([self.busy(503)], retries='0')[1:], (1, []))
+        self.assertEqual(self.call([self.busy(503)], retries='9')[1], 4)      # at most three retries
+        self.assertEqual(self.call([self.busy(503)], retries='many')[1], 3)   # an unreadable setting is the default
+
+    def test_what_asking_again_cannot_fix_is_not_retried(self):
+        for effect, code in [(self.busy(400), 'http_error'), (self.busy(401), 'http_error'), (TimeoutError(), 'timeout'),
+                             (urllib.error.URLError(TimeoutError()), 'timeout')]:
+            with self.subTest(code=code, effect=repr(effect)):
+                error, sent, waits = self.call([effect])
+                self.assertEqual((error.code, sent, waits), (code, 1, []))
+
+    def test_an_unreachable_service_and_a_dropped_connection_are_tried_again(self):
+        result, sent, waits = self.call([urllib.error.URLError(ConnectionRefusedError()), ConnectionResetError(), self.reply()])
+        self.assertEqual((result.content, sent, waits), ('正文', 3, [5, 20]))
+
+    def test_a_stream_cut_off_after_text_arrived_is_not_sent_again(self):
+        class Cut:
+            headers = {'Content-Type': 'text/event-stream'}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def __iter__(self):
+                yield 'data: {"choices": [{"delta": {"content": "已写的"}}]}\n'.encode()
+                raise ConnectionResetError()
+        sent = []
+
+        def transport(req, timeout):
+            sent.append(req)
+            return Cut()
+        environment = {'QWEN_BASE_URL': 'https://qwen.example.invalid/v1', 'MODEL_RETRIES': '2'}
+        with patch.dict(os.environ, environment), patch.object(qwen.urllib.request, 'urlopen', side_effect=transport), \
+                patch.object(qwen.time, 'sleep') as sleep, self.assertRaises(qwen.ModelError) as caught:
+            qwen.call_qwen(self.Prepared(), lambda: None)
+        self.assertEqual((caught.exception.code, caught.exception.partial.content, len(sent)), ('connection_error', '已写的', 1))
+        sleep.assert_not_called()
+

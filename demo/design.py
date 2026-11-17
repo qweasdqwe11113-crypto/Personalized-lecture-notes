@@ -11,6 +11,7 @@ unusable (it cannot be rendered or cites a source that does not exist); `soft` p
 worth one more attempt and are then shown to the teacher as reminders.
 """
 from collections import Counter
+import copy
 import json
 import re
 
@@ -33,6 +34,7 @@ _TITLE_PREFIX = re.compile(r'^(?:前测与回顾|前测|回顾|导入|新授|例
 BLANK = re.compile(r'_{4,}')        # a gap the student fills in on the handout
 ARITHMETIC = '算式复算不一致'   # a possible false alarm: reported, but never the only reason for a retry
 TRIMMED = '只保留了前'          # an over-long list was cut: reported, not worth another model call
+UNCHECKED = '里没有这条目标的内容'  # judged by shared words only: shown to the teacher, never the only reason for a retry
 FLAG = '待核对：'               # a line the model wrote to point at something it could not reconcile
 AUDIENCES = {'profile': 'student', 'class': 'class', 'none': 'general'}   # who the lesson is for, from personalization_mode
 # Classroom organisation that has no place in one-to-one tutoring.
@@ -127,7 +129,8 @@ class _Reader:
     def __init__(self):
         self.hard, self.soft, self.notes = [], [], []   # notes: shown to the teacher, never a reason to retry
 
-    def text(self, obj, key, limit, where, required=True):
+    def text(self, obj, key, limit, where, required=True, label=None):
+        name = label or _name(key)
         value = obj.get(key) if isinstance(obj, dict) else None
         if value is None and not required:
             return ''
@@ -136,18 +139,18 @@ class _Reader:
         if isinstance(value, list) and value and all(isinstance(part, str) for part in value):
             value = '；'.join(part.strip() for part in value if part.strip())  # a multi-part answer written as a list
         if not isinstance(value, str):
-            self.hard.append(f'{where}的{_name(key)}应为文字')
+            self.hard.append(f'{where}的{name}应为文字')
             return ''
         value = re.sub(r'[ \t\r]+', ' ', value).strip()
         # Quoted speech arrives in ASCII quotes because they need no escaping in JSON.
         value = re.sub(r"'([^'\n]{0,60}[一-鿿][^'\n]{0,60})'", r'“\1”', value)
         if re.search(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', value):
-            self.hard.append(f'{where}的{_name(key)}里有损坏的公式：JSON 字符串中的每个反斜杠要写成两个')
+            self.hard.append(f'{where}的{name}里有损坏的公式：JSON 字符串中的每个反斜杠要写成两个')
             value = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', value)
         if required and not value:
-            self.hard.append(f'{where}缺少{_name(key)}')
+            self.hard.append(f'{where}缺少{name}')
         if len(value) > limit:
-            self.hard.append(f'{where}的{_name(key)}超过 {limit} 字，请精简')
+            self.hard.append(f'{where}的{name}超过 {limit} 字，请精简')
             value = value[:limit]
         return value
 
@@ -160,7 +163,9 @@ class _Reader:
         if not isinstance(value, list):
             self.hard.append(f'{where}的{_name(key)}应为列表')
             return []
-        result = [self.text({'item': item}, 'item', limit, f'{where}的{_name(key)}') for item in value]
+        # A blank entry is the model spacing a list out (an empty line between problems on the board): dropped, not an error.
+        result = [self.text({'item': item}, 'item', limit, f'{where}的{_name(key)}', label=f'第 {number} 条')
+                  for number, item in enumerate(value, 1) if not (isinstance(item, str) and not item.strip())]
         result = [item for item in result if item]
         if len(result) < low:
             self.hard.append(f'{where}的{_name(key)}应有 {low}—{high} 条，现在 {len(result)} 条')
@@ -344,7 +349,7 @@ def validate(raw, context):
                                    '把真正考到这条目标的练习或作业写进 checked_by，没有就改一道练习或作业来考它')
             design['objectives'].append(dict(id=f'O{number}', text=text, checked_by=checked))
     for number, ref, words in objective_gaps(design):
-        reader.soft.append(f'第 {number} 条目标写由 {ref} 检验，但 {ref} 的题干、步骤和答案里没有这条目标的内容（如「'
+        reader.soft.append(f'第 {number} 条目标写由 {ref} 检验，但 {ref} 的题干、步骤和答案{UNCHECKED}（如「'
                            + '」「'.join(words) + '」）；checked_by 只写真正考到这条目标的题')
     for ref, earlier in repeated_items(design):
         reader.soft.append(f'{ref} 用的是 {earlier} 的同一组数据，问的结果 {earlier} 已经算过；换数据、换情境或换问法')
@@ -435,7 +440,9 @@ def validate(raw, context):
     if context.get('personalization_mode') == 'none' and design['learner']:
         reader.soft.append('没有提供学生信息时 learner 应为空，不猜测学生情况')
     name = (context.get('student') or {}).get('name', '')
-    if context.get('personalization_mode') == 'profile' and len(name) >= 2 and name in student_text(design):
+    shown = student_text(design)
+    # The model is sent 「该生」 instead of the name (prompts.without_name); neither belongs on what the student sees.
+    if context.get('personalization_mode') == 'profile' and (len(name) >= 2 and name in shown or re.search(r'(?<!应)该生(?![成物活产长])', shown)):
         reader.soft.append('学生会看到的内容（目标、屏幕、板书、题目、小结）里出现了学生姓名，请去掉')
     for item in design['items']:
         body = '\n'.join([item['stem']] + [step['do'] for step in item['steps']] + [item['answer'], item['check']])
@@ -451,7 +458,53 @@ def validate(raw, context):
 
 def worth_retry(soft):
     """The reminders that justify asking the model again; the rest are only shown to the teacher."""
-    return [problem for problem in soft if ARITHMETIC not in problem and TRIMMED not in problem]
+    return [problem for problem in soft if not any(mark in problem for mark in (ARITHMETIC, TRIMMED, UNCHECKED))]
+
+
+# Fields a partial correction (prompts/lecture-design-patch-v1.md) replaces whole; segments and items go by id.
+WHOLE_FIELDS = ('title', 'focus', 'learner', 'plan_links', 'notation', 'board_plan', 'figures', 'summary', 'objectives')
+
+
+def merge_patch(base, patch):
+    """The design base with a partial correction applied. A segment or item named by id takes the fields the patch
+    gives and keeps the rest; a new item id is added; the ids in remove leave the items, the segments and every
+    checked_by; the other fields are replaced whole. DesignError when the patch is not one."""
+    if not isinstance(patch, dict) or not patch:
+        raise DesignError('局部修正不是 JSON 对象，或者是空的')
+    unknown = sorted(set(patch) - set(WHOLE_FIELDS) - {'segments', 'items', 'remove'})
+    if unknown:
+        raise DesignError('局部修正里有不认识的字段：' + '、'.join(unknown))
+    remove = patch.get('remove') or []
+    if not isinstance(remove, list) or not all(isinstance(entry, str) for entry in remove):
+        raise DesignError('局部修正的 remove 应为题目编号列表')
+    merged = copy.deepcopy(base)
+    for key in ('segments', 'items'):
+        changes = patch.get(key) or []
+        if not isinstance(changes, list) or not all(isinstance(entry, dict) and isinstance(entry.get('id'), str)
+                                                     for entry in changes):
+            raise DesignError(f'局部修正的 {key} 应为带 id 的对象列表')
+        current = [entry for entry in merged.get(key) or [] if isinstance(entry, dict)]
+        where = {entry.get('id'): n for n, entry in enumerate(current)}
+        for entry in changes:
+            if entry['id'] in where:
+                current[where[entry['id']]] = {**current[where[entry['id']]], **entry}
+            elif key == 'segments':
+                raise DesignError(f'局部修正不能新增环节（{entry["id"]}）')
+            else:
+                where[entry['id']] = len(current)
+                current.append(entry)
+        merged[key] = [entry for entry in current if entry.get('id') not in remove]
+    for key in WHOLE_FIELDS:
+        if key in patch:
+            merged[key] = copy.deepcopy(patch[key])
+    if remove:
+        for segment in merged['segments']:
+            if isinstance(segment.get('items'), list):
+                segment['items'] = [ref for ref in segment['items'] if ref not in remove]
+        for objective in merged.get('objectives') or []:
+            if isinstance(objective, dict) and isinstance(objective.get('checked_by'), list):
+                objective['checked_by'] = [ref for ref in objective['checked_by'] if ref not in remove]
+    return merged
 
 
 def without_note(text, sentence=False):
@@ -468,11 +521,16 @@ def classroom_text(segment):
                       *[question[key] for question in segment['questions'] for key in ('ask', 'follow_up')]])
 
 
+def _spoken(text):
+    """A text with LaTeX command names and E(X), D(X), Var(X) said in words."""
+    text = re.sub(r'\\([A-Za-z]+)', lambda match: f' {SPOKEN.get(match[1], "")} ', text)
+    return re.sub(r'(?<![A-Za-z])(?:(E)|D|Var)\s*\(', lambda match: ' 期望 (' if match[1] else ' 方差 (', text)
+
+
 def _terms(text):
     """Pairs of Chinese characters and Latin words of a text, LaTeX command names left out: what a problem
     has to share with the objective it checks."""
-    text = re.sub(r'\\([A-Za-z]+)', lambda match: f' {SPOKEN.get(match[1], "")} ', text)
-    text = re.sub(r'(?<![A-Za-z])(?:(E)|D|Var)\s*\(', lambda match: ' 期望 (' if match[1] else ' 方差 (', text)
+    text = _spoken(text)
     pairs = {text[i:i + 2] for i in range(len(text) - 1)
              if re.fullmatch(r'[一-鿿]{2}', text[i:i + 2]) and not set(text[i:i + 2]) & FUNCTION_CHARS}
     return (pairs | {word.lower() for word in re.findall(r'[A-Za-z]{2,}', text)}) - GENERIC
@@ -495,11 +553,28 @@ def objective_gaps(design):
     gaps = []
     for number, objective in enumerate(design['objectives'], 1):
         own = {term for term in _terms(objective['text']) if 0 < counts[term] < len(texts) * 2 / 3}
-        if not own:
+        if len(own) < 2:   # one shared word (「参数」) is too little to say a problem does not check the objective
             continue
-        gaps += [(number, ref, sorted(own, key=lambda term: (counts[term], term))[:3])
+        gaps += [(number, ref, _phrases(objective['text'], own)[:3])
                  for ref in objective['checked_by'] if not own & texts[ref]]
     return gaps
+
+
+def _phrases(text, terms):
+    """The stretches of the text the terms cover, in order: 「先验变化」 rather than the pairs 「先验」「变化」,
+    so the reminder quotes the objective and not fragments of it."""
+    text = _spoken(text)
+    found, end = [], -1
+    for i in range(len(text) - 1):
+        if text[i:i + 2] not in terms:
+            continue
+        if found and i <= end:
+            found[-1] += text[end:i + 2]
+        else:
+            found.append(text[i:i + 2])
+        end = i + 2
+    words = [word for word in re.findall(r'[A-Za-z]{2,}', text) if word.lower() in terms]
+    return list(dict.fromkeys(found + words))
 
 
 def _numbers(text):

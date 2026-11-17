@@ -33,7 +33,11 @@ module.exports = {
     icon: 'assets/icon.png',
     synopsis: '个性化讲义、出题与阅卷的教师备课工具',
     executableArgs: [],
-    desktop: {entry: {Name: productName, Comment: '个性化讲义、出题与阅卷的教师备课工具', StartupWMClass: slug}},
+    // Electron 45 takes the window's app_id (Wayland) from package.json's desktopName, zhiye.desktop; the
+    // entry keeps that file name and its StartupWMClass, so the dock links the window to the entry. The
+    // entry's Comment is package.json's description: electron-builder 26.18 writes it over any set here.
+    syncDesktopName: true,
+    desktop: {entry: {Name: productName, StartupWMClass: slug}},
   },
   deb: {
     packageName: slug,

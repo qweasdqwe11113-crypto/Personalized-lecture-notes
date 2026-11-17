@@ -187,7 +187,7 @@
     $('quiz-history-error').hidden=true;
     $('quiz-history').replaceChildren(...data.quizzes.map(q=>{
       const b=el('button');b.type='button';b.setAttribute('aria-current',String(q.id===displayed?.id));
-      b.append(el('strong',q.title),el('span',`${q.lecture_id?'配套讲义 #'+q.lecture_id+' · ':''}${statusLabels[q.status]} · ${q.options.count} 题 · ${difficultyLabels[q.options.difficulty]} · ${new Date(q.created_at).toLocaleString('zh-CN')}`,'helper'));
+      b.append(el('strong',q.title),el('span',`${q.lecture_id?(q.lecture_deleted?'原讲义 #'+q.lecture_id+' 已删除 · ':'配套讲义 #'+q.lecture_id+' · '):''}${statusLabels[q.status]} · ${q.options.count} 题 · ${difficultyLabels[q.options.difficulty]} · ${new Date(q.created_at).toLocaleString('zh-CN')}`,'helper'));
       b.onclick=()=>{openWorkspacePage('quizzes');watch(q.id).catch(e=>showError(e.message));};return b;
     }));
     if(!data.quizzes.length)$('quiz-history').append(el('p','还没有出题记录。','helper'));

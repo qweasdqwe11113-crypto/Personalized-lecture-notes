@@ -144,6 +144,24 @@
     if(match)await loadStudent(match[1]);
   };
   $('view-current-profile').onclick=()=>{if(selected)loadStudent(selected);};
+  $('delete-student').onclick=async()=>{
+    if(!selected||!record)return;
+    if(busy){note('讲义正在生成，完成后再删除学生。');return;}
+    try{
+      const p=await api(`/api/students/${selected}/delete-preview`);
+      const done=await confirmDeletion({title:`删除学生「${p.name}」`,typed:p.name,lines:[
+        `学生档案和画像修改历史（${p.profile_versions} 次修改）`,
+        p.lectures?`个人讲义 ${p.lectures} 份及生成记录 ${p.runs} 条`:p.runs?`生成记录 ${p.runs} 条`:'',
+        p.quizzes?`个人题组 ${p.quizzes} 份`:'',
+        p.evidence?`学习证据与知识点状态 ${p.evidence} 条`:'',
+        p.classes?`在 ${p.classes} 个班级名单中的记录`:'',
+        '班级讲义和其他学生的记录不受影响'],
+        action:typed=>postDelete(`/api/students/${selected}/delete`,{confirm_name:typed})});
+      if(!done)return;
+      selected=null;record=null;window.selectedProfileStudentId=null;
+      location.hash='#profiles/students';await changed();note(`已删除学生「${p.name}」。`);
+    }catch(e){note(e.message);}
+  };
   $('profile-start-lecture').onclick=()=>{
     if(!selected)return;
     // A student outside the current course's classes is still allowed when a lesson lists them.

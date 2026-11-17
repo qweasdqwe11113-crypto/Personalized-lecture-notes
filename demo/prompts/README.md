@@ -14,11 +14,13 @@
 | --- | --- | --- |
 | [lecture-design-base-v1.md](lecture-design-base-v1.md) | 设计与环节两个阶段 | 输入各字段的含义、范围与依据、学生情况怎么用、三份配套材料共用一套题目和符号、备课笔记的写法 |
 | [lecture-subject-probability-v1.md](lecture-subject-probability-v1.md)、[lecture-subject-math-v1.md](lecture-subject-math-v1.md) | 同上，按课程类别附加 | 从旧模板里保留下来的学科要求（正分母、互斥完备、归一检查；除数非零、去括号、两步与多步） |
+| [lecture-subject-math-general-v1.md](lecture-subject-math-general-v1.md)、[lecture-subject-probability-general-v1.md](lecture-subject-probability-general-v1.md) | 老师自建的备课，课程学科为数学或概率统计时附加（各写作方式都加） | 学科通用的要求：每步依据与前提、验算；事件定义、概率范围、条件概率与公式的成立条件、数值复算。版本后缀 `+math-general-v1` / `+probability-general-v1` |
 | [lecture-design-plan-v1.md](lecture-design-plan-v1.md) | 设计阶段（冻结的请求） | 设计的思考顺序、时间与题量规则、JSON 格式与各字段说明、公式与图的写法 |
 | [lecture-design-segment-v1.md](lecture-design-segment-v1.md) | 环节阶段 | 只写设计里没有的内容：怎么讲、哪一步提问、怎么纠错、怎么分层；不重抄题目 |
 | [lecture-design-tutor-v1.md](lecture-design-tutor-v1.md) | 设计与环节两个阶段，只在为单个学生生成时（`personalization_mode=profile`）附加 | 一对一辅导：动作写成教师和这一名学生之间的，不写巡视、小组、举手、全班、上台板演和必做/选做分层；前测按答对、答错分两条路 |
+| [lecture-design-patch-v1.md](lecture-design-patch-v1.md) | 设计可用、只有提醒时的第二次请求，接在第一次的对话后面 | 只输出要改的部分：`segments`、`items` 按 `id` 只写要改的字段，`remove` 列出删掉的题，`objectives` 和其他字段给完整值；不新增或删除环节。程序用 `design.merge_patch` 合并 |
 
-版本标记为 `lesson-design-v1`（概率、初中方程带 `+probability-v1` / `+math-v1`，一对一辅导带 `+tutor-v1`，按教师意见重做时带 `+revision`），输入结构为 `lesson-design-context-v1`。环节请求为 `lesson-segment-v1`，重写为 `lesson-segment-repair-v1`，设计重试为 `lesson-design-repair-v1`。环节阶段的完整系统提示在提交时写入冻结上下文的 `designed.segment_system`，所以重试不受之后模板改动的影响。
+版本标记为 `lesson-design-v1`（概率、初中方程带 `+probability-v1` / `+math-v1`，一对一辅导带 `+tutor-v1`，按教师意见重做时带 `+revision`），输入结构为 `lesson-design-context-v1`。环节请求为 `lesson-segment-v1`，重写为 `lesson-segment-repair-v1`，设计有结构问题时整份重做，版本为 `lesson-design-repair-v1`；只有提醒时局部修正，版本为 `lesson-design-patch-v1`。环节阶段的完整系统提示在提交时写入冻结上下文的 `designed.segment_system`，所以重试不受之后模板改动的影响。
 
 模型看到的上下文由 `prompts.designed_view` 整理：保留课题、授课设置、授课对象、掌握情况、讲解安排、材料和图片解析，去掉范围检查、字符预算、检索记录、录入者和内部编号。实际发送的内容仍可在「查看生成输入」里逐字核对。
 

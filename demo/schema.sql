@@ -348,6 +348,9 @@ ALTER TABLE generation_runs DROP CONSTRAINT IF EXISTS generation_runs_target_che
 ALTER TABLE generation_runs ADD CONSTRAINT generation_runs_target_check CHECK (student_id IS NOT NULL OR class_id IS NOT NULL);
 ALTER TABLE quiz_jobs ADD COLUMN IF NOT EXISTS class_id integer REFERENCES classes(id);
 
+-- The subject a course is taught as: math and probability add subject-wide rules to its lessons' prompts.
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS subject text NOT NULL DEFAULT 'general'
+ CHECK (subject IN ('general','math','probability'));
 -- Course knowledge library: a course's points are shared by its lessons, so diagnoses and
 --   source segments follow the point. Points created by lesson copies stay lesson-private
 --   (they are aliases) and are left out of the library listing.

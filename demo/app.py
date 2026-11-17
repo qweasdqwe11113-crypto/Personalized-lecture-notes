@@ -1,20 +1,18 @@
 """Local teaching workspace with separate language, vision and embedding services."""
-import html
 import json
+import math
 import os
-from io import BytesIO
 import re
+import statistics
 import time
-from urllib.parse import quote, urlsplit
+from urllib.parse import urlsplit
 
 import psycopg
 from psycopg.rows import dict_row
-from psycopg.types.json import Jsonb
 from dotenv import load_dotenv
 from model_settings import register_model_settings
 from flask import Flask, Response, jsonify, render_template, request, g, has_request_context
-from profiles import (CLASS_STRATEGIES, ProfileError, compare_lecture_profile, decorate_states, evidence_history,
-                      get_profile, record_evidence, update_profile)
+from profiles import CLASS_STRATEGIES, ProfileError, compare_lecture_profile, decorate_states, evidence_history, register_profiles
 from prompts import prepare_request
 from vision import selected_evidence
 from qwen import ModelError, ModelResult, call_qwen, config_flags, stream_to, visible_text
@@ -22,12 +20,16 @@ from progress import HUB
 import figures
 import sectioned
 import designed
-from runs import create_run, fail_run, mark_attempt, recent_runs, run_detail, save_candidate, save_success
+from runs import (create_run, fail_run, interrupted_runs, mark_attempt, recent_costs, recent_runs, run_detail, save_candidate,
+                  save_success)
 from quality import assess_scope, check_output
-from reviews import (ReviewError, STATUS_LABELS, add_issue, lecture_row,
-                     review_bundle, save_revision, version_row)
+from reviews import ReviewError, add_issue, review_bundle, save_revision
 from courses import TOPICS, REFERENCE_EXAMPLES, course_family  # noqa: F401  (experiment.py reads app.TOPICS)
 from catalog import load_catalog, register_catalog
+from deletion import register_deletion
+from exports import register_exports
+from retrieval_api import register_retrieval
+from workspace import register_workspace
 from classes import class_context_states, class_members, library_ids, register_classes, student_class
 from comparisons import comparison_options, compare_lectures
 from jobs import JobError, JobQueue
@@ -44,13 +46,10 @@ from knowledge import KnowledgeQueue, register_knowledge
 from grading import register_grading
 from evaluation import register_evaluation
 from edition import data_dir, release
-from rendering import markdown_html, plain_formulas, visual_appendix
-import richdoc
-from uploads import ImportError as UploadError, read_upload, register_uploads
+from uploads import ImportError as UploadError, register_uploads
 from embed import EmbeddingError, QwenEmbedder
-from retrieval import (MODES as RETRIEVAL_MODES, RetrievalError, adopt_content, build_query,
-                       index_knowledge, search as search_chunks, status as retrieval_status,
-                       to_materials)
+from retrieval import (MODES as RETRIEVAL_MODES, RetrievalError, build_query,
+                       index_knowledge, search as search_chunks, to_materials)
 
 # Model settings (.env) and runtime stores (.runtime) live in the data folder: the repository in
 # development, the user's own folder in the desktop release.
@@ -85,6 +84,7 @@ def upload_scope(course_id, class_id):
 
 
 register_catalog(app, lambda: db(), DATA)
+register_deletion(app, lambda: db(), DATA)
 
 
 def topic_catalog():
@@ -291,77 +291,7 @@ def context():
                                                      else '学生不存在。'), 404))
 
 
-@app.get('/api/students/<int:student_id>/profile')
-def student_profile(student_id):
-    """With course_id, only that course's knowledge points; the record itself is shared."""
-    course_id = request.args.get('course_id', type=int)
-    points = course_knowledge_ids(course_id) if course_id is not None else None
-    with db() as conn:
-        conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
-        result = get_profile(conn, student_id, points)
-    return jsonify(result)
-
-
-@app.get('/api/students')
-def list_students():
-    with db() as conn:
-        return jsonify(students=conn.execute('''SELECT s.*,COALESCE(array_agg(m.class_id ORDER BY m.class_id)
-            FILTER (WHERE m.class_id IS NOT NULL),'{}') AS class_ids FROM students s
-            LEFT JOIN class_students m ON m.student_id=s.id GROUP BY s.id ORDER BY s.id''').fetchall())
-
-
-@app.post('/api/students')
-def create_student():
-    data = request.get_json(silent=True)
-    if not isinstance(data, dict):
-        raise ProfileError('请填写学生档案。')
-    from profiles import text_field
-    name = text_field(data, 'name', '姓名', 80)
-    subtitle = text_field(data, 'subtitle', '年级或学生说明', 80)
-    profile = text_field(data, 'profile', '学生信息与学习特点', 600)
-    with db() as conn:
-        conn.execute('LOCK TABLE students IN EXCLUSIVE MODE')
-        row = conn.execute('''INSERT INTO students(id,name,subtitle,profile)
-            VALUES ((SELECT COALESCE(max(id),0)+1 FROM students),%s,%s,%s) RETURNING *''',
-            (name, subtitle, profile)).fetchone()
-    return jsonify(student=row), 201
-
-
-@app.post('/api/students/<int:student_id>/profile')
-def save_student_profile(student_id):
-    course_id = request.args.get('course_id', type=int)
-    with db() as conn:
-        update_profile(conn, student_id, request.get_json(silent=True))
-        result = get_profile(conn, student_id, course_knowledge_ids(course_id) if course_id is not None else None)
-    return jsonify(result)
-
-
-@app.get('/api/students/<int:student_id>/knowledge-states')
-def student_knowledge_states(student_id):
-    """Current state and version per requested point, resolved through copy aliases to the diagnosed identity."""
-    raw = request.args.get('ids', '')
-    if not re.fullmatch(r'[0-9]{1,9}(,[0-9]{1,9}){0,49}', raw):
-        return jsonify(error='请选择有效的知识点。'), 400
-    with db() as conn:
-        conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
-        if not conn.execute('SELECT 1 FROM students WHERE id=%s', (student_id,)).fetchone():
-            return jsonify(error='学生不存在。'), 404
-        rows = conn.execute('''SELECT k.id,k.name,COALESCE(a.canonical_id,k.id) AS canonical_id,
-            COALESCE(s.state,'unknown') AS state,COALESCE(s.revision,0) AS revision,s.evidence
-            FROM knowledge_points k LEFT JOIN knowledge_aliases a ON a.knowledge_id=k.id
-            LEFT JOIN student_knowledge s ON s.knowledge_id=COALESCE(a.canonical_id,k.id) AND s.student_id=%s
-            WHERE k.id=ANY(%s) ORDER BY k.id''', (student_id, [int(i) for i in raw.split(',')])).fetchall()
-    from profiles import STATE_LABELS
-    return jsonify(states=[{**row, 'label': STATE_LABELS[row['state']]} for row in rows])
-
-
-@app.post('/api/students/<int:student_id>/evidence')
-def save_student_evidence(student_id):
-    course_id = request.args.get('course_id', type=int)
-    with db() as conn:
-        record_evidence(conn, student_id, request.get_json(silent=True))
-        result = get_profile(conn, student_id, course_knowledge_ids(course_id) if course_id is not None else None)
-    return jsonify(result), 201
+register_profiles(app, lambda: db(), course_knowledge_ids)
 
 
 @app.errorhandler(ProfileError)
@@ -781,64 +711,39 @@ def retry_generation(run_id):
     return jsonify(TASKS.retry(run_id)), 202
 
 
-@app.get('/api/retrieval/status')
-def retrieval_state():
-    """Index state per knowledge point for the embedding model currently configured."""
-    topic_key = request.args.get('topic', '')
-    if topic_key not in topic_catalog():
-        return jsonify(error='请选择有效主题。'), 400
-    try:
-        with db() as conn:
-            return jsonify(retrieval_status(conn, EMBEDDER, topic_catalog()[topic_key]['knowledge_ids']))
-    except psycopg.Error:
-        return jsonify(error='数据库暂不可用，请检查本机 PostgreSQL。'), 503
+@app.get('/api/jobs/estimate')
+def estimate_jobs():
+    """What N lessons written the given way may cost: the median of the latest 10 complete ones, times N."""
+    count, mode = request.args.get('count', ''), request.args.get('mode') or designed.MODE
+    if not count.isdigit() or not 1 <= int(count) <= 60 or mode not in ('single', sectioned.MODE, designed.MODE):
+        raise JobError('请给出 1—60 的份数和有效的写作方式。')
+    count = int(count)
+    with db() as conn:
+        rows = recent_costs(conn, mode)
+    if not rows:
+        return jsonify(count=count, basis=0, tokens=None, minutes=None, concurrency=TASKS.workers)
+    tokens, seconds = statistics.median(r['tokens'] for r in rows), statistics.median(r['seconds'] for r in rows)
+    lanes = max(1, min(TASKS.workers, count))   # lessons written at the same time
+    return jsonify(count=count, basis=len(rows), tokens=round(count * tokens), minutes=math.ceil(count * seconds / lanes / 60),
+                   concurrency=TASKS.workers)
 
 
-@app.post('/api/retrieval/index')
-def build_retrieval_index():
-    """Chunk and embed every material of one topic. Re-indexing replaces its own rows only."""
-    data = request.get_json(silent=True)
-    if (not isinstance(data, dict) or not isinstance(data.get('topic'), str)
-            or data['topic'] not in topic_catalog()):
-        return jsonify(error='请选择有效主题。'), 400
-    ids = topic_catalog()[data['topic']]['knowledge_ids']
-    try:
-        with db() as conn:
-            indexed = index_knowledge(conn, EMBEDDER, ids, force=bool(data.get('force')))
-            return jsonify(indexed_materials=indexed, **retrieval_status(conn, EMBEDDER, ids))
-    except EmbeddingError as exc:
-        return jsonify(error=str(exc)), 502
-    except psycopg.Error:
-        return jsonify(error='数据库暂不可用，索引未写入。'), 503
+@app.post('/api/jobs/retry-interrupted')
+def retry_interrupted():
+    """Send every run a restart cut off again, each with its own saved input, within the batch bound."""
+    with db() as conn:
+        rows = interrupted_runs(conn)
+    queued, skipped = [], []
+    for row in rows:
+        try:
+            job = TASKS.retry(row['id'], bulk=True)
+            queued.append(dict(run_id=row['id'], job_id=job['id'], new_run_id=job['run_id']))
+        except JobError as exc:
+            skipped.append(dict(run_id=row['id'], error=str(exc)))
+    return jsonify(queued=len(queued), jobs=queued, skipped=skipped), 202
 
 
-@app.post('/api/retrieval/adopt')
-def adopt_upload():
-    """Adopt a stored upload as a course material of one knowledge point, then index it."""
-    data = request.get_json(silent=True)
-    if not isinstance(data, dict):
-        return jsonify(error='请求格式必须是 JSON 对象。'), 400
-    upload_id, knowledge_id = data.get('upload_id'), data.get('knowledge_id')
-    if not isinstance(upload_id, str) or type(knowledge_id) is not int:
-        return jsonify(error='请选择要收录的资料和知识点。'), 400
-    try:
-        with db() as conn:
-            if not conn.execute('SELECT 1 FROM knowledge_points WHERE id=%s', (knowledge_id,)).fetchone():
-                return jsonify(error='知识点不存在。'), 400
-    except psycopg.Error:
-        return jsonify(error='数据库暂不可用，请检查本机 PostgreSQL。'), 503
-    record = read_upload(DATA, upload_id)
-    if record is None:
-        return jsonify(error='资料不存在。'), 404
-    try:
-        with db() as conn:
-            return jsonify(adopt_content(conn, EMBEDDER, knowledge_id=knowledge_id, title=record['title'],
-                                         content=record['content'], source_title=record['filename'],
-                                         source_url=f'upload:{upload_id}', section='')), 201
-    except EmbeddingError as exc:
-        return jsonify(error=str(exc)), 502
-    except psycopg.Error:
-        return jsonify(error='数据库暂不可用，资料未收录。'), 503
+register_retrieval(app, lambda: db(), topic_catalog, lambda: EMBEDDER, lambda: DATA)
 
 
 @app.get('/api/health')
@@ -857,93 +762,14 @@ def health():
                    note='本机配置与数据库检查；未调用模型，不能证明密钥有效、服务可达或支持嵌入接口。')
 
 
-TOUR_SETTING = 'workspace_tour'
-TOUR_OUTCOMES = ('finished', 'skipped')
-SCOPE_SETTING = 'workspace_scope'
-
-
-def read_setting(conn, key):
-    row = conn.execute('SELECT value FROM workspace_settings WHERE key=%s', (key,)).fetchone()
-    return row['value'] if row else None
-
-
-def write_setting(conn, key, value):
-    conn.execute('INSERT INTO workspace_settings(key,value) VALUES (%s,%s) '
-                 'ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()', (key, Jsonb(value)))
-
-
-@app.get('/api/onboarding')
-def onboarding():
-    """Whether the workspace tour opens by itself: once per data folder, in the desktop release."""
-    try:
-        with db() as conn:
-            seen = read_setting(conn, TOUR_SETTING) is not None
-    except psycopg.Error:
-        return jsonify(error='数据库暂不可用。'), 503
-    return jsonify(tour={'seen': seen, 'auto': release() and not seen})
-
-
-@app.post('/api/onboarding/tour')
-def record_tour():
-    """The teacher finished or skipped the tour; it no longer opens by itself."""
-    body = request.get_json(silent=True) or {}
-    outcome, step = body.get('outcome'), body.get('step')
-    if outcome not in TOUR_OUTCOMES or type(step) is not int or not 1 <= step <= 50:
-        return jsonify(error='引导状态无效。'), 400
-    try:
-        with db() as conn:
-            write_setting(conn, TOUR_SETTING, {'outcome': outcome, 'step': step})
-    except psycopg.Error:
-        return jsonify(error='数据库暂不可用，引导状态未保存。'), 503
-    return jsonify(tour={'seen': True, 'auto': False})
-
-
-def clean_scope(body):
-    """The selectors' memory: the current course, and the class last chosen in each course
-    ({"<course id>": class id or null}). None when it is not that shape."""
-    if not isinstance(body, dict) or not isinstance(body.get('classes', {}), dict):
-        return None
-    course, classes = body.get('course'), body.get('classes', {})
-    positive = lambda value: type(value) is int and 0 < value < 2**31
-    if (course is not None and not positive(course)) or len(classes) > 500:
-        return None
-    for key, value in classes.items():
-        if not re.fullmatch(r'[1-9][0-9]{0,8}', key) or (value is not None and not positive(value)):
-            return None
-    return {'course': course, 'classes': dict(classes)}
-
-
-@app.get('/api/workspace-scope')
-def workspace_scope():
-    """The course and class last chosen at the top of the pages. Kept here rather than in the
-    browser, which keeps its storage per port: the desktop client moves to another port when its
-    own is taken, and the choice would be lost."""
-    try:
-        with db() as conn:
-            scope = read_setting(conn, SCOPE_SETTING)
-    except psycopg.Error:
-        return jsonify(error='数据库暂不可用。'), 503
-    return jsonify(scope=scope)
-
-
-@app.put('/api/workspace-scope')
-def remember_workspace_scope():
-    scope = clean_scope(request.get_json(silent=True))
-    if scope is None:
-        return jsonify(error='课程与班级选择无效。'), 400
-    try:
-        with db() as conn:
-            write_setting(conn, SCOPE_SETTING, scope)
-    except psycopg.Error:
-        return jsonify(error='数据库暂不可用，课程与班级选择未保存。'), 503
-    return jsonify(scope=scope)
+register_workspace(app, lambda: db(), lambda: release())
 
 
 @app.get('/api/generation-runs')
 def generation_history():
     with db() as conn:
-        rows = recent_runs(conn)
-    return jsonify(runs=rows)
+        rows, interrupted = recent_runs(conn), len(interrupted_runs(conn))
+    return jsonify(runs=rows, interrupted=interrupted)
 
 
 @app.get('/api/generation-runs/<int:run_id>')
@@ -1043,214 +869,7 @@ def database_error(_error):
     return jsonify(error='数据库暂不可用。请检查本机 PostgreSQL，并运行初始化命令。'),503
 
 
-def export_notice():
-    """The closing line of a downloaded lecture. Only the demonstration data has made-up students."""
-    return '说明：内容由模型生成，使用前请教师审核。' if release() else '说明：虚拟学生演示；模型生成内容需人工审核。'
-
-
-def build_reference_text(row):
-    sources = '\n'.join(
-        f'- [M{m["id"]}] {m["source_title"]}: {m["source_url"]}\n  {m["section"]}'
-        for m in row['context']['materials']
-    )
-    warning = row['citation_check'].get('review_warning', '')
-    text = row.get('export_note', '') + row['content'] + '\n\n## 参考材料\n\n' + sources + visual_appendix(row['context'])
-    text += '\n\n' + export_notice() + '\n'
-    if warning:
-        text += '\n审核提醒：' + warning + '\n'
-    return text
-
-
-def build_export_text(row):
-    """用于 txt 下载：把 Markdown 标记去掉一部分，保持可读。"""
-    content = build_reference_text({**row, 'content': richdoc.plain_text(row['content'])}
-                                   if '```figure' in row['content'] else row)
-    lines = []
-    for line in plain_formulas(content).splitlines():
-        stripped = line.strip()
-        if stripped.startswith('#'):
-            stripped = stripped.lstrip('#').strip()
-        if stripped.startswith('- ') or stripped.startswith('* '):
-            stripped = '· ' + stripped[2:]
-        lines.append(stripped)
-    return '\n'.join(lines)
-
-
-def build_export_html(row):
-    """把模型返回的 Markdown 做保守转换；所有模型文本都先转义。"""
-    body_parts = [markdown_html(row['content']), markdown_html(visual_appendix(row['context']))]
-
-    sources_html = []
-    for m in row['context']['materials']:
-        sources_html.append(
-            '<li>'
-            f'<strong>[M{m["id"]}]</strong> '
-            f'{html.escape(m["source_title"])}：'
-            f'<a href="{html.escape(m["source_url"])}" target="_blank" rel="noopener noreferrer">'
-            f'{html.escape(m["source_url"])}</a>'
-            f'<br><span>{html.escape(m["section"])}</span>'
-            '</li>'
-        )
-
-    warning = row['citation_check'].get('review_warning', '')
-    warning_html = f'<p class="warning">审核提醒：{html.escape(warning)}</p>' if warning else ''
-    student_name = html.escape(row['context']['student']['name'])
-    topic_title = html.escape(row['context']['topic']['title'])
-
-    return f'''<!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<title>{student_name} · {topic_title}</title>
-<style>
-body {{ font-family: -apple-system, BlinkMacSystemFont, "Noto Sans SC", "Microsoft YaHei", sans-serif;
-       max-width: 820px; margin: 40px auto; padding: 0 24px; line-height: 1.9; color: #162235; }}
-h1 {{ font-size: 28px; }}
-h2 {{ font-size: 20px; margin-top: 32px; border-bottom: 1px solid #e4e8ef; padding-bottom: 8px; }}
-.citation {{ color: #2858dc; font-size: 13px; font-weight: 600; }}
-.formula-block {{ white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.7; padding:12px; background:#f6f7fb; }}
-.math {{ white-space: nowrap; }}
-.math-display {{ white-space:pre-wrap; padding:12px 16px; background:#f6f8ff; border-left:3px solid #365bd6; }}
-table {{ border-collapse:collapse; margin:14px 0; }} th,td {{ border:1px solid #d7dfe9; padding:8px 12px; text-align:left; }} th {{ background:#edf2ff; }}
-figure {{ margin:18px 0; text-align:center; }} figure img {{ max-width:100%; height:auto; }} figcaption {{ font-size:12px; color:#68758a; }}
-@media print {{ h1,h2,h3 {{ break-after:avoid-page; }} pre,li {{ break-inside:avoid-page; }} }}
-.meta {{ color: #68758a; font-size: 13px; margin-bottom: 28px; }}
-.warning {{ background: #f3f6fb; padding: 12px 15px; border-radius: 6px; color: #66738a; font-size: 13px; }}
-a {{ color: #4268ba; }}
-</style>
-</head>
-<body>
-<h1>{topic_title}</h1>
-<p class="meta">学生：{student_name} · 模型：{html.escape(row['model'])} · 已保存 #{row['id']}</p>
-<p class="meta" style="white-space:pre-wrap">{html.escape(row.get('export_note', ''))}</p>
-{''.join(body_parts)}
-<h2>{html.escape(row.get('source_heading', '参考材料'))}</h2>
-<ul>{''.join(sources_html)}</ul>
-<p class="meta">{html.escape(export_notice())}</p>
-{warning_html}
-</body>
-</html>'''
-
-
-def build_export_docx(row):
-    from docx import Document
-    from docx.shared import Pt
-
-    doc = Document()
-    style = doc.styles['Normal']
-    style.font.name = 'Noto Sans SC'
-    style.font.size = Pt(11)
-
-    if row.get('export_note'):
-        doc.add_paragraph(row['export_note'])
-
-    for kind, value in richdoc.blocks(row['content']):
-        if kind == 'figure':
-            richdoc.add_figure(doc, value)
-            continue
-        if kind == 'math':
-            richdoc.add_display_math(doc, value)
-            continue
-        if kind == 'table':
-            richdoc.add_table(doc, value)
-            continue
-        if kind == 'code':
-            for text in value.splitlines():
-                doc.add_paragraph(text)
-            continue
-        line = value.strip()
-        if not line:
-            continue
-        if line.startswith('### '):
-            doc.add_heading(line[4:].strip(), level=3)
-        elif line.startswith('## '):
-            doc.add_heading(line[3:].strip(), level=2)
-        elif line.startswith('# '):
-            doc.add_heading(line[2:].strip(), level=1)
-        elif line.startswith('- ') or line.startswith('* '):
-            richdoc.add_inline(doc.add_paragraph(style='List Bullet'), line[2:].strip())
-        else:
-            richdoc.add_inline(doc.add_paragraph(), line)
-
-    doc.add_heading(row.get('source_heading', '参考材料'), level=2)
-    for m in row['context']['materials']:
-        doc.add_paragraph(
-            f'[M{m["id"]}] {m["source_title"]}: {m["source_url"]} — {m["section"]}',
-            style='List Bullet'
-        )
-
-    for line in visual_appendix(row['context']).splitlines():
-        if line.startswith('### '):doc.add_heading(line[4:],level=3)
-        elif line.startswith('## '):doc.add_heading(line[3:],level=2)
-        elif line:doc.add_paragraph(line)
-    doc.add_paragraph(export_notice())
-    warning = row['citation_check'].get('review_warning', '')
-    if warning:
-        doc.add_paragraph('审核提醒：' + warning)
-
-    buffer = BytesIO()
-    doc.save(buffer)
-    buffer.seek(0)
-    return buffer
-
-
-def export_response(row, markdown, note, filename):
-    fmt = request.args.get('format', 'md').lower()
-    if fmt not in {'md', 'txt', 'html', 'docx'}:
-        return jsonify(error='不支持的下载格式。'), 400
-    export_row = {**row, 'export_note': note}
-    if fmt == 'md':
-        content, mime = markdown + visual_appendix(row['context']), 'text/markdown; charset=utf-8'
-    elif fmt == 'txt':
-        content, mime = build_export_text(export_row), 'text/plain; charset=utf-8'
-    elif fmt == 'html':
-        content, mime = build_export_html(export_row), 'text/html; charset=utf-8'
-    else:
-        content = build_export_docx(export_row).getvalue()
-        mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    response = Response(content, content_type=mime)
-    name = filename + '.' + fmt
-    response.headers['Content-Disposition'] = (
-        f"attachment; filename=lecture-{row['id']}.{fmt}; filename*=UTF-8''{quote(name)}")
-    return response
-
-
-@app.get('/api/lectures/<int:lecture_id>/download')
-def download_lecture(lecture_id):
-    with db() as conn:
-        row = conn.execute('SELECT * FROM lectures WHERE id=%s',(lecture_id,)).fetchone()
-    if not row:
-        return jsonify(error='讲义不存在。'),404
-    sources = '\n'.join(f'- [M{m["id"]}] {m["source_title"]}: {m["source_url"]}\n  {m["section"]}'
-                        for m in row['context']['materials'])
-    warning = row['citation_check'].get('review_warning','')
-    content = '导出版本：模型原稿 #'+str(lecture_id)+'；审核状态：原稿未审核（教师修订另行导出）。\n\n'+row['content']+'\n\n## 参考材料\n\n'+sources+'\n\n'+export_notice()+'\n'
-    if warning:
-        content += '\n审核提醒：'+warning+'\n'
-    note = '导出版本：模型原稿 #'+str(lecture_id)+'；审核状态：原稿未审核（教师修订另行导出）。\n\n'
-    return export_response(row, content, note, f'{row["context"]["student"]["name"]}-讲义-{lecture_id}')
-
-
-@app.get('/api/lectures/<int:lecture_id>/revisions/<int:number>/download')
-def download_revision(lecture_id, number):
-    if number == 0:
-        return download_lecture(lecture_id)
-    with db() as conn:
-        lecture = lecture_row(conn, lecture_id)
-        revision = version_row(conn, lecture, number)
-    sources = '\n'.join(f'- [M{m["id"]}] {m["source_title"]}: {m["source_url"]}\n  {m["section"]}' for m in lecture['context']['materials'])
-    duration = f'{revision["review_seconds"]} 秒' if revision['review_seconds'] else '未记录'
-    note = (f'导出版本：教师修订稿，讲义 #{lecture_id} / R{number}\n'
-               f'保存时审核状态：{STATUS_LABELS[revision["status"]]}\n'
-               f'记录者：{revision["recorder"]}；保存时间：{revision["created_at"].isoformat()}\n'
-               f'修改理由：{revision["reason"]}\n审核/修改用时（记录者自报）：{duration}\n\n')
-    content = (note + revision['content'] + '\n\n## 参考材料（原生成时快照）\n\n' + sources
-               + '\n\n说明：' + ('' if release() else '虚拟学生演示；')
-               + '审核状态为该版本保存时的教师记录，不是程序质量认证。\n')
-    export_row = {**lecture, 'content': revision['content'],
-                  'source_heading': '参考材料（原生成时快照）',
-                  'citation_check': {'review_warning': '审核状态为该版本保存时的教师记录，不是程序质量认证。'}}
-    return export_response(export_row, content, note, f'lecture-{lecture_id}-R{number}')
+register_exports(app, lambda: db())
 
 
 if __name__ == '__main__':
@@ -1259,6 +878,8 @@ if __name__ == '__main__':
     QUIZZES.recover()
     KNOWLEDGE.recover()
     recover_evaluation()
-    # Only the data folder's .env counts: Flask would otherwise load the nearest .env above the
-    # working directory, which in the desktop release may belong to something else.
-    app.run(host='127.0.0.1', port=int(os.environ.get('PORT','5055')), debug=False, threaded=True, load_dotenv=False)
+    # Waitress rather than Flask's development server, still one process: the job queues live in it. A live
+    # preview (/api/jobs/<id>/stream) holds one of the threads while it is open, and its events still go out
+    # one by one. Only the data folder's .env counts (load_dotenv above); waitress reads none.
+    import waitress
+    waitress.serve(app, host='127.0.0.1', port=int(os.environ.get('PORT', '5055')), threads=16)

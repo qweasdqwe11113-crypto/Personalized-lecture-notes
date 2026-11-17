@@ -13,7 +13,7 @@ const {isFree, pickPort} = require('../src/ports');
 test('settings from the user shell do not reach the service or PostgreSQL', () => {
   const base = {PATH: '/usr/bin', HOME: '/home/a', LANG: 'zh_CN.UTF-8', DATABASE_URL: 'postgresql://elsewhere', PORT: '80',
     QWEN_API_KEY: 'k', VLM_MODEL: 'm', ZHIYE_EDITION: 'x', PGPASSWORD: 'p', PGDATA: '/x', PYTHONPATH: '/x',
-    LD_LIBRARY_PATH: '/x', FLASK_DEBUG: '1', MODEL_CONCURRENCY: '9', PPT_AESTHETIC_MODEL: 'm'};
+    LD_LIBRARY_PATH: '/x', FLASK_DEBUG: '1', MODEL_CONCURRENCY: '9', MODEL_RETRIES: '3', PPT_AESTHETIC_MODEL: 'm'};
   assert.deepEqual(cleanEnv({EXTRA: '1'}, base), {PATH: '/usr/bin', HOME: '/home/a', LANG: 'zh_CN.UTF-8', EXTRA: '1'});
 });
 

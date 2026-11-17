@@ -14,7 +14,7 @@ from uuid import uuid4
 from flask import Response, jsonify, request
 from psycopg.types.json import Jsonb
 
-from prompts import PreparedRequest
+from prompts import PreparedRequest, learner_name, without_name
 from qwen import ModelError
 from repair import POLICY as REPAIR_POLICY, merged_usage, retry_request
 
@@ -149,7 +149,8 @@ def prepare_quiz(context, options, model):
     payload = dict(model=model, temperature=0.4, max_tokens=16000,
                    chat_template_kwargs={'enable_thinking': False}, messages=[
         {'role': 'system', 'content': system},
-        {'role': 'user', 'content': json.dumps(dict(context=sent, options=options), ensure_ascii=False, default=str)}])
+        {'role': 'user', 'content': json.dumps(without_name(dict(context=sent, options=options), learner_name(context)),
+                                               ensure_ascii=False, default=str)}])
     if context.get('json_mode'):
         # Service-side JSON mode escapes quotes inside Chinese text, which free-form output often breaks.
         payload['response_format'] = {'type': 'json_object'}
@@ -794,7 +795,9 @@ def register_quizzes(app, db, queue, catalog, context_builder, model):
         with db() as conn:
             rows = conn.execute('''SELECT id,status,created_at,options,error_message,context->'topic'->>'title' AS title,
                 context->'student'->>'name' AS student_name,(context->'lecture'->>'id')::bigint AS lecture_id,
-                (context->'lecture'->>'revision')::int AS lecture_revision FROM quiz_jobs
+                (context->'lecture'->>'revision')::int AS lecture_revision,
+                context ? 'lecture' AND NOT EXISTS (SELECT 1 FROM lectures l WHERE l.id::text=context->'lecture'->>'id')
+                    AS lecture_deleted FROM quiz_jobs
                 WHERE %s='' OR context->'lecture'->>'id'=%s ORDER BY created_at DESC LIMIT 50''',
                 (lecture, lecture)).fetchall()
         return jsonify(quizzes=rows)

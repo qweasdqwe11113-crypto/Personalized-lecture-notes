@@ -1,0 +1,118 @@
+{
+  "version": "evalset-v2",
+  "note": "十二节固定的评测课，用 scale-v1 扩展语料。dev 用来调提示词和检查；holdout 只在发版前运行，不对着它改。dev 与 holdout 的知识点互不重叠。v2 起两门课程按 subjects 设学科（课次不变）；--no-subject 按 v1 的方式不设学科。",
+  "students_per_course": 20,
+  "examples_per_point": 8,
+  "seed": 7,
+  "subjects": {"linear_equations": "math", "conditional_probability": "probability"},
+  "cases": [
+    {
+      "id": "L1", "split": "dev", "course": "linear_equations",
+      "lesson_type": "new",
+      "title": "等式的两条性质", "task_level": "概念入门",
+      "goal": "能说出等式两边同加同减、同乘同除的依据，并用这两条性质解只需一步变形的方程，解完代回检验。",
+      "knowledge": ["等式的性质：两边同加同减", "等式的性质：两边同乘同除"],
+      "target": {"kind": "student", "level": "基础待巩固"},
+      "duration": 40, "examples": 2, "exercises": 3
+    },
+    {
+      "id": "L2", "split": "dev", "course": "linear_equations",
+      "lesson_type": "new",
+      "title": "方程的解、移项与合并同类项", "task_level": "新授",
+      "goal": "能判断一个数是不是方程的解，说明移项要变号的依据，并用移项与合并同类项解方程。",
+      "knowledge": ["方程与方程的解", "移项及其依据", "合并同类项"],
+      "target": {"kind": "class"},
+      "duration": 45, "examples": 3, "exercises": 4
+    },
+    {
+      "id": "L3", "split": "dev", "course": "linear_equations",
+      "lesson_type": "new",
+      "title": "去括号与去分母", "task_level": "新授",
+      "goal": "能按依据去括号和去分母，注意括号前是负号和不含分母的项，解含括号或分数系数的方程。",
+      "knowledge": ["去括号", "去分母"],
+      "target": {"kind": "student", "level": "常规水平"},
+      "duration": 45, "examples": 2, "exercises": 4
+    },
+    {
+      "id": "L4", "split": "dev", "course": "linear_equations",
+      "lesson_type": "practice",
+      "title": "两边都含未知数与小数系数的方程", "task_level": "巩固练习",
+      "goal": "能解两边都含未知数的方程和含小数系数的方程，说清每一步的依据并检验。",
+      "knowledge": ["两边都含未知数的方程", "含小数系数的方程"],
+      "target": {"kind": "class"},
+      "duration": 90, "examples": 4, "exercises": 6
+    },
+    {
+      "id": "L5", "split": "holdout", "course": "linear_equations",
+      "lesson_type": "new",
+      "title": "系数化为 1、检验与和差倍分问题", "task_level": "拓展应用",
+      "goal": "能把系数化为 1 并检验，能从和差倍分的文字条件列出方程并解答。",
+      "knowledge": ["系数化为 1 与检验", "列方程解应用题：和差倍分"],
+      "target": {"kind": "student", "level": "学有余力"},
+      "duration": 40, "examples": 2, "exercises": 3
+    },
+    {
+      "id": "L6", "split": "holdout", "course": "linear_equations",
+      "lesson_type": "new",
+      "title": "列方程解应用题：和差倍分与行程", "task_level": "新授",
+      "goal": "能找出等量关系，设未知数，列方程解和差倍分问题与行程问题，并检验答案是否符合题意。",
+      "knowledge": ["列方程解应用题：和差倍分", "列方程解应用题：行程问题"],
+      "target": {"kind": "class"},
+      "duration": 45, "examples": 3, "exercises": 4
+    },
+    {
+      "id": "P1", "split": "dev", "course": "conditional_probability",
+      "lesson_type": "new",
+      "title": "条件概率与乘法公式", "task_level": "概念入门",
+      "goal": "能写出条件概率的定义和成立条件，区分两个方向的条件概率，并用乘法公式求两个事件同时发生的概率。",
+      "knowledge": ["条件概率的定义", "乘法公式"],
+      "target": {"kind": "student", "level": "基础待巩固"},
+      "duration": 45, "examples": 2, "exercises": 3
+    },
+    {
+      "id": "P2", "split": "dev", "course": "conditional_probability",
+      "lesson_type": "new",
+      "title": "划分、全概率公式与贝叶斯公式", "task_level": "新授",
+      "goal": "能判断一组事件是否构成样本空间的划分，推导全概率公式和贝叶斯公式，说明各自的适用条件并计算。",
+      "knowledge": ["样本空间的划分", "全概率公式", "贝叶斯公式"],
+      "target": {"kind": "class"},
+      "duration": 90, "examples": 4, "exercises": 6
+    },
+    {
+      "id": "P3", "split": "dev", "course": "conditional_probability",
+      "lesson_type": "new",
+      "title": "先验、似然、后验与基础率", "task_level": "拓展应用",
+      "goal": "能在具体问题里指出先验、似然和后验，解释基础率很低时阳性结果的后验为什么不高。",
+      "knowledge": ["先验、似然与后验", "基础率与假阳性"],
+      "target": {"kind": "student", "level": "学有余力"},
+      "duration": 40, "examples": 2, "exercises": 3
+    },
+    {
+      "id": "P4", "split": "dev", "course": "conditional_probability",
+      "lesson_type": "practice",
+      "title": "假阳性与先验敏感性", "task_level": "巩固练习",
+      "goal": "能计算检测问题中的后验概率，比较不同先验下后验的变化，并说明变化的原因。",
+      "knowledge": ["基础率与假阳性", "先验敏感性分析"],
+      "target": {"kind": "class"},
+      "duration": 45, "examples": 2, "exercises": 4
+    },
+    {
+      "id": "P5", "split": "holdout", "course": "conditional_probability",
+      "lesson_type": "new",
+      "title": "样本空间、事件与概率的基本性质", "task_level": "概念入门",
+      "goal": "能写出随机试验的样本空间，用集合表示事件及其运算，并用概率的公理和基本性质计算。",
+      "knowledge": ["样本空间与事件", "概率的公理与基本性质"],
+      "target": {"kind": "class"},
+      "duration": 45, "examples": 3, "exercises": 4
+    },
+    {
+      "id": "P6", "split": "holdout", "course": "conditional_probability",
+      "lesson_type": "new",
+      "title": "独立性，以及互斥与独立的区别", "task_level": "新授",
+      "goal": "能用定义判断两个事件是否独立，区分互斥与独立，并说明把两者混用会得到什么错误结果。",
+      "knowledge": ["事件的独立性", "互斥与独立的区别"],
+      "target": {"kind": "student", "level": "常规水平"},
+      "duration": 90, "examples": 3, "exercises": 5
+    }
+  ]
+}

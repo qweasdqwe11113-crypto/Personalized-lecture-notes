@@ -2,13 +2,33 @@
    input, run and lecture; this window only submits and reports. */
 (() => {
 const labels = {queued: '排队中', running: '生成中', succeeded: '已保存', failed: '失败', interrupted: '进程中断', cancelled: '已取消'};
-let jobs = [], timer = 0, session = 0;
+let jobs = [], timer = 0, session = 0, estimateTimer = 0, estimateToken = 0;
 const boxes = () => Array.from($('batch-students').querySelectorAll('input'));
 const fail = message => { $('batch-error').textContent = message || ''; $('batch-error').hidden = !message; };
+const tokens = n => n >= 10000 ? `${(n / 10000).toFixed(n >= 100000 ? 0 : 1)} 万` : String(n);
+function estimate(chosen) {
+  // Before anything is queued: what this many lessons cost lately, so a class of sixty is not a surprise.
+  clearTimeout(estimateTimer);
+  const line = $('batch-estimate'), token = ++estimateToken;
+  if (!chosen || jobs.some(job => ['queued', 'running'].includes(job.status))) { line.hidden = true; return; }
+  estimateTimer = setTimeout(async () => {
+    let mode = 'designed-v1';
+    try { mode = window.generationPayload().generation_mode || mode; } catch (e) { /* the form is still loading */ }
+    try {
+      const data = await api(`/api/jobs/estimate?count=${chosen}&mode=${encodeURIComponent(mode)}`);
+      if (token !== estimateToken) return;
+      line.textContent = data.basis
+        ? `预计约 ${tokens(data.tokens)} tokens、${data.minutes} 分钟（按最近 ${data.basis} 份同一写作方式的讲义估算，同时写 ${data.concurrency} 份）`
+        : '还没有用同一写作方式写完的讲义，暂时无法估算用量和时间。';
+      line.hidden = false;
+    } catch (e) { if (token === estimateToken) line.hidden = true; }
+  }, 250);
+}
 function count() {
   const chosen = boxes().filter(box => box.checked).length;
   $('batch-selected').textContent = `已选 ${chosen} 人`;
   $('batch-submit').disabled = !chosen || jobs.some(job => ['queued', 'running'].includes(job.status));
+  estimate(chosen);
 }
 function drawStudents() {
   // Within the current class by default; a lesson without a course keeps every listed student.

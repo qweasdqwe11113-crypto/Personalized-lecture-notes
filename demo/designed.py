@@ -12,6 +12,7 @@ its SHA-256 is recorded with the run. Nothing is silently patched: a design or s
 still breaks structure or cites a missing source after one retry fails the run.
 """
 import hashlib
+from pathlib import Path
 import json
 import re
 from threading import Lock, Thread
@@ -21,7 +22,7 @@ from flask import jsonify, request
 
 import design as D
 import style
-from prompts import PreparedRequest, designed_system, prepare_request
+from prompts import PreparedRequest, designed_system, learner_name, prepare_request, without_name
 from qwen import ModelError, ModelResult, stream_to, visible_text
 
 MODE = 'designed-v1'
@@ -41,7 +42,9 @@ def chinese(text):
     return len(re.findall(r'[一-鿿]', text or ''))
 
 
-def _derive(frozen_body, messages, max_tokens, stream, version):
+def _derive(frozen_body, messages, max_tokens, stream, version, keep_format=False):
+    """A request derived from a frozen one. A streamed segment asks for prose, so it drops the design's JSON format;
+    keep_format keeps it (a design repair is streamed and still JSON)."""
     payload = json.loads(frozen_body)
     body = {'model': payload['model'], 'messages': messages, 'temperature': payload.get('temperature', 0.3),
             'max_tokens': max_tokens}
@@ -49,19 +52,32 @@ def _derive(frozen_body, messages, max_tokens, stream, version):
         body['chat_template_kwargs'] = payload['chat_template_kwargs']
     if stream:
         body.update(stream=True, stream_options={'include_usage': True})
-    elif 'response_format' in payload:
+    if 'response_format' in payload and (keep_format or not stream):
         body['response_format'] = payload['response_format']
     text = json.dumps(body, ensure_ascii=False, separators=(',', ':'))
     return PreparedRequest(text, hashlib.sha256(text.encode('utf-8')).hexdigest(), version, 'lesson-design-context-v1')
 
 
-def repair_request(request_, previous, problems, version):
+def repair_request(request_, previous, problems, version, name=None):
     payload = json.loads(request_.body)
     feedback = ('上一次输出没有通过程序检查：' + '；'.join(problems[:8])
                 + '。请针对这些问题重新输出完整内容，仍然只输出要求的格式，不要解释或道歉。')
-    messages = payload['messages'] + [{'role': 'assistant', 'content': (previous or '')[:D.LIMIT]},
-                                      {'role': 'user', 'content': feedback}]
-    return _derive(request_.body, messages, payload['max_tokens'], bool(payload.get('stream')), version)
+    messages = payload['messages'] + [{'role': 'assistant', 'content': without_name((previous or '')[:D.LIMIT], name)},
+                                      {'role': 'user', 'content': without_name(feedback, name)}]
+    return _derive(request_.body, messages, payload['max_tokens'], bool(payload.get('stream')), version, keep_format=True)
+
+
+PATCH_PROMPT = Path(__file__).with_name('prompts') / 'lecture-design-patch-v1.md'
+
+
+def patch_request(request_, previous, problems, name=None):
+    """The design's own conversation, asked to send back only what has to change (lesson-design-patch-v1)."""
+    payload = json.loads(request_.body)
+    ask = PATCH_PROMPT.read_text(encoding='utf-8').strip() + '\n' + '\n'.join(f'- {problem}' for problem in problems[:8])
+    messages = payload['messages'] + [{'role': 'assistant', 'content': without_name((previous or '')[:D.LIMIT], name)},
+                                      {'role': 'user', 'content': without_name(ask, name)}]
+    return _derive(request_.body, messages, payload['max_tokens'], bool(payload.get('stream')),
+                   'lesson-design-patch-v1', keep_format=True)
 
 
 def segment_request(frozen_body, context, design, segment, budget):
@@ -82,7 +98,7 @@ def segment_request(frozen_body, context, design, segment, budget):
     message = {'goal': user['goal'], 'context': {**view, 'materials': materials or view['materials']},
                'design': numbered, 'names': names, 'target_segment': segment['id'], 'budget': budget}
     messages = [{'role': 'system', 'content': context['designed']['segment_system']},
-                {'role': 'user', 'content': json.dumps(message, ensure_ascii=False, default=str)}]
+                {'role': 'user', 'content': json.dumps(without_name(message, learner_name(context)), ensure_ascii=False, default=str)}]
     return _derive(frozen_body, messages, min(8000, round(budget['high'] * 2.2) + 700), True, 'lesson-segment-v1')
 
 
@@ -179,9 +195,11 @@ def settle_design(call_model, prepared, context, on_attempt, record):
     # Notes such as a recomputed formula (possibly a false alarm) are shown to the teacher, not retried.
     if not hard and not D.worth_retry(soft):
         return design, soft, first
+    if not hard:
+        return patch_design(call_model, prepared, context, record, first, design, soft)
     retry = repair_request(prepared, first.content, hard + soft + [
         '改完后再核对一遍：各环节 minutes 之和等于授课时长，每道例题至少 4 分钟、每道当堂练习至少 3 分钟'],
-        'lesson-design-repair-v1')
+        'lesson-design-repair-v1', learner_name(context))
     begin = time.monotonic()
     try:
         second = call_model(retry, lambda: None)
@@ -197,6 +215,35 @@ def settle_design(call_model, prepared, context, on_attempt, record):
     if hard:
         raise ModelError('invalid_design', f'课堂设计重试一次后仍未通过检查：{(hard2 or hard)[0]}。未保存，请重试。',
                          'output', ModelResult(second.content))
+    return design, soft, first
+
+
+def patch_design(call_model, prepared, context, record, first, design, soft):
+    """A usable design with reminders: ask only for the parts to change and merge them by id. The merged design is
+    kept when it passes and leaves fewer reminders worth a retry (as many, but fewer reminders in all); otherwise the
+    first design stays, as it would after a failed full retry."""
+    patch = patch_request(prepared, first.content, soft, learner_name(context))
+    begin = time.monotonic()
+    try:
+        second = call_model(patch, lambda: None)
+    except ModelError as exc:
+        if exc.code not in TRANSIENT | INCOMPLETE:
+            raise
+        record('design-patch', 2, patch, exc.partial, time.monotonic() - begin, [str(exc)])
+        return design, soft, first
+    try:
+        correction = D.parse(second.content)
+        if not any('分钟' in problem for problem in soft) and isinstance(correction.get('segments'), list):
+            # The time was right. Rewording a segment came back with its minutes changed and the sum one off
+            # (two of four lessons, 2026-11-18), so a correction not asked to touch the time leaves it alone.
+            correction['segments'] = [{k: v for k, v in entry.items() if k != 'minutes'} if isinstance(entry, dict) else entry
+                                      for entry in correction['segments']]
+        merged, hard2, soft2 = D.validate(D.merge_patch(D.parse(first.content), correction), context)
+    except D.DesignError as exc:
+        merged, hard2, soft2 = None, [str(exc)], []
+    record('design-patch', 2, patch, second, time.monotonic() - begin, hard2 + soft2)
+    if not hard2 and (len(D.worth_retry(soft2)), len(soft2)) < (len(D.worth_retry(soft)), len(soft)):
+        return merged, soft2, second
     return design, soft, first
 
 
@@ -240,7 +287,28 @@ def generate(call_model, gate, prepared, context, goal, on_attempt, publish=None
     else:
         announce('课堂设计')
         publish('design', '', 'writing')
-        design, reminders, reply = settle_design(call_model, prepared, context, on_attempt, record)
+        progress = dict(label='课堂设计', written=0, shown=0.0)
+
+        def count(piece):
+            # Only a count reaches the page, at most once a second: the design is JSON, not something to read.
+            progress['written'] += chinese(piece)
+            now = time.monotonic()
+            if now - progress['shown'] >= 1:
+                progress['shown'] = now
+                announce(f'{progress["label"]}：已写 {progress["written"]} 字')
+
+        def counted(stage, attempt, *rest):
+            record(stage, attempt, *rest)
+            progress.update(label='课堂设计（按检查意见修改）', written=0, shown=0.0)
+        try:
+            with stream_to(count):
+                design, reminders, reply = settle_design(call_model, prepared, context, on_attempt, counted)
+        except ModelError as exc:
+            # The failed run keeps what its design calls cost and what each one was told, for the record page.
+            partial = exc.partial
+            raise ModelError(exc.code, str(exc), exc.stage, ModelResult(
+                partial.content, dict(usage) or dict(partial.usage or {}),
+                {**(partial.metadata or {}), **metadata(None, [], extra)})) from exc
         if isinstance(reply.metadata.get('response_model'), str):
             extra['response_model'] = reply.metadata['response_model']
     publish('design', f'# {design["title"]}\n\n' + D.overview(design, context), 'done')
@@ -285,7 +353,8 @@ def generate(call_model, gate, prepared, context, goal, on_attempt, publish=None
         if hard or soft:
             publish(segment['id'], '', 'repairing')
             retry = (request_ if error is not None and error.code in TRANSIENT else
-                     repair_request(request_, output.content, hard + soft, 'lesson-segment-repair-v1'))
+                     repair_request(request_, output.content, hard + soft, 'lesson-segment-repair-v1',
+                                    learner_name(context)))
             second, second_error, seconds = attempt(segment, retry)
             text2, hard2, soft2 = inspect_prose(second.content, segment, budget, context, design)
             if second_error is not None:
@@ -328,7 +397,7 @@ def generate(call_model, gate, prepared, context, goal, on_attempt, publish=None
 
     content = D.document(design, prose, context)
     with guard:
-        stages.sort(key=lambda s: (s['stage'] != 'design', s['stage'], s['attempt']))
+        stages.sort(key=lambda s: (s['stage'] not in ('design', 'design-patch'), s['stage'], s['attempt']))
     if failures:
         error = failures[0]
         raise ModelError(error.code, str(error), error.stage, ModelResult(content, dict(usage), metadata(design, reminders, extra)))

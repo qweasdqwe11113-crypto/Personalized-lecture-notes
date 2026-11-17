@@ -27,3 +27,4 @@
 .evidence-draft-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 14px;align-items:end}
 .evidence-draft-row :is(select,input){width:100%;min-width:0}
 .evidence-draft .trace-actions{margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.grading-history-row{display:flex;gap:8px;align-items:stretch}.grading-history-row>button:first-child{flex:1;min-width:0}#grading-history .grading-history-row .delete-entry{flex:none;text-align:center;background:#fff}

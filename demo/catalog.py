@@ -24,9 +24,10 @@ def load_catalog(conn):
     keep serving every student, so older records and integrations behave as before.
     """
     students = [s['id'] for s in conn.execute('SELECT id FROM students ORDER BY id')]
-    courses = conn.execute('SELECT id,preset_key,name,stage FROM courses').fetchall()
+    courses = conn.execute('SELECT id,preset_key,name,stage,subject FROM courses').fetchall()
     by_key = {c['preset_key']: c for c in courses if c['preset_key']}
     by_name = {(c['name'], c['stage']): c for c in courses}
+    subjects = {c['id']: c['subject'] for c in courses}
     enrolled = {}
     for row in conn.execute('SELECT course_id,student_id FROM class_students ORDER BY student_id'):
         enrolled.setdefault(row['course_id'], []).append(row['student_id'])
@@ -49,6 +50,9 @@ def load_catalog(conn):
         tasks[row['key']] = task
     for task in tasks.values():
         task['student_ids'] = sorted(set(task['student_ids']) | set(enrolled.get(task['course_id'], [])))
+        # Read from the course each time, so a changed subject applies to the next generation of every
+        # lesson in it; a saved run keeps the context it was frozen with.
+        task['subject'] = subjects.get(task['course_id'], 'general')
     return {key: {**task, 'key': key} for key, task in tasks.items()}
 
 

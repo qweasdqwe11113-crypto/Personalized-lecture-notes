@@ -29,8 +29,9 @@
     if (v === 'all') drawAll();
     if (tabs[v]) { drawHeader(); if (v === 'classes') drawClasses(); }
   }
+  const subjects = {general: '其他学科', math: '数学', probability: '概率统计'};
   function meta(c) {
-    return `${c.lesson_keys.length} 份备课 · ${c.classes.length} 个班级 · ${c.student_count} 名学生`;
+    return `${subjects[c.subject] || subjects.general} · ${c.lesson_keys.length} 份备课 · ${c.classes.length} 个班级 · ${c.student_count} 名学生`;
   }
   function drawAll() {
     const now = scope.courseId();
@@ -55,6 +56,7 @@
     $('course-home-description').hidden = !c.description;
     if (!$('edit-course-form').hidden) return;
     $('edit-course-name').value = c.name; $('edit-course-stage').value = c.stage || ''; $('edit-course-description').value = c.description || '';
+    $('edit-course-subject').value = c.subject || 'general';
   }
   function drawClasses() {
     const c = scope.course();
@@ -80,7 +82,8 @@
     event.preventDefault();
     const button = event.target.querySelector('button[type=submit]'); if (button.disabled) return; button.disabled = true;
     try {
-      const d = await api('/api/courses', json('POST', {name: $('new-course-name').value, stage: $('new-course-stage').value, description: $('new-course-description').value}));
+      const d = await api('/api/courses', json('POST', {name: $('new-course-name').value, stage: $('new-course-stage').value,
+        description: $('new-course-description').value, subject: $('new-course-subject').value}));
       await scope.refresh(); scope.set(d.course.id, undefined, 'courses');
       $('new-course-form').reset(); toggle($('toggle-new-course'), $('new-course-form'), false);
       location.hash = 'materials';
@@ -98,10 +101,13 @@
     event.preventDefault();
     const button = event.target.querySelector('button[type=submit]'); if (button.disabled) return; button.disabled = true;
     try {
-      await api('/api/courses/' + scope.courseId(), json('PUT', {name: $('edit-course-name').value, stage: $('edit-course-stage').value, description: $('edit-course-description').value}));
+      const before = scope.course()?.subject || 'general', subject = $('edit-course-subject').value;
+      await api('/api/courses/' + scope.courseId(), json('PUT', {name: $('edit-course-name').value, stage: $('edit-course-stage').value,
+        description: $('edit-course-description').value, subject}));
       $('edit-course-form').hidden = true;
       await afterChange();
-      status('course-home-status', '课程信息已保存，本课程的备课同步使用新名称。');
+      status('course-home-status', '课程信息已保存，本课程的备课同步使用新名称。'
+        + (subject !== before ? `学科改为「${subjects[subject]}」，之后生成的讲义使用新的学科要求；已生成的不变。` : ''));
     } catch (e) { status('course-home-status', e.message, true); }
     finally { button.disabled = false; }
   };

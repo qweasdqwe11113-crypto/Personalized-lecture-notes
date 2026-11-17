@@ -1,7 +1,7 @@
 """Transparent text checks; no claim to prove mathematics or citation entailment."""
 import re
 from teaching import length_range
-from courses import course_family
+from courses import course_family, subject_of
 import design as lesson_design
 import figures
 import mathcheck
@@ -58,9 +58,40 @@ def assess_scope(context, goal):
     custom = goal != context['topic']['goal']
     if custom:
         warnings.append('这是自定义目标，程序不能确认完整目标覆盖，需教师对照下列范围。')
-    return {'version': context['topic'].get('check_version', 'probability-text-check-v1') if university else context['topic'].get('check_version', CHECK_VERSION), 'goal': goal, 'default_goal': context['topic']['goal'],
+    version = context['topic'].get('check_version', 'probability-text-check-v1') if university else context['topic'].get('check_version', CHECK_VERSION)
+    if subject_of(context['topic']):
+        version += f'+{subject_of(context["topic"])}-subject-v1'
+    return {'version': version, 'goal': goal, 'default_goal': context['topic']['goal'],
             'custom_goal': custom, 'coverage': coverage, 'warnings': warnings,
             'note': '材料关联表示已提供该知识点资料，不证明材料支持讲义每个结论。'}
+
+
+_PROBABILITY = re.compile(r'P\s*\((?:[^()\n]|\([^()\n]*\))*\)\s*=')
+_OPERAND = re.compile(r'(?:[×·*/+\-−÷]|\\times|\\cdot|\\div)\s*$|\d$')   # an operator before it, or a coefficient (2P(A))
+_VALUE = re.compile(r'(-?\d+(?:\.\d+)?)(?:\s*/\s*(\d+(?:\.\d+)?))?|\\[dt]?frac\{(-?\d+(?:\.\d+)?)\}\{(\d+(?:\.\d+)?)\}')
+
+
+def probabilities_out_of_range(content):
+    """Every 「P(…) = value」 whose value, a plain number or a fraction, is below 0 or above 1. A chain
+    (P(B) = 0.6 × 0.02 + 0.4 × 0.05 = 0.032) is read part by part; parts with arithmetic are skipped.
+    A P(…) that is only a factor or term of the left side (N × P(A) × P(B|A) = … = 95, a count) is not
+    the value being stated, so it is skipped too."""
+    found = []
+    for match in _PROBABILITY.finditer(content):
+        if _OPERAND.search(content[max(0, match.start() - 12):match.start()]):
+            continue
+        rest = re.split(r'[，,。；;、\n$]|\\\)|\\\]', content[match.end():], maxsplit=1)[0]
+        for part in re.split(r'=|≈|\\approx', rest):
+            value = _VALUE.fullmatch(part.strip().replace(' ', ''))
+            if not value:
+                continue
+            top, bottom = (value[1], value[2]) if value[1] is not None else (value[3], value[4])
+            number = float(top) / float(bottom) if bottom else float(top)
+            if bottom and float(bottom) == 0:
+                continue
+            if number < 0 or number > 1 + 1e-9:
+                found.append(f'{match[0].strip()} {part.strip()}')
+    return found
 
 
 def citation_locations(content, context):
@@ -113,6 +144,11 @@ def check_output(content, context, goal):
     add('goal_scope', '目标范围提示', not scope['warnings'], '；'.join(scope['warnings']) if scope['warnings'] else '使用主题默认目标，关联范围已列明；完整覆盖仍需教师复核。')
     if university:
         add('probability_conditions', '概率公式条件提示', all(word in content for word in ['互斥', '完备']) and bool(re.search(r'>\s*0|大于\s*(?:零|0)|正分母', content)), '仅匹配互斥、完备及正分母提示词；不证明每次公式使用都满足条件。')
+    if subject_of(context['topic']) == 'probability':
+        wrong = probabilities_out_of_range(content)
+        add('probability_range', '概率值范围', not wrong,
+            '写成 P(…) = 数值的概率不在 0 到 1 之间：' + '；'.join(wrong[:3]) if wrong else
+            '写成 P(…) = 数值的概率都在 0 到 1 之间；只查这种写法，不证明计算正确。')
     if university and scope['version'] == 'probability-text-check-v2':
         risky = bool(re.search(r'Ai\s*∩\s*Bi|(?:仅在|只有).*P\(A\)\s*=\s*P\(B\).*相等', content))
         add('known_probability_hints', '已发现问题的词语提示', not risky, '匹配未定义 Bi 的已知表达或过强相等条件；词语提示不解释否定或完整上下文，需人工判断。')
