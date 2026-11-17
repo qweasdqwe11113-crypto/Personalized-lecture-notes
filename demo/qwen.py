@@ -88,7 +88,7 @@ def _read_stream(response):
     try:
         for raw in response:
             if time.monotonic() > deadline:
-                raise ModelError('timeout', 'Qwen 请求超时，请稍后重试。', partial=partial())
+                raise ModelError('timeout', '模型请求超时，请稍后重试。', partial=partial())
             line = raw.decode('utf-8').strip()
             if not line.startswith('data:'):
                 continue
@@ -120,7 +120,7 @@ def _read_stream(response):
     except (UnicodeDecodeError, AttributeError, TypeError):
         raise ModelError('invalid_protocol', '模型响应格式不符合 chat/completions 协议。', partial=partial()) from None
     except TimeoutError:
-        raise ModelError('timeout', 'Qwen 请求超时，请稍后重试。', partial=partial()) from None
+        raise ModelError('timeout', '模型请求超时，请稍后重试。', partial=partial()) from None
     except OSError:
         raise ModelError('connection_error', '模型连接中断，请稍后重试。', partial=partial()) from None
     return {'choices': [{'message': {'content': ''.join(parts)}, 'finish_reason': finish}],
@@ -141,7 +141,7 @@ def call_qwen(prepared, on_attempt):
             headers['Authorization'] = 'Bearer ' + key
         req = urllib.request.Request(url, data=prepared.body.encode('utf-8'), headers=headers)
     except ValueError:
-        raise ModelError('invalid_endpoint', '请检查本地 QWEN_BASE_URL 的服务地址格式。', 'configuration') from None
+        raise ModelError('invalid_endpoint', '服务地址格式不正确，请在「系统设置」检查语言模型的服务地址。', 'configuration') from None
     on_attempt()  # Commit the attempt before network I/O; never recompute the body.
     try:
         with urllib.request.urlopen(req, timeout=request_timeout()) as response:
@@ -161,9 +161,9 @@ def call_qwen(prepared, on_attempt):
     except urllib.error.URLError as exc:
         timeout = isinstance(exc.reason, TimeoutError)
         raise ModelError('timeout' if timeout else 'unreachable',
-                         'Qwen 请求超时，请稍后重试。' if timeout else '无法连接 Qwen，请确认课题组内网连接后重试。') from None
+                         '模型请求超时，请稍后重试。' if timeout else '无法连接模型服务，请检查网络，并在「系统设置」确认服务地址。') from None
     except TimeoutError:
-        raise ModelError('timeout', 'Qwen 请求超时，请稍后重试。') from None
+        raise ModelError('timeout', '模型请求超时，请稍后重试。') from None
     except (json.JSONDecodeError, UnicodeDecodeError):
         raise ModelError('invalid_json', '模型服务没有返回有效 JSON。') from None
     except OSError:

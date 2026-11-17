@@ -9,7 +9,6 @@ from docx import Document
 from psycopg.types.json import Jsonb
 
 from test_quizzes import QuizFixture
-from test_profiles import module
 import packages
 from reviews import REVIEW_ITEMS
 

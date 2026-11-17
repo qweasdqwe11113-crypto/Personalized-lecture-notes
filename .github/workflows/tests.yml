@@ -1,0 +1,77 @@
+# 服务端测试：lint，然后在 PostgreSQL 服务容器里跑全部 Python 测试（含前端行为回归）。
+# 推送到 main 和涉及服务代码的 Pull Request 都会运行。测试不调用真实模型，也不需要 .env。
+name: 测试
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'demo/**'
+      - 'tools/ppt-kit/**'
+      - 'assets/ppt-templates/**'
+      - 'requirements.txt'
+      - 'requirements-dev.txt'
+      - 'ruff.toml'
+      - '.github/workflows/tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python 测试与 lint
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        # Same major version as the PostgreSQL bundled with the desktop client.
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: lecture_demo_prototype
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d lecture_demo_prototype"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      # The tests accept only this database name; each test class works in its own temporary schema.
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/lecture_demo_prototype
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      # The frontend behaviour regressions (demo/tests/test_frontend.py) run under Node.js.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: 中文字体（程序画图时使用）
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+
+      - name: 安装依赖
+        run: python -m pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Lint（语法错误、未使用的导入、未定义的名字）
+        run: ruff check demo tools
+
+      - name: 初始化数据库
+        run: python demo/init_db.py
+
+      - name: 测试
+        run: python -m unittest discover -s demo/tests

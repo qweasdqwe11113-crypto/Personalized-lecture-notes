@@ -12,9 +12,8 @@ from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Pt
 
 from .theme import (CANVAS_H, CANVAS_W, CONTENT_R, CONTENT_W, CONTENT_X, FS,
-                    MARGIN_R, Theme, ZONE_A_TOP, ZONE_B_TOP, add_line,
-                    add_paragraphs, add_rect, add_text, para_height,
-                    set_slide_bg)
+                    Theme, ZONE_A_TOP, ZONE_B_TOP, add_line,
+                    add_rect, add_text, para_height)
 
 # 正文行高系数
 LH = 1.6

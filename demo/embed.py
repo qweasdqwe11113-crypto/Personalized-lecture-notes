@@ -64,7 +64,7 @@ class QwenEmbedder:
                 raise ValueError
             url = self.base + '/embeddings'
         except ValueError:
-            raise EmbeddingError('invalid_endpoint', '请检查本地 QWEN_BASE_URL 的服务地址格式。') from None
+            raise EmbeddingError('invalid_endpoint', '服务地址格式不正确，请在「系统设置」检查嵌入模型的服务地址。') from None
         size = batch_size()
         vectors = []
         for start in range(0, len(texts), size):
@@ -88,7 +88,7 @@ class QwenEmbedder:
             timeout_hit = isinstance(exc.reason, TimeoutError)
             raise EmbeddingError('timeout' if timeout_hit else 'unreachable',
                                  '嵌入请求超时，请减少资料后重试。' if timeout_hit else
-                                 '无法连接嵌入服务，请确认课题组内网连接后重试。') from None
+                                 '无法连接嵌入服务，请检查网络，并在「系统设置」确认服务地址。') from None
         except TimeoutError:
             raise EmbeddingError('timeout', '嵌入请求超时，请减少资料后重试。') from None
         except (json.JSONDecodeError, UnicodeDecodeError):

@@ -26,7 +26,7 @@ from runs import create_run, fail_run, mark_attempt, recent_runs, run_detail, sa
 from quality import assess_scope, check_output
 from reviews import (ReviewError, STATUS_LABELS, add_issue, lecture_row,
                      review_bundle, save_revision, version_row)
-from courses import TOPICS, REFERENCE_EXAMPLES, course_family
+from courses import TOPICS, REFERENCE_EXAMPLES, course_family  # noqa: F401  (experiment.py reads app.TOPICS)
 from catalog import load_catalog, register_catalog
 from classes import class_context_states, class_members, library_ids, register_classes, student_class
 from comparisons import comparison_options, compare_lectures
@@ -47,7 +47,7 @@ from edition import data_dir, release
 from rendering import markdown_html, plain_formulas, visual_appendix
 import richdoc
 from uploads import ImportError as UploadError, read_upload, register_uploads
-from embed import EmbeddingError, OllamaEmbedder, QwenEmbedder
+from embed import EmbeddingError, QwenEmbedder
 from retrieval import (MODES as RETRIEVAL_MODES, RetrievalError, adopt_content, build_query,
                        index_knowledge, search as search_chunks, status as retrieval_status,
                        to_materials)
@@ -226,7 +226,7 @@ def local_origin_only():
         return jsonify(error='提交内容过长，请缩短后重试。'), 413
     origin = request.headers.get('Origin')
     if request.method in ('POST', 'PUT') and origin and origin != request.host_url.rstrip('/'):
-        return jsonify(error='请从本地 demo 页面发起请求。'), 403
+        return jsonify(error='请从知页页面发起请求。'), 403
 
 
 @app.after_request
@@ -1043,6 +1043,11 @@ def database_error(_error):
     return jsonify(error='数据库暂不可用。请检查本机 PostgreSQL，并运行初始化命令。'),503
 
 
+def export_notice():
+    """The closing line of a downloaded lecture. Only the demonstration data has made-up students."""
+    return '说明：内容由模型生成，使用前请教师审核。' if release() else '说明：虚拟学生演示；模型生成内容需人工审核。'
+
+
 def build_reference_text(row):
     sources = '\n'.join(
         f'- [M{m["id"]}] {m["source_title"]}: {m["source_url"]}\n  {m["section"]}'
@@ -1050,7 +1055,7 @@ def build_reference_text(row):
     )
     warning = row['citation_check'].get('review_warning', '')
     text = row.get('export_note', '') + row['content'] + '\n\n## 参考材料\n\n' + sources + visual_appendix(row['context'])
-    text += '\n\n说明：虚拟学生演示；模型生成内容需人工审核。\n'
+    text += '\n\n' + export_notice() + '\n'
     if warning:
         text += '\n审核提醒：' + warning + '\n'
     return text
@@ -1121,7 +1126,7 @@ a {{ color: #4268ba; }}
 {''.join(body_parts)}
 <h2>{html.escape(row.get('source_heading', '参考材料'))}</h2>
 <ul>{''.join(sources_html)}</ul>
-<p class="meta">说明：虚拟学生演示；模型生成内容需人工审核。</p>
+<p class="meta">{html.escape(export_notice())}</p>
 {warning_html}
 </body>
 </html>'''
@@ -1178,7 +1183,7 @@ def build_export_docx(row):
         if line.startswith('### '):doc.add_heading(line[4:],level=3)
         elif line.startswith('## '):doc.add_heading(line[3:],level=2)
         elif line:doc.add_paragraph(line)
-    doc.add_paragraph('说明：虚拟学生演示；模型生成内容需人工审核。')
+    doc.add_paragraph(export_notice())
     warning = row['citation_check'].get('review_warning', '')
     if warning:
         doc.add_paragraph('审核提醒：' + warning)
@@ -1219,7 +1224,7 @@ def download_lecture(lecture_id):
     sources = '\n'.join(f'- [M{m["id"]}] {m["source_title"]}: {m["source_url"]}\n  {m["section"]}'
                         for m in row['context']['materials'])
     warning = row['citation_check'].get('review_warning','')
-    content = '导出版本：模型原稿 #'+str(lecture_id)+'；审核状态：原稿未审核（教师修订另行导出）。\n\n'+row['content']+'\n\n## 参考材料\n\n'+sources+'\n\n说明：虚拟学生演示；模型生成内容需人工审核。\n'
+    content = '导出版本：模型原稿 #'+str(lecture_id)+'；审核状态：原稿未审核（教师修订另行导出）。\n\n'+row['content']+'\n\n## 参考材料\n\n'+sources+'\n\n'+export_notice()+'\n'
     if warning:
         content += '\n审核提醒：'+warning+'\n'
     note = '导出版本：模型原稿 #'+str(lecture_id)+'；审核状态：原稿未审核（教师修订另行导出）。\n\n'
@@ -1240,7 +1245,8 @@ def download_revision(lecture_id, number):
                f'记录者：{revision["recorder"]}；保存时间：{revision["created_at"].isoformat()}\n'
                f'修改理由：{revision["reason"]}\n审核/修改用时（记录者自报）：{duration}\n\n')
     content = (note + revision['content'] + '\n\n## 参考材料（原生成时快照）\n\n' + sources
-               + '\n\n说明：虚拟学生演示；审核状态为该版本保存时的教师记录，不是程序质量认证。\n')
+               + '\n\n说明：' + ('' if release() else '虚拟学生演示；')
+               + '审核状态为该版本保存时的教师记录，不是程序质量认证。\n')
     export_row = {**lecture, 'content': revision['content'],
                   'source_heading': '参考材料（原生成时快照）',
                   'citation_check': {'review_warning': '审核状态为该版本保存时的教师记录，不是程序质量认证。'}}

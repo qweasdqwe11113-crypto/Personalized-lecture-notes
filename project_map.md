@@ -34,6 +34,7 @@ flowchart TD
 | `demo/app.py` | 讲义上下文与生成、导出、学生接口；创建共享任务队列与生成锁，注册其余模块的路由；所有请求先检查 Host 是本机名字（防 DNS 重绑定），写请求再检查 Origin 与大小 |
 | `demo/schema.sql`、`demo/init_db.py` | 表结构与增量初始化；种子数据在 `seed.json`、`university_seed.json` |
 | `demo/tests/` | 单元与集成测试；`serve_*_fixture.py` 为固定响应的离线沙盒（5056 端口） |
+| `.github/workflows/tests.yml` | 推送到 `main` 和涉及服务代码的 Pull Request：先 `ruff check demo tools`（规则在 `ruff.toml`，只查语法错误、未使用的导入和未定义的名字；版本固定在 `requirements-dev.txt`），再在 PostgreSQL 服务容器里运行 `demo/init_db.py` 和 `demo/tests` |
 
 ## 2. 页面与前端模块
 
@@ -327,7 +328,7 @@ Electron 主进程启动自带的 PostgreSQL 和 Python 服务，再在窗口中
 | 审核与章节调整 | `reviews.py`、`sections.py` | 版本锁、问题记录、引用检查 |
 | PPT | `presentations.py`、`ppt_story.py`、`pptkit_export.py`；按课堂设计排版的课件另有 `lesson_slides.py`、`lesson_layout.py`、`mathtext.py` | 模板版本、视觉审查、单页微调、`test_presentations.py`；按设计排版的页面改动后跑 `test_lesson_slides.py`（每个模板都要过版式检查），并用 LibreOffice 渲染看一遍 |
 | 出题 / 阅卷 / 授课包 | `quizzes.py`、`grading.py`、`packages.py`、`handouts.py` | 冻结版本与 JSON 模式、题号映射、学生练习 / 课后检测与学生学案不含答案和来源编号、`packages.js` 的导出内容列表、`test_packages.py` 与 `test_lesson_design.py` |
-| 模型配置 | `model_settings.py`、`model_import.py`、`qwen.py`、`vision.py`、`embed.py` | 三个通道的区别、密钥遮蔽（导入结果不回传已保存的密钥）、同一服务保留已配好的模型、重启生效、`test_model_import.py` |
+| 模型配置 | `model_settings.py`、`model_import.py`、`qwen.py`、`vision.py`、`embed.py` | 三个通道的区别、密钥遮蔽（导入结果不回传已保存的密钥）、已保存的密钥只在地址仍是同一服务时沿用（`model_settings.same_service`：协议、主机、端口相同；测试、读取模型列表、保存共用）、同一服务保留已配好的模型、重启生效、`test_model_settings.py`、`test_model_import.py` |
 | 客户端空库 / 开发环境演示数据 | `edition.py`、`init_db.py`、`courses.py` 的预置课程、`index.html` 中的 `release` 分支 | 客户端空库可从零建课（`test_edition.py`）、`desktop/scripts/stage.mjs` 的文件白名单 |
 | 桌面客户端 | `desktop/src/`、`desktop/scripts/` | `npm test`、`node scripts/smoke.mjs --dev`；新增服务环境变量要加进 `processes.cleanEnv` 的清理列表 |
 | Linux 安装包与沙箱 | `desktop/electron-builder.config.cjs`、`scripts/linux-sandbox.cjs`、`scripts/deb-after-install.tpl` | `test/deb.test.js`、`test/linux-sandbox.test.js`；升级 electron-builder 时对照它的 `templates/linux/after-install.tpl` 和 `apparmor-profile.tpl`；打包后用 `dpkg-deb -c` / `dpkg-deb -e` 看权限和安装脚本 |

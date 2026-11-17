@@ -14,7 +14,7 @@ import ssl
 import unicodedata
 import uuid
 from urllib.parse import urljoin, urlsplit, unquote, quote
-from zipfile import ZipFile, BadZipFile
+from zipfile import ZipFile
 
 from flask import jsonify, request, send_file
 import assets

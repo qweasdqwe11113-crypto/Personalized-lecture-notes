@@ -93,12 +93,52 @@ class ModelSettingsTests(unittest.TestCase):
         before = self.path.read_bytes()
         with self.response({'choices': [{'message': {'content': '5'}, 'finish_reason': 'stop'}]}) as mock:
             response = self.client.post('/api/model-settings/test', json={
-                'channel': 'llm', 'config': {'base_url': 'http://unsaved.invalid/v1', 'model': 'test', 'api_key': ''}})
+                'channel': 'llm', 'config': {'base_url': 'http://127.0.0.1:11434/api/v1', 'model': 'test', 'api_key': ''}})
         self.assertEqual(response.status_code, 200)
         req = mock.call_args.args[0]
-        self.assertEqual(req.full_url, 'http://unsaved.invalid/v1/chat/completions')
+        self.assertEqual(req.full_url, 'http://127.0.0.1:11434/api/v1/chat/completions')
         self.assertEqual(req.get_header('Authorization'), 'Bearer private-key')
         self.assertEqual(self.path.read_bytes(), before)
+
+    def test_saved_key_is_not_sent_to_another_service(self):
+        """Another host, another port or another scheme is another service: the empty key field stays empty."""
+        reply = {'choices': [{'message': {'content': '5'}, 'finish_reason': 'stop'}]}
+        for url in ('http://other.invalid/v1', 'http://127.0.0.1:1234/v1', 'https://127.0.0.1:11434/v1'):
+            with self.subTest(url=url, call='test'), self.response(reply) as mock:
+                response = self.client.post('/api/model-settings/test', json={
+                    'channel': 'llm', 'config': {'base_url': url, 'model': 'test', 'api_key': ''}})
+                self.assertEqual(response.status_code, 200)
+                self.assertIsNone(mock.call_args.args[0].get_header('Authorization'))
+            with self.subTest(url=url, call='models'), patch.object(
+                    settings.model_import, 'fetch_json', return_value=(200, {'data': [{'id': 'm'}]})) as fetch:
+                response = self.client.post('/api/model-settings/models', json={
+                    'channel': 'llm', 'config': {'base_url': url, 'api_key': ''}})
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(fetch.call_args_list[0].args[1], '')
+        # A key typed for the new address is used there.
+        with self.response(reply) as mock:
+            self.client.post('/api/model-settings/test', json={
+                'channel': 'llm', 'config': {'base_url': 'http://other.invalid/v1', 'model': 'test', 'api_key': 'new-key'}})
+        self.assertEqual(mock.call_args.args[0].get_header('Authorization'), 'Bearer new-key')
+
+    def test_model_list_keeps_the_saved_key_on_the_same_service(self):
+        for url in ('http://127.0.0.1:11434/v1', '127.0.0.1:11434', 'http://127.0.0.1:11434/v1/chat/completions'):
+            with self.subTest(url=url), patch.object(
+                    settings.model_import, 'fetch_json', return_value=(200, {'data': [{'id': 'm'}]})) as fetch:
+                response = self.client.post('/api/model-settings/models', json={
+                    'channel': 'llm', 'config': {'base_url': url, 'api_key': ''}})
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(fetch.call_args_list[0].args[1], 'private-key')
+
+    def test_saving_another_service_with_an_empty_key_does_not_carry_the_old_key_over(self):
+        data = self.payload()
+        data['channels']['llm']['base_url'] = 'https://other.invalid/v1'
+        response = self.client.post('/api/model-settings', json=data)
+        self.assertEqual(response.status_code, 200)
+        values = dotenv_values(self.path)
+        self.assertEqual(values['QWEN_BASE_URL'], 'https://other.invalid/v1')
+        self.assertEqual(values['QWEN_API_KEY'], '')
+        self.assertFalse(response.json['channels']['llm']['key_present'])
 
     def test_embedding_test_checks_returned_vector(self):
         config = self.payload()['channels']['embedding']

@@ -1,0 +1,7 @@
+# Lint only: syntax errors (E9) and pyflakes (F: unused imports, undefined names, unused variables).
+# No formatting and no line-length rule; the code keeps its own layout.
+# Run:  ruff check demo tools      (version pinned in requirements-dev.txt; CI runs the same command)
+target-version = "py312"
+
+[lint]
+select = ["E9", "F"]

@@ -14,7 +14,7 @@ from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.util import Pt
 
-from .contract import ok, validate
+from .contract import validate
 from .layouts import LAYOUTS
 from .theme import (CANVAS_H, CANVAS_W, CONTENT_R, CONTENT_X, FOOT_LINE_Y,
                    FOOT_TEXT_Y, FS, Theme, add_line, add_text, blank_slide,

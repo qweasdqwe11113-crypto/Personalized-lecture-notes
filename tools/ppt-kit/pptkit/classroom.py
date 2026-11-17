@@ -2,7 +2,6 @@
 
 Geometry belongs here; model contracts contain only content and relationships.
 """
-from pptx.dml.color import RGBColor
 from pptx.util import Pt
 
 from .theme import add_text, add_rect, add_line, para_height

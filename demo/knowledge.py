@@ -277,7 +277,7 @@ class KnowledgeQueue:
 
 
 def label_range(units, first, last):
-    a, b = units[first - 1]['label'], units[last - 1]['label']
+    a = units[first - 1]['label']
     if first == last:
         return a
     unit = '页' if a.endswith('页') else '段'

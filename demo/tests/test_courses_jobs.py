@@ -7,7 +7,6 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Event, Lock
 from unittest.mock import patch
 
-from psycopg.types.json import Jsonb
 from test_profiles import ProfileDatabaseFixture, DEMO, module
 from experiment import build_manifest
 from jobs import JobQueue

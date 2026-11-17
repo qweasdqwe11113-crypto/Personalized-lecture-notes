@@ -1,5 +1,7 @@
 """Merged download formats must preserve the selected version and its provenance."""
 from io import BytesIO
+import os
+from unittest.mock import patch
 
 from docx import Document
 
@@ -80,6 +82,21 @@ class ExportTests(ProfileDatabaseFixture):
                 response = self.download(fmt, 0)
                 self.assertEqual(response.status_code, 200)
                 self.assertIn('原稿未审核', self.text(response, fmt))
+
+    def test_only_the_demonstration_setup_calls_its_students_fictional(self):
+        self.save_draft('# 修订\n正文 [M3]')
+        cases = [(fmt, revision) for revision in (None, 1) for fmt in ('md', 'txt', 'html', 'docx')]
+        for fmt, revision in cases:
+            with self.subTest(edition='demo', fmt=fmt, revision=revision):
+                self.assertIn('虚拟学生演示', self.text(self.download(fmt, revision), fmt))
+        with patch.dict(os.environ, {'ZHIYE_EDITION': 'release'}):
+            for fmt, revision in cases:
+                with self.subTest(edition='release', fmt=fmt, revision=revision):
+                    text = self.text(self.download(fmt, revision), fmt)
+                    self.assertNotIn('虚拟学生', text)
+                    # The teacher is still told who answers for the content.
+                    self.assertIn('说明：', text)
+                    self.assertIn('教师', text)
 
     def test_visual_evidence_text_and_fingerprint_survive_every_export_format(self):
         from psycopg.types.json import Jsonb
