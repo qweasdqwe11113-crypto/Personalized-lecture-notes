@@ -1,0 +1,76 @@
+[
+ {
+  "course": "一元一次方程整章（扩展语料）",
+  "chunks": 40,
+  "queries": 24,
+  "characters": 13924,
+  "embed_model": "text-embedding-v4",
+  "rankers": {
+   "vector": {
+    "recall@1": 0.792,
+    "recall@3": 0.917,
+    "recall@6": 0.958,
+    "mrr": 0.867,
+    "precision_at_6": 0.417
+   },
+   "bm25": {
+    "recall@1": 0.75,
+    "recall@3": 0.917,
+    "recall@6": 0.958,
+    "mrr": 0.835,
+    "precision_at_6": 0.34
+   },
+   "hybrid_rrf": {
+    "recall@1": 0.792,
+    "recall@3": 0.958,
+    "recall@6": 1.0,
+    "mrr": 0.872,
+    "precision_at_6": 0.389
+   },
+   "hybrid_rrf_w0.5": {
+    "recall@1": 0.833,
+    "recall@3": 0.917,
+    "recall@6": 1.0,
+    "mrr": 0.887,
+    "precision_at_6": 0.403
+   }
+  }
+ },
+ {
+  "course": "条件概率与贝叶斯整章（扩展语料）",
+  "chunks": 73,
+  "queries": 24,
+  "characters": 24420,
+  "embed_model": "text-embedding-v4",
+  "rankers": {
+   "vector": {
+    "recall@1": 0.708,
+    "recall@3": 0.958,
+    "recall@6": 0.958,
+    "mrr": 0.832,
+    "precision_at_6": 0.424
+   },
+   "bm25": {
+    "recall@1": 0.375,
+    "recall@3": 0.833,
+    "recall@6": 0.958,
+    "mrr": 0.613,
+    "precision_at_6": 0.375
+   },
+   "hybrid_rrf": {
+    "recall@1": 0.792,
+    "recall@3": 0.958,
+    "recall@6": 0.958,
+    "mrr": 0.88,
+    "precision_at_6": 0.437
+   },
+   "hybrid_rrf_w0.5": {
+    "recall@1": 0.708,
+    "recall@3": 0.958,
+    "recall@6": 0.958,
+    "mrr": 0.838,
+    "precision_at_6": 0.424
+   }
+  }
+ }
+]

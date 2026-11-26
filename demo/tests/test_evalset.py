@@ -81,6 +81,14 @@ class EvaluationSetTests(unittest.TestCase):
         self.assertEqual(evalset.category('篇幅有 900 个汉字，超过本环节上限 400；删去重复'), '环节过长')
         self.assertEqual(evalset.category('没有见过的提醒'), '其他')
 
+    def test_runs_started_in_the_same_second_get_folders_of_their_own(self):
+        with tempfile.TemporaryDirectory() as base:
+            first, second = evalset.new_folder(Path(base)), evalset.new_folder(Path(base))
+            self.assertNotEqual(first, second)
+            self.assertTrue(first.is_dir() and second.is_dir())
+            if first.name[:15] == second.name[:15]:
+                self.assertEqual(second.name, first.name + '-2')
+
     def test_a_failed_lesson_is_counted_but_shows_no_numbers_it_does_not_have(self):
         base = dict(case='L1', target='全班', mode='class', duration=45, seconds=180.0, design_attempts=2, design_problems=[],
                     rewritten=[], rewrite_problems={}, reminders=[], warnings=[], tokens=50000, calls=5, chinese_characters=3000,
@@ -89,8 +97,8 @@ class EvaluationSetTests(unittest.TestCase):
                   'calls': 2, 'warnings': [], 'chinese_characters': None}
         old = {**failed, 'case': 'P2', 'tokens': None, 'calls': None, 'design_attempts': 0}   # a failure recorded before F3
         text = evalset.summary([base, failed, old], 'qwen', False)
-        self.assertIn('| L2 | 全班 | 班级画像 | 45 | 失败：课堂设计重试一次后仍未通过检查 | 30000 | 180.0 | 2 | 是 | — | — | — | — |', text)
-        self.assertIn('| P2 | 全班 | 班级画像 | 45 | 失败：课堂设计重试一次后仍未通过检查 | — | 180.0 | — | — | — | — | — | — |', text)
+        self.assertIn('| L2 | 全班 | 班级画像 | 所选知识点全部材料 · — 份 | 45 | 失败：课堂设计重试一次后仍未通过检查 | 30000 | 180.0 | 2 | 是 | — | — | — | — |', text)
+        self.assertIn('| P2 | 全班 | 班级画像 | 所选知识点全部材料 · — 份 | 45 | 失败：课堂设计重试一次后仍未通过检查 | — | 180.0 | — | — | — | — | — | — |', text)
         self.assertIn('成功 1/3；tokens 合计 80000（含失败的 1 节；1 节失败的课没有用量记录）。', text)
         self.assertIn('课堂设计重试（成功的课）：1/1。', text)
 
@@ -99,10 +107,12 @@ class EvaluationSetTests(unittest.TestCase):
                     rewritten=[], rewrite_problems={}, reminders=[], warnings=[], tokens=50000, calls=5, chinese_characters=3000,
                     status='succeeded', error=None, design_retry='design-patch', retry_seconds=30.5, retry_tokens=4000)
         whole = {**base, 'case': 'L2', 'design_retry': 'design', 'retry_seconds': 90.0, 'retry_tokens': 20000}
-        once = {**base, 'case': 'P1', 'design_attempts': 1, 'design_retry': None, 'retry_seconds': None, 'retry_tokens': None}
+        once = {**base, 'case': 'P1', 'design_attempts': 1, 'design_retry': None, 'retry_seconds': None, 'retry_tokens': None,
+                'retrieval': 'hybrid', 'materials': 7}
         text = evalset.summary([base, whole, once], 'qwen', False)
-        self.assertIn('| L1 | 全班 | 班级画像 | 45 | 成功 | 50000 | 180.0 | 5 | 是（局部修正） |', text)
-        self.assertIn('| L2 | 全班 | 班级画像 | 45 | 成功 | 50000 | 180.0 | 5 | 是 |', text)
+        self.assertIn('| L1 | 全班 | 班级画像 | 所选知识点全部材料 · — 份 | 45 | 成功 | 50000 | 180.0 | 5 | 是（局部修正） |', text)
+        self.assertIn('| L2 | 全班 | 班级画像 | 所选知识点全部材料 · — 份 | 45 | 成功 | 50000 | 180.0 | 5 | 是 |', text)
+        self.assertIn('| P1 | 全班 | 班级画像 | 整门课检索 · 7 份 | 45 | 成功 | 50000 | 180.0 | 5 | 否 |', text)
         self.assertIn('课堂设计重试（成功的课）：2/3，其中局部修正 1 节；重试那一次的耗时中位数 60 秒、tokens 中位数 12000。', text)
         stages = [dict(stage='design', attempt=1, seconds=80, total_tokens=9000, problems=['a']),
                   dict(stage='design-patch', attempt=2, seconds=20, total_tokens=3000, problems=[]),

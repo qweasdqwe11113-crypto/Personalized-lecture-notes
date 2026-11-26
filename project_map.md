@@ -1,6 +1,6 @@
 # 项目模块关联图
 
-更新日期：2026-11-15。面向开发者：说明模块职责、调用关系、数据流和存储，修改代码前先确认影响范围。功能行为见 [docs/features.md](docs/features.md)。
+更新日期：2026-11-26。面向开发者：说明模块职责、调用关系、数据流和存储，修改代码前先确认影响范围。功能行为见 [docs/features.md](docs/features.md)，为什么这样设计见 [docs/design.md](docs/design.md)。
 
 ## 1. 整体结构
 
@@ -86,7 +86,8 @@ flowchart TD
 
 | 模块 | 职责 |
 | --- | --- |
-| `retrieval.py`、`embed.py` | 分块、索引、余弦排序（pgvector 可替换），嵌入客户端 |
+| `retrieval.py`、`embed.py` | 按结构分块（类型、小标题）与增量索引；向量检索（余弦，pgvector 可替换）和整门课检索（BM25 与向量加权 RRF、三组查询、相关性下限、保底片段、教师保留，`hybrid_search`）；页面默认的「本课知识点全部资料 + 整门课补充」（`anchored_search`：本课资料按精确查询整份给，学情查询在整门课里补充、不含后面的章节，超出 16000 字时才在本课资料里按目标选节选；章节边界 `later_points`）；一键备课的知识点建议（`suggest_points`）；嵌入客户端 |
+| `quick_start.py`、`static/quick-start.js` | 一键备课：教师写本课重点（可选「本课在哪一章」），在课程知识点库里建议知识点，教师增删后按课程页同样的方式保存备课（`catalog.save_task`），建议与教师改动记在备课的 `payload.quick_start`；重点发给嵌入服务前删去本课程学生的姓名 |
 | `lecture_policy.py` | 本次讲解安排、证据提醒、材料与上下文字符预算 |
 | `teaching.py` | 授课设置校验与篇幅规则 |
 | `prompts.py`、`prompts/` | 组装请求、只序列化一次并计算 SHA-256、标记提示词版本；一对一的请求把学生姓名换成「该生」（`without_name`，出题、章节修改、课件同样调用） |
@@ -126,7 +127,7 @@ flowchart TD
 | `exports.py` | 讲义原稿与教师修订稿的下载（Markdown、纯文本、HTML、Word） |
 | `workspace.py` | 存在数据库里的工作空间设置：新手引导是否看过、页面顶部最后选的课程与班级 |
 | `retrieval_api.py` | 检索索引的接口：各知识点的索引状态、建索引、把上传资料收录为材料 |
-| `scale/` | 可选的扩展语料、合成班级装载（`load.py`）、检索评测（`eval_retrieval.py`）、生成基准（`bench.py`）、已保存讲义的文本指标（`quality_baseline.py`，只读）、新旧写作方式对照（`design_compare.py`，加 `--real` 才调用模型）和默认写作方式的固定评测集（`evalset.json` 12 节课分 dev / holdout，`evalset.py` 在临时 schema 里按页面的接口建课并生成，`--modes profile none` 输出盲评材料；测试 `test_evalset.py`） |
+| `scale/` | 可选的扩展语料、合成班级装载（`load.py`）、检索评测（`eval_retrieval.py` 扩展语料两章，`eval_course_rag.py` 只读真实课程并评整门课检索，`eval_point_suggest.py` 评一键备课的知识点建议，`eval_anchored.py` 在真实课程上看超出上限的节选和学情补充）、引用评审（`judge_citations.py`，模型逐行判断引用是否被所引材料支持；回答被截断时分两半重问，测试 `test_judge_citations.py`）、跨条件盲评材料（`blind_conditions.py`）、生成基准（`bench.py`）、已保存讲义的文本指标（`quality_baseline.py`，只读）、新旧写作方式对照（`design_compare.py`，加 `--real` 才调用模型）和默认写作方式的固定评测集（`evalset.json` 12 节课分 dev / holdout，`evalset.py` 在临时 schema 里按页面的接口建课并生成，`--modes profile none` 输出盲评材料，`--retrieval sql anchored hybrid none` 比较材料取用方式，`--quick` 用一键备课建课，`--note` 给单个学生加备注；同一秒启动的运行各用一个结果目录；测试 `test_evalset.py`） |
 
 ## 4. 关键流程
 
@@ -324,7 +325,8 @@ Electron（45.x，打包工具 electron-builder 26.18）主进程启动自带的
 | 课程与班级 | `classes.py`、`context.js`、`course-page.js`、`class-page.js` | 一门课一个班的约束、班级讲义的匿名上下文、班级资料范围、`scope-changed` 监听者、`test_classes.py` |
 | 上传与识图 | `uploads.py`、`assets.py`、`vision.py` | SQLite 结构、收录接口、图片指纹 |
 | 知识点库与识别 | `knowledge.py`、`knowledge.js`、`course-manager.js` 的勾选列表 | 草稿版本（`version`）与确认、同名合并、`renumber` 的章节排序、来源片段格式 `#p起-止`（`sourceHref` 据此跳页）、`test_knowledge.py` |
-| 检索 | `retrieval.py`、`embed.py`、`app.get_context()` | 索引更新、知识点范围、检索快照、无画像模式 |
+| 检索 | `retrieval.py`、`embed.py`、`app.get_context()`、`app.hybrid_scope()`、`retrieval.js` | 索引更新（`INDEX_FORMAT`）、整门课范围与班级资料、检索快照、无画像模式（不发学情查询）、查询不带学生姓名、教师保留的 `key@hash` 与过期提示、anchored 的整份资料与 16000 字上限（`MATERIAL_BUDGET`，节选按 `GAP` 留出「……」的位置）、`test_hybrid_retrieval.py`、`test_quick_start.py` |
+| 一键备课 | `quick_start.py`、`retrieval.suggest_points`、`quick-start.js`、`index.html` 的 `quick-start-dialog` | 建议规则 `SUGGEST_*`（改了要重跑 `scale/eval_point_suggest.py --embedder qwen`）、章节边界、保存与课程页一致（`save_task`）、`payload.quick_start` 记录、`test_quick_start.py`、`frontend_regressions.cjs` 的 `quickStartSendsTheConfirmedPoints`；界面用 `tests/serve_quick_fixture.py`（5058）查看 |
 | 讲义结构与篇幅 | `lecture_policy.py`、`teaching.py`、`prompts.py` | `quality.py`、字符预算、历史版本 |
 | 新的模型请求 | 组装请求的模块 | 带学生信息的请求体序列化前过一遍 `prompts.without_name(…, learner_name(context))`，在 `test_name_privacy.py` 里补一条 |
 | 队列与重试 | `jobs.py`、`runs.py`、`gate.py`、`jobs.js` | 取消、并发额度的获取与释放、失败状态、重启恢复 |

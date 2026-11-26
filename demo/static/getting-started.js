@@ -35,7 +35,7 @@
        action: classes.length ? ['添加学生', '#profiles/import'] : ['新建班级', '#materials/classes'],
        done_text: seated ? `${classes.length} 个班级 · ${course.student_count} 名学生` : ''},
       {title: '新建备课', done: Boolean(course?.lesson_keys.length), blocked: needCourse,
-       text: '选择本次要讲的知识点，写下教学目标；之后就能在这里为全班或某个学生生成讲义。',
+       text: '选择本次要讲的知识点，写下教学目标；也可以点「一键备课」，只写本课重点，由系统在课程资料里找出知识点供你确认。之后就能在这里为全班或某个学生生成讲义。',
        action: ['新建备课', '#materials/new'], done_text: course ? `已有 ${course.lesson_keys.length} 份备课` : ''},
     ];
   }

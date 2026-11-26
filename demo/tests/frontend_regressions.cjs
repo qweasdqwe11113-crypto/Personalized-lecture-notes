@@ -356,7 +356,99 @@ async function scopeChoiceKeptByServer() {
   assert.deepEqual([t.scope.courseId(), t.scope.classId()], [2, 22]);
 }
 
-const cases = {scopeChoiceKeptByServer, tourCardPlacement, knowledgeReviewMergesAndConfirms, studentEditKeepsItsBaseRevision, classTargetFollowsScope, richMarkdown, submissionCarriesPipelineChoices, markdownOrder, markdownFenceContent, automaticLengthRemainsOptional, imagePreviewOrder, uploadPreviewOrder, refreshingImagesKeepsLiveSelection, acceptedJobSurvivesHistoryFailure, backgroundCompletionPreservesPage};
+async function retrievalChoiceTravelsOnlyWhenChanged() {
+  const e = environment(); e.load('retrieval.js'); e.load('jobs.js');
+  const item = (key, role) => ({key, role, role_label: '', material_id: Number(key.slice(1, key.indexOf('#'))), title: '片段',
+    content: '内容', char_length: 2, source_title: '资料', kind: 'text', selected_point: true,
+    content_sha256: key.replace(/\D/g, '').padEnd(64, 'a')});
+  const ctx = {materials: [{id: 11}, {id: 16}], retrieval: {mode: 'hybrid', scope: {materials: 6, chunks: 9}, vector: {used: true},
+    embed_model: 'fixture', queries: [], removed: [], items: [item('M11#0', 'explain'), item('M16#0', 'practice')],
+    alternatives: [item('M14#0', 'explain')]}};
+  const draw = snapshot => vm.runInContext(`drawRetrieval(${JSON.stringify(ctx)}, ${snapshot})`, e.context);
+  draw(false);
+  assert.equal(e.context.generationPayload().retrieval_chunk_ids, undefined, 'the automatic pick is not sent');
+  // Untick one and add a runner-up: exactly the kept chunks travel, in page order, each with its content hash.
+  vm.runInContext("retrievalState.checked.delete('M11#0'); retrievalState.checked.add('M14#0')", e.context);
+  assert.deepEqual(Array.from(e.context.generationPayload().retrieval_chunk_ids), ['M16#0@160aaaaaaaaaaaaa', 'M14#0@140aaaaaaaaaaaaa']);
+  vm.runInContext('resetRetrievalSelection()', e.context);
+  assert.equal(e.context.generationPayload().retrieval_chunk_ids, undefined);
+  // A saved lecture shows what it used; generating again retrieves afresh.
+  draw(true);
+  vm.runInContext("retrievalState.checked.delete('M11#0')", e.context);
+  assert.equal(e.context.generationPayload().retrieval_chunk_ids, undefined);
+}
+
+async function anchoredChoiceCoversOnlyPassages() {
+  const e = environment(); e.load('retrieval.js'); e.load('jobs.js');
+  const item = (key, role, anchor = false) => ({key, role, anchor, role_label: '', material_id: Number(key.slice(1, key.indexOf('#'))),
+    title: '片段', content: '内容', char_length: 60, source_title: '资料', kind: 'text', selected_point: anchor,
+    content_sha256: key.replace(/\D/g, '').padEnd(64, 'a')});
+  const ctx = {materials: [{id: 11, content: '本课全文'}, {id: 16}], retrieval: {mode: 'anchored', embed_model: 'fixture',
+    base: {kind: 'materials', characters: 300, budget: 400, materials: [{id: 11, title: '条件概率', characters: 300}]},
+    queries: [{role: 'learner', label: '针对学情', text: '把方向弄反'}], vector: {used: true}, boundary: {later_points: 2},
+    scope: {materials: 5, chunks: 9}, learner_in_lesson: [11], removed: [], items: [item('M16#0', 'learner')],
+    alternatives: [item('M14#0', 'learner')]}};
+  const draw = snapshot => vm.runInContext(`drawRetrieval(${JSON.stringify(ctx)}, ${snapshot})`, e.context);
+  draw(false);
+  assert.equal(e.context.generationPayload().retrieval_chunk_ids, undefined, 'the automatic pick is not sent');
+  assert.equal(e.$('sources-summary').textContent, '本课资料全文 1 份 + 整门课补充 1 段');
+  assert.match(e.$('sources-intro').textContent, /不含后面章节的 2 个知识点/);
+  // Dropping the only passage leaves the whole material: the empty choice travels and is not a warning.
+  vm.runInContext("retrievalState.checked.delete('M16#0'); retrievalSummary()", e.context);
+  assert.deepEqual(Array.from(e.context.generationPayload().retrieval_chunk_ids), []);
+  assert.equal(e.$('sources-note').textContent, vm.runInContext('retrievalState.note', e.context));
+  // Whole material plus two passages is over the page's budget (300 + 60 + 60 > 400): said before generating.
+  vm.runInContext("retrievalState.checked.add('M16#0'); retrievalState.checked.add('M14#0'); retrievalSummary()", e.context);
+  assert.match(e.$('sources-note').textContent, /超过 400 字的上限/);
+  assert.deepEqual(Array.from(e.context.generationPayload().retrieval_chunk_ids), ['M16#0@160aaaaaaaaaaaaa', 'M14#0@140aaaaaaaaaaaaa']);
+  // A saved lecture shows what it used and sends nothing.
+  draw(true);
+  assert.equal(e.context.generationPayload().retrieval_chunk_ids, undefined);
+  assert.equal(e.$('sources-summary').textContent, '生成时 · 本课资料全文 1 份 + 整门课补充 1 段');
+}
+
+async function quickStartSendsTheConfirmedPoints() {
+  const calls = [], library = [{id: 11, name: '条件概率', chapter: '第一章', position: 1, materials: 1},
+    {id: 12, name: '全概率', chapter: '第一章', position: 2, materials: 1}, {id: 16, name: '应用题', chapter: '第二章', position: 3, materials: 1}];
+  const api = async (url, options) => {
+    calls.push([url, options ? JSON.parse(options.body) : undefined]);
+    if (url.startsWith('/api/quick-lesson/library')) return {points: library, chapters: ['第一章', '第二章']};
+    if (url === '/api/quick-lesson/suggest') return {points: library, chapters: ['第一章', '第二章'], suggestion: {
+      chapter: '第一章', suggested: [12, 16], warnings: ['重点可能写得太笼统'], scope: {materials: 3, chunks: 3}, vector: {used: false},
+      points: [{knowledge_id: 16, name: '应用题', share: 1, suggested: true, later: false, evidence: [{material_id: 16, heading: '', excerpt: '产线'}]},
+        {knowledge_id: 12, name: '全概率', share: 0.6, suggested: true, later: false, evidence: []}]}};
+    if (url === '/api/quick-lesson') return {key: 'quick-1', task: {}};
+    throw new Error('unexpected ' + url);
+  };
+  const e = environment(api), opened = [], changed = [];
+  e.context.workspaceScope = {courseId: () => 2, classId: () => 22, course: () => ({name: '概率论'})};
+  e.context.refreshWorkspaceCatalog = async key => { opened.push(key); };
+  e.context.openWorkspacePage = page => opened.push(page);
+  e.$('topic').dispatchEvent = event => changed.push(event.type);
+  e.load('quick-start.js');
+  await e.context.openQuickStart();
+  assert.equal(calls[0][0], '/api/quick-lesson/library?course_id=2&class_id=22');
+  assert.equal(e.$('quick-create').disabled, true, 'nothing to create before a suggestion');
+  e.$('quick-focus').value = ' 用贝叶斯公式求次品来自哪条产线 '; e.$('quick-chapter').value = '第一章';
+  await e.context.suggestQuickPoints();
+  assert.deepEqual(calls[1], ['/api/quick-lesson/suggest', {course_id: 2, class_id: 22, text: '用贝叶斯公式求次品来自哪条产线', chapter: '第一章'}]);
+  assert.deepEqual(Array.from(vm.runInContext('[...quick.chosen]', e.context)), [12, 16]);
+  assert.equal(e.$('quick-warnings').children.length, 1);
+  assert.equal(e.$('quick-points').children.length, 2);
+  // The teacher drops a suggestion and adds a point from the library.
+  vm.runInContext('quick.chosen.delete(12)', e.context);
+  e.$('quick-add-point').value = '11'; e.$('quick-add-button').onclick();
+  assert.equal(e.$('quick-points').children.length, 3);
+  assert.equal(e.$('quick-summary').textContent, '已选 2 个知识点');
+  await e.context.createQuickLesson();
+  assert.deepEqual(calls[2], ['/api/quick-lesson', {course_id: 2, class_id: 22, text: '用贝叶斯公式求次品来自哪条产线', title: '',
+    chapter: '第一章', suggested_ids: [12, 16], knowledge_ids: [11, 16]}]);
+  assert.deepEqual(opened, ['quick-1', 'workbench']);
+  assert.equal(e.$('retrieval-mode').value, 'anchored');
+  assert.deepEqual(changed, ['change']);
+}
+
+const cases = {anchoredChoiceCoversOnlyPassages, quickStartSendsTheConfirmedPoints, scopeChoiceKeptByServer, tourCardPlacement, knowledgeReviewMergesAndConfirms, studentEditKeepsItsBaseRevision, classTargetFollowsScope, richMarkdown, submissionCarriesPipelineChoices, markdownOrder, markdownFenceContent, automaticLengthRemainsOptional, imagePreviewOrder, uploadPreviewOrder, refreshingImagesKeepsLiveSelection, acceptedJobSurvivesHistoryFailure, backgroundCompletionPreservesPage, retrievalChoiceTravelsOnlyWhenChanged};
 (async () => {
   const name = process.argv[2]; assert.ok(cases[name], 'choose a regression case');
   await cases[name](); console.log(name + ': OK');

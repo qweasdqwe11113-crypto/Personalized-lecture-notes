@@ -15,23 +15,28 @@ import retrieval
 from profiles import retain_initial_evidence
 
 
+def seed_university(fixture):
+    """The university demonstration rows: students 11–13, points and materials 11–13."""
+    seed = json.loads((DEMO / 'university_seed.json').read_text(encoding='utf-8'))
+    with fixture.fixture_db() as conn:
+        for row in seed['students']:
+            conn.execute('INSERT INTO students (id,name,subtitle,profile) VALUES (%s,%s,%s,%s)',
+                         tuple(row[k] for k in ['id', 'name', 'subtitle', 'profile']))
+        for row in seed['knowledge_points']:
+            conn.execute('INSERT INTO knowledge_points VALUES (%s,%s)', (row['id'], row['name']))
+        for row in seed['states']:
+            conn.execute('INSERT INTO student_knowledge (student_id,knowledge_id,state,evidence) VALUES (%s,%s,%s,%s)', row)
+        for row in seed['materials']:
+            conn.execute('INSERT INTO materials VALUES (%s,%s,%s,%s,%s,%s,%s)',
+                         tuple(row[k] for k in ['id', 'knowledge_id', 'title', 'content',
+                                                'source_title', 'source_url', 'section']))
+        retain_initial_evidence(conn)
+
+
 class RetrievalTests(ProfileDatabaseFixture):
     def setUp(self):
         super().setUp()
-        seed = json.loads((DEMO / 'university_seed.json').read_text(encoding='utf-8'))
-        with self.fixture_db() as conn:
-            for row in seed['students']:
-                conn.execute('INSERT INTO students (id,name,subtitle,profile) VALUES (%s,%s,%s,%s)',
-                             tuple(row[k] for k in ['id', 'name', 'subtitle', 'profile']))
-            for row in seed['knowledge_points']:
-                conn.execute('INSERT INTO knowledge_points VALUES (%s,%s)', (row['id'], row['name']))
-            for row in seed['states']:
-                conn.execute('INSERT INTO student_knowledge (student_id,knowledge_id,state,evidence) VALUES (%s,%s,%s,%s)', row)
-            for row in seed['materials']:
-                conn.execute('INSERT INTO materials VALUES (%s,%s,%s,%s,%s,%s,%s)',
-                             tuple(row[k] for k in ['id', 'knowledge_id', 'title', 'content',
-                                                    'source_title', 'source_url', 'section']))
-            retain_initial_evidence(conn)
+        seed_university(self)
         self.embedder = embed.HashingEmbedder(dimensions=128)
         self.embed_patch = patch.object(module, 'EMBEDDER', self.embedder)
         self.embed_patch.start()

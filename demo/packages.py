@@ -25,6 +25,7 @@ from quality import check_output
 from quizzes import DIFFICULTIES, LEVELS, TYPES, lecture_topic_key, option_lines, quiz_markdown
 from reviews import STATUS_LABELS, ReviewError, lecture_row, review_bundle, version_row
 from teaching import DETAILS, LESSON_TYPES
+from retrieval import MODE_LABELS
 
 # v1.1 / v2.1: the Markdown copies and the manifest moved into ATTACHED; a designed lesson's quiz is its after-class check.
 PACKAGE_VERSION = 'lesson-package-v1.1'
@@ -125,7 +126,7 @@ def overview(parts):
             ('授课对象', f"{student.get('name')}（{student.get('subtitle', '')}）" if profiled else '通用讲义（无画像对照，未使用个体诊断）'),
             ('讲义版本', f"#{lecture['id']} / {version_label(version['revision_number'])} · {VERSION_STATUS.get(version['status'], version['status'])}"),
             ('生成模型', f"{lecture['model']} · {lecture['created_at']:%Y-%m-%d %H:%M}"),
-            ('材料取用', '向量检索（按目标选取片段）' if retrieval.get('mode') == 'vector' else '精确 SQL（全部关联材料）')]
+            ('材料取用', MODE_LABELS.get(retrieval.get('mode') or 'sql', MODE_LABELS['sql']))]
     if options:
         rows.append(('授课设置', f"{options.get('duration')} 分钟 · {LESSON_TYPES.get(options.get('lesson_type'), '—')} · "
                                  f"{DETAILS.get(options.get('detail'), '—')} · 例题 {options.get('examples')} 道 · 练习 {options.get('exercises')} 道"))
