@@ -19,7 +19,7 @@ async function checkHealth(){
  }catch(e){$('health-summary').textContent=e.message;}
 }
 // One place builds the lesson settings, so a single job and a class batch freeze the same choices.
-window.generationPayload=()=>({topic:$('topic').value,goal:$('goal').value,personalization_mode:$('personalization-mode').value,retrieval_mode:$('retrieval-mode').value,teaching_options:readTeachingOptions(),visual_analysis_ids:typeof selectedVisualAnalyses==='function'?selectedVisualAnalyses():[],generation_mode:$('generation-mode').value||'designed-v1',lecture_format:$('lecture-format').value||'rich-v1',design_review:$('design-review').checked});
+window.generationPayload=()=>({topic:$('topic').value,goal:$('goal').value,personalization_mode:$('personalization-mode').value,retrieval_mode:$('retrieval-mode').value,teaching_options:readTeachingOptions(),visual_analysis_ids:typeof selectedVisualAnalyses==='function'?selectedVisualAnalyses():[],generation_mode:$('generation-mode').value||'designed-v1',lecture_format:$('lecture-format').value||'rich-v1',design_review:$('design-review').checked,...(typeof retrievalSelection==='function'&&retrievalSelection()?{retrieval_chunk_ids:retrievalSelection()}:{})});
 async function watchJob(id){
  if(typeof openWorkspacePage==="function")openWorkspacePage("workbench");
  const session=++watchSession;

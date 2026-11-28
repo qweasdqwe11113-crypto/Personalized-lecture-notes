@@ -19,10 +19,12 @@
 | [lecture-design-segment-v1.md](lecture-design-segment-v1.md) | 环节阶段 | 只写设计里没有的内容：怎么讲、哪一步提问、怎么纠错、怎么分层；不重抄题目 |
 | [lecture-design-tutor-v1.md](lecture-design-tutor-v1.md) | 设计与环节两个阶段，只在为单个学生生成时（`personalization_mode=profile`）附加 | 一对一辅导：动作写成教师和这一名学生之间的，不写巡视、小组、举手、全班、上台板演和必做/选做分层；前测按答对、答错分两条路 |
 | [lecture-design-patch-v1.md](lecture-design-patch-v1.md) | 设计可用、只有提醒时的第二次请求，接在第一次的对话后面 | 只输出要改的部分：`segments`、`items` 按 `id` 只写要改的字段，`remove` 列出删掉的题，`objectives` 和其他字段给完整值；不新增或删除环节。程序用 `design.merge_patch` 合并 |
+| [lecture-retrieval-anchored-v1.md](lecture-retrieval-anchored-v1.md) | 设计与环节两个阶段，只在材料取用方式为「本课知识点全部资料 + 整门课补充」（`retrieval_mode=anchored`，页面默认）时附加，版本随之带 `+lecture-retrieval-anchored-v1` | `use` 写明每份材料是什么：本课知识点（原文完整，定义和题目按它核对）、本课知识点（节选，以「……」相连）、针对学情（整门课里不含后面章节的补充，只在对应环节用，不扩大本课范围）、教师保留；改编的题写「改编自 [M编号]」；自己的知识不标 [M编号] |
+| [lecture-retrieval-v1.md](lecture-retrieval-v1.md) | 设计与环节两个阶段，只在材料取用方式为整门课检索（`retrieval_mode=hybrid`）时附加，版本随之带 `+lecture-retrieval-v1`；旧版写作方式（一次写完、分章节）也附加 | 材料是整门课里检索到的节选（以「……」相连），`use` 写明讲解依据、例题练习、针对学情或教师保留；改编的例题写「改编自 [M编号]」；与本课无关的片段可以不用；自己的知识不标 [M编号] |
 
 版本标记为 `lesson-design-v1`（概率、初中方程带 `+probability-v1` / `+math-v1`，一对一辅导带 `+tutor-v1`，按教师意见重做时带 `+revision`），输入结构为 `lesson-design-context-v1`。环节请求为 `lesson-segment-v1`，重写为 `lesson-segment-repair-v1`，设计有结构问题时整份重做，版本为 `lesson-design-repair-v1`；只有提醒时局部修正，版本为 `lesson-design-patch-v1`。环节阶段的完整系统提示在提交时写入冻结上下文的 `designed.segment_system`，所以重试不受之后模板改动的影响。
 
-模型看到的上下文由 `prompts.designed_view` 整理：保留课题、授课设置、授课对象、掌握情况、讲解安排、材料和图片解析，去掉范围检查、字符预算、检索记录、录入者和内部编号。实际发送的内容仍可在「查看生成输入」里逐字核对。
+模型看到的上下文由 `prompts.designed_view` 整理：保留课题、授课设置、授课对象、掌握情况、讲解安排、材料和图片解析，去掉范围检查、字符预算、检索记录、录入者和内部编号。整门课检索时，旧版写作方式的请求同样不带检索记录（查询、备选片段、教师移除的片段只存进 `generation_runs.retrieval`）。实际发送的内容仍可在「查看生成输入」里逐字核对。
 
 针对旧流程输出的几条规则及原因：
 
@@ -107,7 +109,7 @@ math-text-check-v1 和 probability-text-check-v1 / v2 分课程检查章节、�
 
 关系表和外键保存学生、知识点、状态、材料、证据、运行、任务、问题与修订。证据 / 教师判断、输入 / 任务、讲义 / 成功状态分别用事务同时提交；画像版本、审核事件与行锁防止旧页面覆盖。
 
-上下文、用量、检查和差异保存在 JSONB，完整请求体单独使用 TEXT 保持原始字节。当前 6 名虚拟学生、6 个知识点、6 条材料。默认按知识点精确 SQL 查询；讲义设置另有可选取的向量检索模式，先用知识点召回再用余弦排序，见 [功能说明](../../docs/features.md#材料取用方式与检索)。没有数据库性能对比；选型基于已实际使用的关系及一致性需求。表结构见 [schema.sql](../schema.sql)，实现与验证结果见 [VERIFICATION.md](../VERIFICATION.md)。
+上下文、用量、检查和差异保存在 JSONB，完整请求体单独使用 TEXT 保持原始字节。当前 6 名虚拟学生、6 个知识点、6 条材料。接口默认按知识点精确 SQL 查询；页面默认在此之上按学情从整门课补充片段，另有整门课检索和向量检索可选（向量检索先用知识点召回再用余弦排序），见 [功能说明](../../docs/features.md#材料取用方式与检索)。没有数据库性能对比；选型基于已实际使用的关系及一致性需求。表结构见 [schema.sql](../schema.sql)，实现与验证结果见 [VERIFICATION.md](../VERIFICATION.md)。
 
 ## 自建课程模板
 

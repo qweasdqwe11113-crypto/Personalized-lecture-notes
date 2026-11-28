@@ -222,6 +222,13 @@ CREATE TABLE IF NOT EXISTS material_chunks (
 );
 CREATE INDEX IF NOT EXISTS material_chunks_knowledge ON material_chunks(knowledge_id, material_id, chunk_index);
 CREATE UNIQUE INDEX IF NOT EXISTS material_chunks_identity ON material_chunks(material_id, chunk_index);
+-- What a chunk holds (example, exercise, definition, theorem or text, guessed from its wording) and the
+--   nearest heading or page marker above it. Older rows get the defaults and are refreshed on the next
+--   indexing, because index_material compares both.
+ALTER TABLE material_chunks ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'text';
+ALTER TABLE material_chunks ADD COLUMN IF NOT EXISTS heading text NOT NULL DEFAULT '';
+-- What the vector was computed from (retrieval.INDEX_FORMAT); rows of an older format are re-embedded.
+ALTER TABLE material_chunks ADD COLUMN IF NOT EXISTS index_format text NOT NULL DEFAULT 'text-v1';
 
 -- Freeze how this run picked its material: mode, backend, embedding model and scored items.
 ALTER TABLE generation_runs ADD COLUMN IF NOT EXISTS retrieval jsonb NOT NULL DEFAULT '{}';

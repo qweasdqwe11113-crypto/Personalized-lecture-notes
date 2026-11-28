@@ -4,6 +4,7 @@
     .venv/bin/python demo/scale/evalset.py --split holdout            # dry run of the held-out lessons
     .venv/bin/python demo/scale/evalset.py --cases L1 L2 P1 P2 --real # the configured model (real calls, real cost)
     .venv/bin/python demo/scale/evalset.py --cases L1 L3 P1 P3 --modes profile none --real   # with and without the profile
+    .venv/bin/python demo/scale/evalset.py --cases L1 P1 --retrieval hybrid none --real      # how the material is supplied
 
 Like bench.py it works in a disposable schema of the dedicated database, dropped afterwards. It
 loads the scale corpus and its synthetic students, files the corpus under one course per subject
@@ -18,9 +19,14 @@ out in that schema, so the model reads the profiles the way it would read a teac
 Rules: tune prompts and checks on the dev split only. The holdout split is run before a release and
 never tuned against; once it is, it stops being a holdout.
 
-Results go to .runtime/evalset/<time>/ under the data folder (ignored by git): each lesson and its
-design, results.json and summary.md. With two modes, blind/ holds each pair as A and B, the key in a
-separate file and a scoring sheet for teachers (the dimensions of quality_baseline.py --sheet).
+--retrieval chooses how the lesson gets its material: sql (the ticked points' material, the default),
+hybrid (whole-course retrieval, retrieval.hybrid_search) or none (no material, as a control). A dry run
+of hybrid ranks with offline hashing vectors; a real run embeds the corpus with the configured model.
+
+Results go to .runtime/evalset/<time>/ under the data folder (ignored by git): each lesson, its design
+and the material it was given, results.json and summary.md. With two modes or retrieval conditions,
+blind/ holds each case's lessons as A, B, …, the key in a separate file and a scoring sheet for
+teachers (the dimensions of quality_baseline.py --sheet).
 """
 import argparse
 from collections import Counter
@@ -49,6 +55,9 @@ DETAIL = 'standard'
 TOKENS_PER_45_MINUTES = 85000
 CONFIRM_ABOVE = 600000
 MODES = {'profile': '有画像', 'class': '班级画像', 'none': '无画像'}
+RETRIEVALS = {'sql': '所选知识点全部材料', 'anchored': '本课知识点全部资料 + 整门课补充', 'hybrid': '整门课检索',
+              'none': '不提供材料'}
+RANKED = {'anchored', 'hybrid'}     # the conditions that rank chunks with the embedding model
 # What a reminder is about, by the wording of design.validate and designed.inspect_prose; first match wins.
 CATEGORIES = [
     (re.escape(D.ARITHMETIC), '算式复算'),
@@ -112,9 +121,10 @@ def expect(response, status, what):
     return response.get_json()
 
 
-def prepare(fixture, data, cases, students, subjects=True):
+def prepare(fixture, data, cases, students, subjects=True, quick=False):
     """Corpus, courses, one class per course, one saved lesson per case. Returns {case id: lesson}.
-    subjects: give each course the subject evalset.json names, the way a teacher sets it on the course page."""
+    subjects: give each course the subject evalset.json names, the way a teacher sets it on the course page.
+    quick: make each lesson with the one-click flow (quick_lesson) instead of ticking the case's points."""
     from classes import ensure_course_structure, library_ids
     from corpus import load_course
     from load import MARK, install
@@ -153,10 +163,14 @@ def prepare(fixture, data, cases, students, subjects=True):
             raise RuntimeError(f'{case["id"]} 的知识点不在课程知识点库里：' + '、'.join(missing))
         # Ticked points in library order, the way the page sends them.
         ticked = [kid for kid, name in course['library'] if name in case['knowledge']]
-        saved = expect(client.post('/api/course-tasks', json=dict(
-            preparation_copy=True, course_id=course['id'], knowledge_ids=ticked, knowledge_names=[], chapter=course['chapter'],
-            title=case['title'], goal=case['goal'], task_level=case['task_level'], lesson_plan='')), 201, f'保存备课 {case["id"]}')
-        lesson = dict(key=saved['key'], class_id=None, student_id=None)
+        if quick:
+            key, found = quick_lesson(client, course, case, ticked)
+        else:
+            key, found = expect(client.post('/api/course-tasks', json=dict(
+                preparation_copy=True, course_id=course['id'], knowledge_ids=ticked, knowledge_names=[], chapter=course['chapter'],
+                title=case['title'], goal=case['goal'], task_level=case['task_level'], lesson_plan='')), 201,
+                f'保存备课 {case["id"]}')['key'], None
+        lesson = dict(key=key, class_id=None, student_id=None, quick=found)
         if case['target']['kind'] == 'class':
             lesson.update(class_id=course['class_id'], target='全班')
         else:
@@ -167,16 +181,38 @@ def prepare(fixture, data, cases, students, subjects=True):
     return lessons
 
 
-def job_payload(case, lesson, mode):
-    """What the page submits (static/jobs.js generationPayload) for this case."""
+def quick_lesson(client, course, case, answer):
+    """The one-click flow (quick_start.py) for a case: its title and goal as the teacher's focus, every
+    suggested point accepted as it is. The lesson keeps the case's title and goal, so only its points differ
+    from the ticked lesson. Returns the lesson's key and how the suggestion compares with the case's points."""
+    names, focus = dict(course['library']), f"{case['title']}：{case['goal']}"
+    where = dict(course_id=course['id'], class_id=course['class_id'])
+    found = expect(client.post('/api/quick-lesson/suggest', json=dict(where, text=focus)), 200,
+                   f'查找知识点 {case["id"]}')['suggestion']
+    if not found['suggested']:
+        raise RuntimeError(f'{case["id"]} 没有勾选任何知识点：' + '；'.join(found['warnings']))
+    saved = expect(client.post('/api/quick-lesson', json=dict(where, text=case['goal'], title=case['title'],
+                                                               knowledge_ids=found['suggested'], suggested_ids=found['suggested'])),
+                   201, f'一键备课 {case["id"]}')
+    hit = set(found['suggested']) & set(answer)
+    return saved['key'], dict(focus=focus, suggested=[names[k] for k in found['suggested']], answer=case['knowledge'],
+                              precision=round(len(hit) / len(found['suggested']), 3), recall=round(len(hit) / len(answer), 3),
+                              warnings=found['warnings'], backend=found['backend'], embed_model=found['embed_model'])
+
+
+def job_payload(case, lesson, mode, retrieval='sql', note=''):
+    """What the page submits (static/jobs.js generationPayload) for this case. note: the teacher's 备注 for
+    one student (learner_note), which also goes into the 针对学情 query; a whole-class lesson has none."""
     options = dict(duration=case['duration'], lesson_type=case['lesson_type'], detail=DETAIL, examples=case['examples'],
                    exercises=case['exercises'], requirements='', target_characters=0, length_policy='duration-v2')
-    payload = dict(topic=lesson['key'], goal='', retrieval_mode='sql', teaching_options=options, visual_analysis_ids=[],
+    payload = dict(topic=lesson['key'], goal='', retrieval_mode=retrieval, teaching_options=options, visual_analysis_ids=[],
                    generation_mode='designed-v1', lecture_format='rich-v1', design_review=False)
     if lesson['class_id'] is not None:
         payload.update(class_id=lesson['class_id'], personalization_mode='none' if mode == 'none' else 'class')
     else:
         payload.update(student_id=lesson['student_id'], personalization_mode=mode)
+        if note:
+            payload['learner_note'] = note
     return payload
 
 
@@ -190,9 +226,13 @@ def record(case, lesson, payload, row):
     succeeded = row['status'] == 'succeeded'
     report = (row['report'] or {}) if succeeded else {}
     usage = row['usage'] or {}
+    materials = row.get('materials') or []
     return dict(
         case=case['id'], split=case['split'], course=case['course'], title=case['title'], target=lesson['target'],
-        mode=payload['personalization_mode'], duration=case['duration'], examples=case['examples'], exercises=case['exercises'],
+        quick=lesson.get('quick'),
+        mode=payload['personalization_mode'], retrieval=payload.get('retrieval_mode', 'sql'),   # the server's default
+        materials=len(materials), material_characters=sum(len(m.get('content') or '') for m in materials),
+        duration=case['duration'], examples=case['examples'], exercises=case['exercises'],
         status=row['status'], error=row['error_message'], run_id=row['run_id'], prompt_version=row['prompt_version'],
         tokens=usage.get('total_tokens'), calls=usage.get('model_calls'),
         seconds=meta.get('elapsed_seconds') or round(float(row['active'] or 0), 1),
@@ -205,6 +245,8 @@ def record(case, lesson, payload, row):
         rewrite_problems={stage['stage']: stage['problems'] for stage in stages if stage['stage'] in rewritten and stage['attempt'] == 1},
         reminders=meta.get('design_reminders') or [],
         warnings=[check['label'] for check in report.get('automatic') or [] if check['status'] != 'pass'],
+        citation_support={key: (report.get('citation_support') or {}).get(key) for key in ('checked', 'skipped_language', 'median')}
+        | {'suspect': len((report.get('citation_support') or {}).get('suspect') or [])},
         chinese_characters=(report.get('metrics') or {}).get('chinese_characters'))
 
 
@@ -234,8 +276,8 @@ def retry_cost(done):
 
 
 def summary(records, model, simulated):
-    head = ['课', '对象', '方式', '分钟', '状态', 'tokens', '秒', '调用', '设计重试', '重写环节', '最终提醒', '程序检查未通过', '汉字']
-    lines = ['| ' + ' | '.join(head) + ' |', '| ' + ' | '.join(['---'] * 5 + ['---:'] * 3 + ['---'] * 4 + ['---:']) + ' |']
+    head = ['课', '对象', '方式', '材料', '分钟', '状态', 'tokens', '秒', '调用', '设计重试', '重写环节', '最终提醒', '程序检查未通过', '汉字']
+    lines = ['| ' + ' | '.join(head) + ' |', '| ' + ' | '.join(['---'] * 6 + ['---:'] * 3 + ['---'] * 4 + ['---:']) + ' |']
     for entry in records:
         reminders = Counter(category(problem) for problem in entry['reminders'])
         if entry['status'] == 'succeeded':
@@ -247,7 +289,8 @@ def summary(records, model, simulated):
             cells = [entry['tokens'] or '—', entry['seconds'] or '', entry['calls'] or '—',
                      retried_how(entry) if entry['design_attempts'] else '—', '—', '—', '—', '—']
         lines.append('| ' + ' | '.join(str(value) for value in [
-            entry['case'], entry['target'], MODES[entry['mode']], entry['duration'],
+            entry['case'], entry['target'], MODES[entry['mode']],
+            f"{RETRIEVALS[entry.get('retrieval', 'sql')]} · {entry.get('materials', '—')} 份", entry['duration'],
             '成功' if entry['status'] == 'succeeded' else '失败：' + (entry['error'] or entry['status'])[:60]] + cells) + ' |')
     done = [entry for entry in records if entry['status'] == 'succeeded']
     failed = len(records) - len(done)
@@ -268,13 +311,29 @@ def summary(records, model, simulated):
         '程序检查未通过（按项目）：' + ('、'.join(f'{name} {count}' for name, count in
                                        Counter(w for entry in records for w in entry['warnings']).most_common()) or '无'),
         '',
+        *quick_lines(records),
         '以上为程序统计，不能判断讲解是否正确、是否好用；教师评分用 blind/ 里的评分表或 quality_baseline.py --sheet。',
     ]
     return '\n'.join(lines) + '\n'
 
 
+def quick_lines(records):
+    found = {entry['case']: entry['quick'] for entry in records if entry.get('quick')}
+    if not found:
+        return []
+    mean = lambda key: round(statistics.mean(item[key] for item in found.values()), 3)
+    return [f'一键备课（自动接受建议）：勾选的知识点对照评测集标注，precision {mean("precision")}，recall {mean("recall")}；'
+            + '；'.join(f'{case} 勾选 {"、".join(item["suggested"])}' for case, item in found.items()) + '。']
+
+
+def variant(entry):
+    """One generated version of a case: its mode, and its material condition when that is not sql."""
+    retrieval = entry.get('retrieval', 'sql')
+    return entry['mode'] if retrieval == 'sql' else f"{entry['mode']}-{retrieval}"
+
+
 def blind(out, cases, records, modes):
-    """Each case's lessons in the compared modes as A, B, ... in a random order; the key goes in its own file."""
+    """Each case's lessons in the compared variants as A, B, ... in a random order; the key goes in its own file."""
     from quality_baseline import SHEET
     folder = out / 'blind'
     folder.mkdir()
@@ -282,7 +341,7 @@ def blind(out, cases, records, modes):
     sheet = ['# 盲评评分表', '', '每节课有两份讲义（A、B），分别打分，不要打开 key.json。每项 0 分明显不符，1 分部分做到，2 分做到；'
              '「依据」处引一句原文。', '']
     for case in cases:
-        found = {entry['mode']: entry for entry in records if entry['case'] == case['id'] and entry['status'] == 'succeeded'}
+        found = {variant(entry): entry for entry in records if entry['case'] == case['id'] and entry['status'] == 'succeeded'}
         if len(found) < len(modes):
             continue
         order = list(found)
@@ -306,7 +365,22 @@ def say(text):
     print(text, flush=True)
 
 
-def run(cases, modes=('profile',), model=None, concurrency=3, students=None, out=None, log=say, subjects=True):
+def new_folder(base):
+    """A run folder of its own, named by the time: two runs started in the same second get -2, -3 ...
+    instead of sharing one, where the later results.json would replace the earlier."""
+    stamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+    for number in range(1, 100):
+        folder = base / (stamp if number == 1 else f'{stamp}-{number}')
+        try:
+            folder.mkdir(parents=True)
+            return folder
+        except FileExistsError:
+            continue
+    raise SystemExit(f'{base} 里同一秒的结果目录太多，请稍后再运行。')
+
+
+def run(cases, modes=('profile',), model=None, concurrency=3, students=None, out=None, log=say, subjects=True,
+        retrievals=('sql',), quick=False, note=''):
     """model: None for a dry run (request sizes only), REAL for the configured model, or a callable that
     stands in for call_qwen(prepared, on_attempt). Returns the records, or the request sizes of a dry run."""
     from test_courses_jobs import CourseJobTests, module
@@ -316,22 +390,35 @@ def run(cases, modes=('profile',), model=None, concurrency=3, students=None, out
     fixture = CourseJobTests()
     try:
         fixture.setUp()
-        lessons = prepare(fixture, data, cases, students or data['students_per_course'], subjects)
-        jobs = [(case, lessons[case['id']], job_payload(case, lessons[case['id']], mode)) for case in cases for mode in modes]
+        offline = None
+        if model is None and (quick or RANKED & set(retrievals)):
+            # A dry run never calls a service: retrieval and suggestions rank with offline hashing vectors.
+            from embed import HashingEmbedder
+            offline = patch.object(module, 'EMBEDDER', HashingEmbedder(1024))
+            offline.start()
+        lessons = prepare(fixture, data, cases, students or data['students_per_course'], subjects, quick)
+        jobs = [(case, lessons[case['id']], job_payload(case, lessons[case['id']], mode, retrieval, note))
+                for case in cases for mode in modes for retrieval in retrievals]
         if model is None:
             sizes = []
             for case, lesson, payload in jobs:
                 _, _, _, context, prepared = module.build_job(payload)
                 messages = json.loads(prepared.body)['messages']
                 sizes.append(dict(case=case['id'], mode=payload['personalization_mode'], target=lesson['target'],
+                                  retrieval=payload['retrieval_mode'],
                                   system=len(messages[0]['content']), user=len(messages[1]['content']),
                                   materials=len(context['materials']), prompt_version=prepared.prompt_version))
-                log(f'{case["id"]} {lesson["target"]} · {MODES[payload["personalization_mode"]]} · {case["duration"]} 分钟：'
+                log(f'{case["id"]} {lesson["target"]} · {MODES[payload["personalization_mode"]]} · '
+                    f'{RETRIEVALS[payload["retrieval_mode"]]} · {case["duration"]} 分钟：'
                     f'设计请求 系统提示 {sizes[-1]["system"]} 字符，输入 {sizes[-1]["user"]} 字符，'
                     f'材料 {sizes[-1]["materials"]} 条，{prepared.prompt_version}')
+            offline and offline.stop()
             return sizes
-        out = Path(out) if out else data_dir() / '.runtime' / 'evalset' / datetime.now().strftime('%Y%m%d-%H%M%S')
-        out.mkdir(parents=True, exist_ok=True)
+        if out:
+            out = Path(out)
+            out.mkdir(parents=True, exist_ok=True)
+        else:
+            out = new_folder(data_dir() / '.runtime' / 'evalset')
         module.GENERATION_LOCK.set_limit(concurrency)
         queue = JobQueue(lambda: module.db(), module.execute_job, capacity=len(jobs) + 3, workers=concurrency,
                          bulk_capacity=len(jobs) + 8)
@@ -353,6 +440,7 @@ def run(cases, modes=('profile',), model=None, concurrency=3, students=None, out
             with fixture.fixture_db() as conn:
                 rows = {row['job_id']: row for row in conn.execute('''SELECT j.id AS job_id, j.status, r.id AS run_id,
                     r.usage, r.response_metadata AS meta, r.content, r.error_message, r.prompt_version,
+                    r.context->'materials' AS materials, r.retrieval,
                     r.citation_check->'quality_report' AS report, extract(epoch FROM j.finished_at - j.started_at) AS active
                     FROM generation_jobs j JOIN generation_runs r ON r.id=j.run_id WHERE j.id=ANY(%s)''',
                                                                   ([job_id for *_, job_id in submitted],))}
@@ -365,22 +453,28 @@ def run(cases, modes=('profile',), model=None, concurrency=3, students=None, out
             row = rows[job_id]
             entry = record(case, lesson, payload, row)
             records.append(entry)
-            name = f'{case["id"]}-{entry["mode"]}'
+            name = f'{case["id"]}-{variant(entry)}'
             if row['content']:
                 (out / (name + ('.md' if row['status'] == 'succeeded' else '-failed.md'))).write_text(row['content'], encoding='utf-8')
             meta = row['meta'] or {}
             if meta.get('design'):
                 (out / f'{name}-design.json').write_text(json.dumps(meta['design'], ensure_ascii=False, indent=1), encoding='utf-8')
+            # The material exactly as the model got it, and how it was picked.
+            (out / f'{name}-materials.json').write_text(json.dumps(dict(
+                retrieval={key: value for key, value in (row['retrieval'] or {}).items() if key != 'alternatives'},
+                materials=row['materials'] or []), ensure_ascii=False, indent=1), encoding='utf-8')
             (out / f'{name}-stages.json').write_text(json.dumps(dict(stages=meta.get('stages') or [], reminders=entry['reminders']),
                                                                 ensure_ascii=False, indent=1), encoding='utf-8')
         simulated = model != REAL
         (out / 'results.json').write_text(json.dumps(dict(
             evalset=data['version'], created=datetime.now().isoformat(timespec='seconds'),
-            model='模拟' if simulated else module.MODEL, modes=list(modes), concurrency=concurrency, subjects=subjects,
+            model='模拟' if simulated else module.MODEL, modes=list(modes), retrievals=list(retrievals), quick=quick, note=note,
+            embed_model=getattr(module.EMBEDDER, 'model', None) if quick or RANKED & set(retrievals) else None,
+            concurrency=concurrency, subjects=subjects,
             cases=cases, results=records), ensure_ascii=False, indent=1), encoding='utf-8')
         (out / 'summary.md').write_text(summary(records, module.MODEL, simulated), encoding='utf-8')
-        if len(modes) > 1:
-            blind(out, cases, records, modes)
+        if len(modes) * len(retrievals) > 1:
+            blind(out, cases, records, [None] * (len(modes) * len(retrievals)))
         log(summary(records, module.MODEL, simulated))
         log(f'结果保存在 {out}（不进入 git）。')
         return records
@@ -396,6 +490,12 @@ def main():
     parser.add_argument('--cases', nargs='+', metavar='编号', help='只运行这些课，例如 L1 P2（不看 --split）')
     parser.add_argument('--modes', nargs='+', choices=['profile', 'none'], default=['profile'],
                         help='profile：有画像（全班课用班级画像）；none：无画像。两个都写时每节课各生成一份，并输出盲评材料')
+    parser.add_argument('--retrieval', nargs='+', choices=list(RETRIEVALS), default=['sql'],
+                        help='材料取用：sql 所选知识点全部材料（默认）；anchored 本课知识点全部资料加整门课补充；'
+                             'hybrid 整门课检索；none 不提供材料（对照）')
+    parser.add_argument('--quick', action='store_true',
+                        help='用一键备课建课：标题和目标作为重点，自动勾选建议的知识点（不用评测集标注的知识点）')
+    parser.add_argument('--note', default='', help='教师备注（只用于为单个学生生成的课，进入「针对学情」查询），例如写一个前面知识点上的错误')
     parser.add_argument('--real', action='store_true', help='调用已配置的真实模型（产生费用）；不加时只统计请求大小')
     parser.add_argument('--concurrency', type=int, default=3, help='同时进行的模型调用数（默认 3，与服务默认相同）')
     parser.add_argument('--yes', action='store_true', help=f'预计用量超过 {CONFIRM_ABOVE} tokens 时仍然运行')
@@ -408,8 +508,9 @@ def main():
     except ValueError as exc:
         parser.error(str(exc))
     modes = list(dict.fromkeys(args.modes))
-    expected = estimate(cases, modes)
-    print(f'{len(cases)} 节课 × {len(modes)} 种方式：' + '、'.join(case['id'] for case in cases)
+    retrievals = list(dict.fromkeys(args.retrieval))
+    expected = estimate(cases, modes) * len(retrievals)
+    print(f'{len(cases)} 节课 × {len(modes)} 种方式 × {len(retrievals)} 种材料取用：' + '、'.join(case['id'] for case in cases)
           + f'；按已测用量估计约 {expected // 10000} 万 tokens。')
     if any(case['split'] == 'holdout' for case in cases):
         print('包含 holdout 课：按规矩只在发版前运行，不对着它调提示词和检查。')
@@ -421,7 +522,8 @@ def main():
             parser.error('没有找到可用的模型配置。请用 ZHIYE_DATA_DIR 指向放有 .env 的数据目录。')
         if expected > CONFIRM_ABOVE and not args.yes:
             parser.error(f'预计用量超过 {CONFIRM_ABOVE} tokens。确认后加 --yes 再运行，或用 --cases 少选几节。')
-    run(cases, modes, REAL if args.real else None, args.concurrency, subjects=not args.no_subject)
+    run(cases, modes, REAL if args.real else None, args.concurrency, subjects=not args.no_subject, retrievals=retrievals,
+        quick=args.quick, note=args.note)
     if not args.real:
         print('\n这是预演，没有调用模型。加 --real 才会真实生成并产生用量。')
 

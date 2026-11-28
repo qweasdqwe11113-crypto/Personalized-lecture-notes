@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from model_settings import register_model_settings
 from flask import Flask, Response, jsonify, render_template, request, g, has_request_context
 from profiles import CLASS_STRATEGIES, ProfileError, compare_lecture_profile, decorate_states, evidence_history, register_profiles
-from prompts import prepare_request
+from prompts import prepare_request, without_name
 from vision import selected_evidence
 from qwen import ModelError, ModelResult, call_qwen, config_flags, stream_to, visible_text
 from progress import HUB
@@ -29,6 +29,7 @@ from catalog import load_catalog, register_catalog
 from deletion import register_deletion
 from exports import register_exports
 from retrieval_api import register_retrieval
+from quick_start import register_quick_start
 from workspace import register_workspace
 from classes import class_context_states, class_members, library_ids, register_classes, student_class
 from comparisons import comparison_options, compare_lectures
@@ -36,7 +37,7 @@ from jobs import JobError, JobQueue
 from gate import ModelGate, configured_limit
 from teaching import teaching_options
 from model_runtime import request_timeout
-from lecture_policy import LectureInputError, finalize_context
+from lecture_policy import MATERIAL_BUDGET, LectureInputError, finalize_context
 from sections import execute_section, register_sections
 from presentations import execute_presentation, register_presentations
 from packages import register_packages
@@ -48,8 +49,8 @@ from evaluation import register_evaluation
 from edition import data_dir, release
 from uploads import ImportError as UploadError, register_uploads
 from embed import EmbeddingError, QwenEmbedder
-from retrieval import (MODES as RETRIEVAL_MODES, RetrievalError, build_query,
-                       index_knowledge, search as search_chunks, to_materials)
+from retrieval import (KEPT as KEPT_CHUNK, MODES as RETRIEVAL_MODES, RetrievalError, anchored_search, build_query,
+                       hybrid_search, index_knowledge, plan_queries, search as search_chunks, to_materials)
 
 # Model settings (.env) and runtime stores (.runtime) live in the data folder: the repository in
 # development, the user's own folder in the desktop release.
@@ -116,11 +117,31 @@ def course_knowledge_ids(course_id):
                                        for k in t['knowledge_ids']]))
 
 
-def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql', goal=None, learner_note='', class_id=None):
+def hybrid_scope(topic):
+    """The points whose material the hybrid mode searches: the whole course of the lesson, its own points
+    included. A lesson that belongs to no course keeps its own points."""
+    course_id = topic.get('course_id')
+    shelf = course_knowledge_ids(course_id) if course_id is not None else []
+    return list(dict.fromkeys(shelf + list(topic['knowledge_ids'])))
+
+
+def embedder_ready():
+    """Presence only, never a live request; the offline embedders of the tests have no settings."""
+    return getattr(EMBEDDER, 'configured', lambda: True)()
+
+
+# The embedder is looked up per request, so a test that swaps app.EMBEDDER reaches the quick start too.
+register_quick_start(app, lambda: db(), lambda: EMBEDDER, embedder_ready)
+
+
+def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql', goal=None, learner_note='', class_id=None,
+                keep_chunks=None):
     """Frozen generation input for one student, or for a whole class when class_id is given.
 
     A class target uses mode 'class' (aggregated class profile) or 'none' (generic lecture);
     either way the class's own material is in scope. Returns None for an invalid target.
+    keep_chunks: in the hybrid and anchored modes, the chunk keys the teacher kept on the page (None: the
+    automatic pick).
     """
     topic = topic_catalog()[topic_key]
     whole_class = class_id is not None
@@ -132,6 +153,19 @@ def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql', goa
         # Prepare missing or stale chunks before opening the read-only snapshot.
         with db() as conn:
             index_knowledge(conn, EMBEDDER, topic['knowledge_ids'])
+    scope_ids, vector_note = [], None
+    if retrieval_mode in ('hybrid', 'anchored'):
+        scope_ids = hybrid_scope(topic)
+        # The whole course is indexed incrementally; without an answering embedding service the
+        # ranking falls back to BM25 and the record says why, instead of failing the lesson.
+        if not embedder_ready():
+            vector_note = '嵌入模型尚未配置，本次只按关键词排序。'
+        else:
+            try:
+                with db() as conn:
+                    index_knowledge(conn, EMBEDDER, scope_ids)
+            except EmbeddingError as exc:
+                vector_note = f'{exc} 本次只按关键词排序。'
     with db() as conn:
         conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
         if whole_class:
@@ -155,8 +189,12 @@ def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql', goa
                 FROM knowledge_points k LEFT JOIN knowledge_aliases a ON a.knowledge_id=k.id
                 LEFT JOIN student_knowledge s ON s.knowledge_id=COALESCE(a.canonical_id,k.id) AND s.student_id=%s
                 WHERE k.id=ANY(%s) ORDER BY k.id''', (student_id,topic['knowledge_ids'])).fetchall()
+        # Fetch each point separately so a frequently updated point cannot crowd
+        # another point's evidence out of the model input.
+        recent = ({s['id']: s.pop('recent_evidence') for s in states} if whole_class else
+                  {s['id']: evidence_history(conn, student_id, [s['profile_knowledge_id']], limit=3) for s in states})
         # Exact SQL lookup, restricted to the selected topic.
-        materials = scoped_materials(conn, topic['knowledge_ids'], scope)
+        materials = scoped_materials(conn, topic['knowledge_ids'], scope) if retrieval_mode == 'sql' else []
         retrieval = {'mode': retrieval_mode, 'backend': None, 'embed_model': None, 'query': None, 'items': []}
         if retrieval_mode == 'vector':
             # Without a profile the question stays the shared goal, so ablation is still clean.
@@ -165,10 +203,29 @@ def get_context(student_id, topic_key, mode='profile', retrieval_mode='sql', goa
                 query += '；本次学生备注：' + learner_note
             retrieval = search_chunks(conn, EMBEDDER, query, topic['knowledge_ids'], limit=RETRIEVAL_LIMIT, class_id=scope)
             materials = to_materials(retrieval['items'])
-        # Fetch each point separately so a frequently updated point cannot crowd
-        # another point's evidence out of the model input.
-        recent = ({s['id']: s.pop('recent_evidence') for s in states} if whole_class else
-                  {s['id']: evidence_history(conn, student_id, [s['profile_knowledge_id']], limit=3) for s in states})
+        elif retrieval_mode in ('hybrid', 'anchored'):
+            names = dict(zip(topic['knowledge_ids'], topic.get('knowledge_names') or []))
+            names.update({s['id']: s['name'] for s in states})
+            personal = mode in ('profile', 'class')
+            learners = [{**s, 'recent_evidence': recent.get(s['id'], [])} for s in states] if personal else []
+            plan = plan_queries(goal or topic['goal'], [names.get(k, '') for k in topic['knowledge_ids']], learners,
+                                learner_note if mode == 'profile' else '', personal)
+            if mode == 'profile' and not whole_class:
+                # The queries go to the embedding service: the same rule as the model input, no student name.
+                plan = [{**query, 'text': without_name(query['text'], student['name'])} for query in plan]
+            embedder = EMBEDDER if vector_note is None else None
+            if retrieval_mode == 'anchored':
+                # The lesson's own points give all their material, read as the exact lookup reads it.
+                retrieval, materials = anchored_search(
+                    conn, embedder, plan, lesson_rows=scoped_materials(conn, topic['knowledge_ids'], scope),
+                    lesson_ids=topic['knowledge_ids'], scope_ids=scope_ids, class_id=scope, keep=keep_chunks,
+                    vector_note=vector_note, budget=MATERIAL_BUDGET)
+            else:
+                retrieval = hybrid_search(conn, embedder, plan, scope_ids=scope_ids, selected=topic['knowledge_ids'],
+                                          class_id=scope, keep=keep_chunks, vector_note=vector_note)
+                materials = to_materials(retrieval['items'])
+        elif retrieval_mode == 'none':
+            retrieval['note'] = '对照用：本次不提供任何课程材料。'
         topic = {**topic, 'canonical_knowledge_ids': {str(s['id']): s['profile_knowledge_id'] for s in states}}
     decorate_states(states)
     for s in states:
@@ -345,7 +402,7 @@ def generate():
     note = learner_note(data)
     options = validated_teaching_options(data)
     if retrieval_mode not in RETRIEVAL_MODES:
-        return jsonify(error='请选择精确 SQL 或向量检索。'), 400
+        return jsonify(error='请选择有效的材料取用方式。'), 400
     goal = goal.strip() or topic_catalog()[topic_key]['goal']
     evidence = selected_evidence(DATA, data.get('visual_analysis_ids', []))
     if not GENERATION_LOCK.acquire(blocking=False):
@@ -560,8 +617,23 @@ def job_input(data):
         raise JobError('请选择有画像或无画像模式。')
     retrieval_mode = data.get('retrieval_mode', 'sql')
     if retrieval_mode not in RETRIEVAL_MODES:
-        raise JobError('请选择精确 SQL 或向量检索。')
+        raise JobError('请选择有效的材料取用方式。')
     return sid, topic, goal.strip() or topic_catalog()[topic]['goal'], mode, retrieval_mode, class_id
+
+
+def retrieval_keep(data, retrieval_mode):
+    """The chunks a teacher kept in the evidence list (hybrid and anchored, key@hash); None means the automatic
+    pick. An anchored lesson may keep no passage at all: its own points' material is given whole."""
+    keep = data.get('retrieval_chunk_ids')
+    if keep is None:
+        return None
+    if retrieval_mode == 'hybrid' and keep == []:
+        raise JobError('请至少保留一段课程资料。')
+    if (retrieval_mode not in ('hybrid', 'anchored') or not isinstance(keep, list) or len(keep) > 40
+            or len(set(map(str, keep))) != len(keep)
+            or any(not isinstance(key, str) or not KEPT_CHUNK.fullmatch(key) for key in keep)):
+        raise JobError('资料片段的选择无效，请重新读取材料后再生成。')
+    return keep
 
 
 def pipeline_options(data):
@@ -581,7 +653,8 @@ def build_job(data):
     """Validate one submission and freeze its context and request."""
     sid, topic, goal, mode, retrieval_mode, class_id = job_input(data)
     pipeline = pipeline_options(data)
-    ctx = get_context(sid, topic, mode, retrieval_mode, goal, learner_note(data), class_id)
+    ctx = get_context(sid, topic, mode, retrieval_mode, goal, learner_note(data), class_id,
+                      keep_chunks=retrieval_keep(data, retrieval_mode))
     if not ctx:
         raise JobError('班级不属于这份备课的课程，或班级还没有学生。' if class_id is not None else
                        '学生不存在，或不在这份备课副本的学生范围内。', 404)
@@ -626,8 +699,9 @@ def submit_batch():
             # The per-topic plan is individual, so a batch always uses each student's default plan.
             # A batch is always per student; a class target on the form means "each classmate".
             # Nobody confirms sixty designs one by one: a batch writes each lesson straight through.
-            each = {**{k: v for k, v in data.items() if k != 'class_id'}, 'student_id': sid, 'plan_overrides': None,
-                    'design_review': False}
+            # The chunks kept on the page were retrieved for one learner; each student gets their own.
+            each = {**{k: v for k, v in data.items() if k not in ('class_id', 'retrieval_chunk_ids')},
+                    'student_id': sid, 'plan_overrides': None, 'design_review': False}
             if each.get('personalization_mode') == 'class':
                 each['personalization_mode'] = 'profile'
             _, topic, goal, ctx, prepared = build_job(each)

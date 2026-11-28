@@ -1,10 +1,13 @@
 """Transparent text checks; no claim to prove mathematics or citation entailment."""
 import re
+import statistics
+import unicodedata
 from teaching import length_range
 from courses import course_family, subject_of
 import design as lesson_design
 import figures
 import mathcheck
+from retrieval import terms
 import style
 
 CHECK_VERSION = 'math-text-check-v1'
@@ -94,6 +97,67 @@ def probabilities_out_of_range(content):
     return found
 
 
+SUPPORT_VERSION = 'lexical-attribution-v1'
+# A cited line is listed when it shares little with the material it cites (below LOW) yet clearly
+# more with another material the model was given (at least CLOSER, and twice as much). Calibrated on
+# the 19 saved lectures (docs/scale-data.md): a plain share threshold flagged 34 of 87 cited lines,
+# nearly all paraphrases or computed results; this rule flagged none of the 66 same-language lines.
+LOW, CLOSER = 0.15, 0.2
+MIN_TERMS = 6   # shorter lines (「依据：[M3]」, a bare formula) say too little to compare
+_CJK, _LATIN = re.compile(r'[\u3400-\u9fff]'), re.compile(r'[A-Za-z]')
+
+
+def plain_text(line):
+    """A cited line without citation marks, inline formulas and LaTeX command names: what is left is prose."""
+    line = re.sub(r'\[[MVK]\d+\]', ' ', line)
+    return re.sub(r'\\[A-Za-z]+', ' ', re.sub(r'\$[^$]*\$', ' ', line))
+
+
+def chinese_share(text):
+    text = unicodedata.normalize('NFKC', text)
+    chinese, latin = len(_CJK.findall(text)), len(_LATIN.findall(text))
+    return chinese / (chinese + latin) if chinese + latin else 0.0
+
+
+def citation_support(content, context):
+    """For every line citing [M编号]: the share of its terms that also occur in the cited material as it
+    was given to the model, and the closest other material. Lexical, not entailment: a paraphrase or a
+    computed result is supported with little overlap, and a copied phrase can still be misused. What it
+    can show is a citation number that probably points at the wrong material. A Chinese line citing
+    English slides cannot be compared word by word and is only counted."""
+    given = context.get('materials', [])
+    materials = {str(m['id']): set(terms(m['content'])) for m in given}
+    shares = {str(m['id']): chinese_share(m['content']) for m in given}
+    lines, short, foreign = [], 0, 0
+    for number, line in enumerate(content.splitlines(), 1):
+        ids = [i for i in dict.fromkeys(re.findall(r'\[M(\d+)\]', line)) if i in materials]
+        if not ids:
+            continue
+        claim = set(terms(re.sub(r'\\[A-Za-z]+', ' ', re.sub(r'\[[MVK]\d+\]', ' ', line))))
+        if len(claim) < MIN_TERMS:
+            short += 1
+            continue
+        share = chinese_share(plain_text(line))
+        if all(abs(share - shares[i]) > 0.5 for i in ids):
+            foreign += 1
+            continue
+        own = len(claim & set().union(*(materials[i] for i in ids))) / len(claim)
+        closest, closer = None, 0.0
+        for other, words in materials.items():
+            overlap = len(claim & words) / len(claim)
+            if other not in ids and overlap > closer:
+                closest, closer = other, overlap
+        lines.append(dict(line=number, ids=['M' + i for i in ids], terms=len(claim), support=round(own, 3),
+                          closest=f'M{closest}' if closest else None, closest_support=round(closer, 3),
+                          excerpt=line.strip()[:120]))
+    suspect = [entry for entry in lines if entry['support'] < LOW and entry['closest']
+               and entry['closest_support'] >= max(CLOSER, 2 * entry['support'])]
+    return dict(version=SUPPORT_VERSION, low=LOW, closer=CLOSER, checked=len(lines), skipped_short=short,
+                skipped_language=foreign,
+                median=round(statistics.median(entry['support'] for entry in lines), 3) if lines else None,
+                suspect=suspect, lines=lines)
+
+
 def citation_locations(content, context):
     available = {str(m['id']) for m in context['materials']}
     visuals = {v['citation_id'] for v in context.get('visual_evidence', [])}
@@ -159,6 +223,36 @@ def check_output(content, context, goal):
         add('retrieval_usage', '召回片段的引用情况', not missing,
             '以下本次召回的材料未在正文引用：' + '、'.join('M' + item for item in missing) if missing
             else '本次召回的材料在正文中都出现了编号；不代表引用位置恰当或内容被正确理解。')
+    elif approach.get('mode') == 'hybrid' and approach.get('items'):
+        items = approach['items']
+        found = sorted({item['material_id'] for item in items})
+        cited = {int(i) for i in re.findall(r'\[M(\d+)\]', content)}
+        unused = [i for i in found if i not in cited]
+        learner = {item['material_id'] for item in items if 'learner' in (item.get('role'), *item.get('also', []))}
+        detail = f'本次从整门课检索到 {len(found)} 份材料的 {len(items)} 段，正文引用了其中 {len(found) - len(unused)} 份'
+        detail += ('；没有引用：' + '、'.join(f'M{i}' for i in unused)) if unused else ''
+        if learner:
+            detail += ('；针对学情取来的材料已引用' if learner & cited else
+                       '；针对学情取来的材料没有被引用，请看讲义是否照顾到学情')
+        # Not citing every retrieved chunk is normal; citing none of them means the retrieval was ignored.
+        add('retrieval_usage', '检索材料的使用', len(unused) < len(found),
+            detail + '。引用了不代表用得恰当。')
+    elif approach.get('mode') == 'anchored':
+        items = approach.get('items') or []
+        lesson = set(approach.get('selected_knowledge_ids') or [])
+        cited = {int(i) for i in re.findall(r'\[M(\d+)\]', content)}
+        own = {m['id'] for m in context.get('materials', []) if m.get('knowledge_id') in lesson}
+        extra = sorted({item['material_id'] for item in items if item.get('knowledge_id') not in lesson})
+        whole = (approach.get('base') or {}).get('kind') != 'chunks'
+        detail = (f'本课知识点的资料{"" if whole else "节选"} {len(own)} 份，正文引用了其中 {len(own & cited)} 份')
+        if extra:
+            used = [i for i in extra if i in cited]
+            detail += (f'；从整门课补充了 {len(extra)} 份，引用了 {len(used)} 份' +
+                       ('' if used else '，请看讲义是否照顾到学情'))
+        if approach.get('learner_in_lesson'):
+            detail += '；与学情有关的本课资料：' + '、'.join(f'M{i}' for i in approach['learner_in_lesson'])
+        add('retrieval_usage', '检索材料的使用', bool((own | set(extra)) & cited) or not (own or extra),
+            detail + '。引用了不代表用得恰当。')
     if context.get('visual_evidence') or re.search(r'\[V\d+\]', content):
         available = {item['citation_id'] for item in context.get('visual_evidence', [])}
         used = set(re.findall(r'\[(V\d+)\]', content))
@@ -212,7 +306,20 @@ def check_output(content, context, goal):
                 '以下行的 $ 没有成对出现，公式可能无法显示：' + '、'.join(map(str, unbalanced[:8])) if unbalanced
                 else '公式标记成对出现；公式内容是否正确需教师核对。')
             extras['figures'] = drawn
-        version += '+pipeline-v3'
+        support = citation_support(prose, context)
+        if support['checked']:
+            suspect = support['suspect']
+            foreign = (f'另有 {support["skipped_language"]} 处引用的是外文材料，无法按字面比较。'
+                       if support['skipped_language'] else '')
+            add('citation_support', '引用编号与材料的对应', not suspect,
+                f'{len(suspect)} 处句子与所引材料共有的词很少，却与另一份材料更接近：'
+                + '；'.join(f'第 {e["line"]} 行引用 {"、".join(e["ids"])}（重合 {e["support"]:.0%}），'
+                           f'与 {e["closest"]} 重合 {e["closest_support"]:.0%}' for e in suspect[:3])
+                + '。可能引错了编号，请核对。' + foreign if suspect else
+                f'检查了 {support["checked"]} 处带 [M编号] 的句子，没有发现明显更像另一份材料的引用。{foreign}'
+                '只按共有的词判断，不能确认内容被材料支持。')
+        extras['citation_support'] = support
+        version += '+support-v1+pipeline-v3'
     if designed:
         version += '+design-v1'
     return {**extras, 'version': version, 'metrics': {'chinese_characters': chinese, 'line_count': len(content.splitlines())}, 'invalid_source_ids': invalid_sources,

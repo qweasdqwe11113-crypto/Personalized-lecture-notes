@@ -27,3 +27,40 @@ dialog.lesson-settings-dialog{width:min(640px,calc(100vw - 32px));inline-size:mi
 .lesson-dialog-footer .primary{width:auto;min-width:88px;margin:0;justify-content:center;padding:10px 22px}
 @media(max-width:600px){dialog.lesson-settings-dialog{width:calc(100vw - 24px);inline-size:calc(100vw - 24px);max-height:calc(100dvh - 24px);max-block-size:calc(100dvh - 24px)}.lesson-dialog-header,.lesson-dialog-footer{padding:16px 18px}.lesson-settings-dialog .dialog-body{padding:18px}.lesson-dialog-header h2{font-size:17px}}
 @media(prefers-reduced-motion:reduce){#generate-form .lesson-setting-link{transition:none}}
+dialog.lesson-settings-dialog.sources-dialog{width:min(760px,calc(100vw - 32px));inline-size:min(760px,calc(100vw - 32px))}
+.sources-dialog #sources-reset{margin-top:10px}
+.retrieval-picks{display:grid;gap:18px;margin-top:16px}
+.retrieval-group h3{margin:0 0 6px;font-size:14px;font-weight:650;color:#31415a}
+.retrieval-group>.helper{margin:0 0 6px}
+.retrieval-pick{border-top:1px solid var(--line);padding:10px 0 4px}
+.lesson-settings-dialog label.retrieval-pick-head{display:flex;align-items:flex-start;gap:9px;margin:0;font-weight:500;cursor:pointer}
+.retrieval-pick-head input{width:auto;margin:4px 0 0;flex-shrink:0}
+.retrieval-pick-title strong{color:var(--accent);font-size:12px;margin-right:2px}
+.retrieval-pick-meta{margin:4px 0 0 25px;font-size:12px;color:#8792a2;line-height:1.6}
+.retrieval-pick .retrieval-pick-text{margin:4px 0 0 25px}
+.retrieval-pick-text summary{cursor:pointer;font-size:12px;color:#4268ba}
+.retrieval-pick-text p{margin:6px 0;font-size:13px;color:#56647a;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere}
+.retrieval-picks>.retrieval-pick-text{border-top:1px solid var(--line);padding-top:8px}
+.retrieval-queries summary{cursor:pointer;font-size:13px;color:#4268ba}
+.retrieval-queries p{margin:6px 0;font-size:12px;color:#68758a;line-height:1.7;overflow-wrap:anywhere}
+#sources-note.check-warning{color:#a33627}
+/* 一键备课 */
+.setup-field .quick-start-link{display:block;margin-top:6px}
+.quick-start-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+dialog.lesson-settings-dialog.quick-start-dialog{width:min(720px,calc(100vw - 32px));inline-size:min(720px,calc(100vw - 32px))}
+.quick-start-dialog #quick-suggest{margin-top:2px}
+.quick-warnings p{margin:8px 0 0}
+.quick-points{display:grid;margin-top:12px}
+.quick-point{border-top:1px solid var(--line);padding:10px 0 6px}
+.lesson-settings-dialog label.quick-point-head{display:flex;align-items:flex-start;gap:9px;margin:0;font-weight:500;cursor:pointer}
+.quick-point-head input{width:auto;margin:4px 0 0;flex-shrink:0}
+.quick-point-chapter{color:#8792a2;font-size:12px;font-weight:400}
+.quick-point-meta{margin:4px 0 0 25px;font-size:12px;color:#8792a2;line-height:1.6}
+.quick-point-evidence{margin:4px 0 0 25px;font-size:12px;color:#4b5870}
+.quick-point-evidence summary{cursor:pointer;color:#3653c9}
+.quick-point-evidence p{margin:4px 0;line-height:1.6}
+.quick-add{margin-top:14px}
+.quick-add-row{display:flex;gap:8px;align-items:center;margin-top:4px}
+.quick-add-row select{flex:1;min-width:0}
+.quick-start-dialog .setup-field label span{margin-left:4px;font-size:12px;font-weight:400;color:#8792a2}
+.quick-start-dialog #quick-title{width:100%;box-sizing:border-box}

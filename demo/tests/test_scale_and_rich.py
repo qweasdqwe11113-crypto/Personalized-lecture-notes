@@ -22,6 +22,7 @@ import mathcheck
 import rendering
 import richdoc
 from embed import HashingEmbedder
+import retrieval
 
 module = quizzes.module
 TREE = {'type': 'probability_tree', 'title': '概率树', 'root': '全部产品', 'branches': [
@@ -204,7 +205,8 @@ class ScaleDataTests(quizzes.ProfileDatabaseFixture):
         report = eval_retrieval.evaluate(HashingEmbedder(512), examples=4)
         self.assertEqual(len(report), 2)
         for course in report:
-            self.assertEqual(set(course['rankers']), {'vector', 'bm25', 'hybrid_rrf'})
+            # hybrid_rrf_w…: the fusion as the app ships it, BM25 weighted by retrieval.KEYWORD_WEIGHT.
+            self.assertEqual(set(course['rankers']), {'vector', 'bm25', 'hybrid_rrf', f'hybrid_rrf_w{retrieval.KEYWORD_WEIGHT}'})
             self.assertEqual(course['queries'], 24)
             for values in course['rankers'].values():
                 self.assertTrue(0 <= values['recall@1'] <= values['recall@3'] <= values['recall@6'] <= 1)

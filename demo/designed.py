@@ -24,9 +24,11 @@ import design as D
 import style
 from prompts import PreparedRequest, designed_system, learner_name, prepare_request, without_name
 from qwen import ModelError, ModelResult, stream_to, visible_text
+from retrieval import index_text, rank_texts
 
 MODE = 'designed-v1'
 SEGMENT_LIMIT = 12000
+SEGMENT_POOL = 3   # uncited chunks of the frozen pool a segment may also see (hybrid retrieval only)
 LONG_RATIO, SHORT_RATIO = 1.5, 0.7
 TRANSIENT = {'timeout', 'http_error', 'unreachable', 'connection_error', 'stream_error', 'invalid_json'}
 INCOMPLETE = {'truncated', 'empty_output', 'unfinished_output'}
@@ -80,6 +82,23 @@ def patch_request(request_, previous, problems, name=None):
                    'lesson-design-patch-v1', keep_format=True)
 
 
+def segment_materials(materials, segment, bank, cited, wanted, limit=SEGMENT_POOL):
+    """A segment's share of a hybrid run's frozen pool: what the design cites for it, plus the uncited
+    chunks that share the most terms with the segment's own text (BM25, offline and repeatable, so a
+    retried segment sees the same material). With nothing cited or matched, the segment's points."""
+    text = ' '.join([segment.get('title', ''), segment.get('screen', ''), *segment.get('board', []),
+                     *segment.get('teacher', []), *(question['ask'] for question in segment.get('questions', [])),
+                     *(bank[ref].get('stem', '') for ref in segment['items'])])
+    chosen = {m['citation_id'] for m in materials if m['citation_id'] in cited}
+    rest = [m for m in materials if m['citation_id'] not in cited]
+    scores = rank_texts(text, [index_text(m.get('title', ''), m['content']) for m in rest]) if text.strip() else []
+    order = sorted(range(len(rest)), key=lambda i: (-scores[i], rest[i]['citation_id'])) if scores else []
+    chosen |= {rest[i]['citation_id'] for i in order[:limit] if scores[i] > 0}
+    if not chosen:
+        chosen = {m['citation_id'] for m in materials if m.get('knowledge_id') in wanted}
+    return [m for m in materials if m['citation_id'] in chosen]
+
+
 def segment_request(frozen_body, context, design, segment, budget):
     """One segment's request: the same goal and learner facts, only this segment's material."""
     user = json.loads(json.loads(frozen_body)['messages'][1]['content'])
@@ -87,7 +106,10 @@ def segment_request(frozen_body, context, design, segment, budget):
     bank = {item['id']: item for item in design['items']}
     cited = set(segment['sources']) | {name for ref in segment['items'] for name in bank[ref]['sources']}
     wanted = set(segment['knowledge_ids']) | {bank[ref]['knowledge_id'] for ref in segment['items']}
-    materials = [m for m in view['materials'] if m.get('knowledge_id') in wanted or m['citation_id'] in cited]
+    if (context.get('retrieval') or {}).get('mode') == 'hybrid':
+        materials = segment_materials(view['materials'], segment, bank, cited, wanted)
+    else:
+        materials = [m for m in view['materials'] if m.get('knowledge_id') in wanted or m['citation_id'] in cited]
     names = {**{entry['id']: f'第 {n} 环节' for n, entry in enumerate(design['segments'], 1)}, **D.labels(design)}
     # The design's 学情与对策 already carries the caveats about the evidence; a segment only needs the teaching plan.
     view = {**view, 'personalization_plan': [{k: v for k, v in entry.items() if k != 'warnings'}

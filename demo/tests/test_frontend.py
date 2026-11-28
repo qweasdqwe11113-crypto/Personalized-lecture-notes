@@ -12,6 +12,15 @@ class FrontendTests(unittest.TestCase):
                                 capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_only_a_changed_passage_choice_is_sent_with_the_job(self):
+        self.run_case('retrievalChoiceTravelsOnlyWhenChanged')
+
+    def test_anchored_choice_covers_only_the_passages_and_warns_over_budget(self):
+        self.run_case('anchoredChoiceCoversOnlyPassages')
+
+    def test_quick_start_sends_the_points_the_teacher_confirmed(self):
+        self.run_case('quickStartSendsTheConfirmedPoints')
+
     def test_markdown_keeps_lists_on_the_correct_side_of_formulas(self):
         self.run_case('markdownOrder')
 

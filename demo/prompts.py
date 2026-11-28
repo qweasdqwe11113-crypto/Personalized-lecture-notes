@@ -34,6 +34,26 @@ def subject_rules(topic):
     return (PROMPTS / f'lecture-subject-{subject}-general-v1.md').read_text(encoding='utf-8').strip(), f'+{subject}-general-v1'
 
 
+RETRIEVAL_RULES = 'lecture-retrieval-v1'
+ANCHORED_RULES = 'lecture-retrieval-anchored-v1'
+
+
+def retrieval_rules_name(context):
+    """The rules that say what the material is: excerpts of the whole course (hybrid), or the lesson's own
+    material whole plus passages from elsewhere (anchored). None for the exact lookup and the other modes."""
+    return {'hybrid': RETRIEVAL_RULES, 'anchored': ANCHORED_RULES}.get((context.get('retrieval') or {}).get('mode'))
+
+
+def retrieved(context):
+    """The material came through retrieval (retrieval.py), so each material carries its use and the retrieval
+    record (runners-up, removed chunks) stays out of the model input."""
+    return retrieval_rules_name(context) is not None
+
+
+def retrieval_rules(context):
+    return (PROMPTS / f'{retrieval_rules_name(context)}.md').read_text(encoding='utf-8').strip()
+
+
 def designed_system(context, stage):
     """System prompt of the lesson-design pipeline. stage: 'plan' (the design) or 'segment' (one segment)."""
     parts = [(PROMPTS / 'lecture-design-base-v1.md').read_text(encoding='utf-8').strip()]
@@ -45,6 +65,8 @@ def designed_system(context, stage):
     parts.append((PROMPTS / f'lecture-design-{stage}-v1.md').read_text(encoding='utf-8').strip())
     if tutoring(context):
         parts.append((PROMPTS / 'lecture-design-tutor-v1.md').read_text(encoding='utf-8').strip())
+    if retrieved(context):
+        parts.append(retrieval_rules(context))
     return '\n\n'.join(parts)
 
 
@@ -106,7 +128,8 @@ def designed_view(context):
                    for s in context.get('states', [])],
         'personalization_plan': [{k: p[k] for k in ('knowledge_id', 'name', 'state', 'action', 'warnings', 'teacher_modified')
                                   if k in p} for p in context.get('personalization_plan', [])],
-        'materials': [{'citation_id': f'M{m["id"]}', **{k: m[k] for k in ('title', 'knowledge_id', 'section', 'source_title', 'content')
+        'materials': [{'citation_id': f'M{m["id"]}', **{k: m[k] for k in ('title', 'knowledge_id', 'section', 'source_title', 'use',
+                                                                          'content')
                                                         if m.get(k) is not None}} for m in context['materials']],
     }
     if context.get('visual_evidence'):
@@ -142,15 +165,19 @@ def prepare_design(context, goal, model):
     body = json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
     family = course_family(context['topic'])
     version = ('lesson-design-v1' + (f'+{family}-v1' if family in ('probability', 'math') else '') + subject_rules(context['topic'])[1]
-               + ('+tutor-v1' if tutoring(context) else '') + ('+revision' if feedback else ''))
+               + ('+tutor-v1' if tutoring(context) else '') + (f'+{retrieval_rules_name(context)}' if retrieved(context) else '')
+               + ('+revision' if feedback else ''))
     return PreparedRequest(body, hashlib.sha256(body.encode('utf-8')).hexdigest(), version, 'lesson-design-context-v1')
 
 
 def prepare_request(context, goal, model):
     if context.get('generation_mode') == DESIGN_MODE:
         return prepare_design(context, goal, model)
-    # 'sectioned' holds the later stage prompt and quotas for the server; it is not model input.
-    model_context = {**{k: v for k, v in context.items() if k not in ('sectioned', 'designed', 'lesson_design')}, 'materials': [
+    # 'sectioned' holds the later stage prompt and quotas for the server; it is not model input. Neither is
+    # a hybrid run's retrieval record: it holds the runners-up and the chunks the teacher removed, and the
+    # chunks that were kept are already in materials, each with its use.
+    hidden = ('sectioned', 'designed', 'lesson_design') + (('retrieval',) if retrieved(context) else ())
+    model_context = {**{k: v for k, v in context.items() if k not in hidden}, 'materials': [
         {**material, 'citation_id': f'M{material["id"]}'} for material in context['materials']
     ]}
     family = course_family(context['topic'])
@@ -187,6 +214,9 @@ def prepare_request(context, goal, model):
     whole_class = context.get('personalization_mode') == 'class'
     if whole_class:
         system += '\n' + (Path(__file__).with_name('prompts') / 'lecture-class-v1.md').read_text(encoding='utf-8').strip()
+    if retrieved(context):
+        system += '\n' + retrieval_rules(context)
+        version += f'+{retrieval_rules_name(context)}'
     prompts = Path(__file__).with_name('prompts')
     rich = context.get('lecture_format') == 'rich-v1'
     sectioned = context.get('generation_mode') == 'sectioned-v1'

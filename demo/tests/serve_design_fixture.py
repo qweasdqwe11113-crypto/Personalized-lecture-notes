@@ -10,8 +10,9 @@ from pathlib import Path
 import time
 
 from werkzeug.serving import make_server
+from test_lesson_design import DesignedPipeline, module, with_notes  # puts demo/ on sys.path
 from qwen import stream_listener
-from test_lesson_design import DesignedPipeline, module, with_notes
+from embed import HashingEmbedder
 
 NOTES = {
     'S1': ('- 先问：已知抽到次品，想知道它来自哪条产线，这是在求哪个方向的条件概率？停 10 秒再点人。\n'
@@ -75,6 +76,9 @@ if __name__ == '__main__':
     fixture.setUp()
     module.call_qwen = model
     module.MODEL = 'fixture-design-only'
+    # Whole-course retrieval embeds the material; keep that offline as well.
+    module.EMBEDDER = HashingEmbedder(dimensions=128)
+    module.EMBEDDER.configured = lambda: True
     os.environ['QWEN_API_KEY'] = 'fixture-only'
     os.environ['QWEN_BASE_URL'] = 'https://fixture.invalid/v1'
     server = make_server('127.0.0.1', 5057, module.app, threaded=True)

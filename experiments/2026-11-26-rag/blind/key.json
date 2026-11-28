@@ -1,0 +1,58 @@
+{
+ "L1": {
+  "A": {
+   "condition": "none",
+   "source": "20261126-015357/L1-profile-none.md"
+  },
+  "B": {
+   "condition": "hybrid",
+   "source": "20261126-014718/L1-profile-hybrid.md"
+  },
+  "C": {
+   "condition": "sql",
+   "source": "20261118-142313/L1-profile.md"
+  }
+ },
+ "L2": {
+  "A": {
+   "condition": "hybrid",
+   "source": "20261126-014718/L2-class-hybrid.md"
+  },
+  "B": {
+   "condition": "sql",
+   "source": "20261118-142313/L2-class.md"
+  },
+  "C": {
+   "condition": "none",
+   "source": "20261126-015357/L2-class-none.md"
+  }
+ },
+ "P1": {
+  "A": {
+   "condition": "hybrid",
+   "source": "20261126-014718/P1-profile-hybrid.md"
+  },
+  "B": {
+   "condition": "sql",
+   "source": "20261118-142313/P1-profile.md"
+  },
+  "C": {
+   "condition": "none",
+   "source": "20261126-015357/P1-profile-none.md"
+  }
+ },
+ "P2": {
+  "A": {
+   "condition": "sql",
+   "source": "20261118-142313/P2-class.md"
+  },
+  "B": {
+   "condition": "none",
+   "source": "20261126-015357/P2-class-none.md"
+  },
+  "C": {
+   "condition": "hybrid",
+   "source": "20261126-014718/P2-class-hybrid.md"
+  }
+ }
+}

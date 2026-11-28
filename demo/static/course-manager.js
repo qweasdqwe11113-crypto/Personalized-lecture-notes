@@ -174,7 +174,7 @@
   };
   $('use-course-task').onclick=async()=>{
     if(!editing||saving||busy)return;
-    try{if(scope&&editing.course_id!=null&&editing.course_id!==scope.courseId())scope.set(editing.course_id,undefined,'courses');await refreshWorkspaceCatalog(editing.key);$('retrieval-mode').value='sql';$('topic').dispatchEvent(new Event('change'));openWorkspacePage('workbench');}
+    try{if(scope&&editing.course_id!=null&&editing.course_id!==scope.courseId())scope.set(editing.course_id,undefined,'courses');await refreshWorkspaceCatalog(editing.key);$('retrieval-mode').value='anchored';$('topic').dispatchEvent(new Event('change'));openWorkspacePage('workbench');}
     catch(e){status('course-manager-status',e.message,true);}
   };
   $('course-material-form').onsubmit=async event=>{

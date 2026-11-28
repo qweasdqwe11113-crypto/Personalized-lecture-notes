@@ -5,63 +5,20 @@
 
 For each course, every chunk of the whole chapter is ranked for each labelled question,
 and a hit is a chunk from the question's own knowledge point. Three rankers are compared:
-the embedding cosine the app uses, a character-bigram BM25, and their reciprocal-rank
-fusion. Needs no database. The hashing embedder only measures shared characters, so its
+the embedding cosine, BM25 over the app's search terms (Chinese character pairs, whole Latin
+words), and their reciprocal-rank fusion, all taken from retrieval.py. Needs no database. The hashing embedder only measures shared characters, so its
 "vector" row says nothing about semantic retrieval; use --embedder qwen for that.
 """
 import argparse
 import json
-import math
 from pathlib import Path
 import sys
 
 sys.path[:0] = [str(Path(__file__).resolve().parent), str(Path(__file__).resolve().parents[1])]
 
 from corpus import COURSES, load_course  # noqa: E402
-from retrieval import chunk_text, cosine  # noqa: E402
-
-
-def grams(text):
-    compact = ''.join(c.lower() for c in text if c.isalnum())
-    return [compact[i:i + 2] for i in range(len(compact) - 1)] or [compact]
-
-
-class BM25:
-    def __init__(self, documents, k1=1.5, b=0.75):
-        self.docs = [grams(d) for d in documents]
-        self.k1, self.b = k1, b
-        self.average = sum(map(len, self.docs)) / max(1, len(self.docs))
-        self.frequency = {}
-        for doc in self.docs:
-            for term in set(doc):
-                self.frequency[term] = self.frequency.get(term, 0) + 1
-
-    def scores(self, query):
-        result = []
-        for doc in self.docs:
-            counts, score = {}, 0.0
-            for term in doc:
-                counts[term] = counts.get(term, 0) + 1
-            for term in set(grams(query)):
-                if term not in counts:
-                    continue
-                idf = math.log(1 + (len(self.docs) - self.frequency[term] + 0.5) / (self.frequency[term] + 0.5))
-                tf = counts[term]
-                score += idf * tf * (self.k1 + 1) / (tf + self.k1 * (1 - self.b + self.b * len(doc) / self.average))
-            result.append(score)
-        return result
-
-
-def ranking(scores):
-    return sorted(range(len(scores)), key=lambda i: (-scores[i], i))
-
-
-def fuse(*rankings, k=60):
-    totals = {}
-    for order in rankings:
-        for rank, index in enumerate(order, 1):
-            totals[index] = totals.get(index, 0) + 1 / (k + rank)
-    return sorted(totals, key=lambda i: (-totals[i], i))
+# The rankers the app itself uses (retrieval.py), so these numbers describe the shipped code.
+from retrieval import BM25, KEYWORD_WEIGHT, chunk_text, cosine, fused_order, ranking  # noqa: E402
 
 
 def metrics(orders, relevant, cutoffs):
@@ -89,13 +46,16 @@ def evaluate(embedder, examples=8, seed=7, cutoffs=(1, 3, 6)):
         query_vectors = embedder.embed([q for _, q in queries])
         lexical = BM25(texts)
         vector_orders = [ranking([cosine(qv, v) for v in vectors]) for qv in query_vectors]
-        lexical_orders = [ranking(lexical.scores(q)) for _, q in queries]
-        hybrid_orders = [fuse(a, b) for a, b in zip(vector_orders, lexical_orders)]
+        # As in hybrid_search: BM25 lists only chunks sharing a term with the question.
+        lexical_orders = [ranking(lexical.scores(q), positive=True) for _, q in queries]
+        hybrid_orders = [fused_order(a, b) for a, b in zip(vector_orders, lexical_orders)]
+        shipped_orders = [fused_order(a, b, weights=[1.0, KEYWORD_WEIGHT]) for a, b in zip(vector_orders, lexical_orders)]
         report.append(dict(course=course['title'], chunks=len(chunks), queries=len(queries),
                            characters=sum(map(len, texts)), embed_model=embedder.model,
                            rankers={'vector': metrics(vector_orders, relevant, cutoffs),
                                     'bm25': metrics(lexical_orders, relevant, cutoffs),
-                                    'hybrid_rrf': metrics(hybrid_orders, relevant, cutoffs)}))
+                                    'hybrid_rrf': metrics(hybrid_orders, relevant, cutoffs),
+                                    f'hybrid_rrf_w{KEYWORD_WEIGHT}': metrics(shipped_orders, relevant, cutoffs)}))
     return report
 
 

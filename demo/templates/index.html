@@ -49,12 +49,13 @@
         <div><h2>讲义设置</h2></div>
       </div>
     <form id="generate-form">
-     <div class="setup-field"><label for="topic">选择备课</label><select id="topic" disabled></select><p id="task-level" class="helper"></p><details id="preparation-preview" hidden><summary>查看副本目标与教案</summary><p id="preparation-preview-goal" class="helper"></p><p id="preparation-preview-plan" class="current-summary"></p></details></div>
+     <div class="setup-field"><label for="topic">选择备课</label><select id="topic" disabled></select><button type="button" class="link-button quick-start-link" data-setting-dialog="quick-start-dialog" aria-haspopup="dialog" aria-controls="quick-start-dialog">＋ 一键备课：写下本课重点，自动找知识点</button><p id="task-level" class="helper"></p><details id="preparation-preview" hidden><summary>查看副本目标与教案</summary><p id="preparation-preview-goal" class="helper"></p><p id="preparation-preview-plan" class="current-summary"></p></details></div>
      <div class="setup-field"><label for="student" id="student-label">选择学生</label><select id="student" disabled></select><div id="student-profile" class="profile"></div></div>
      <div class="setup-field setup-goal"><label for="goal">本次教学目标</label><textarea id="goal" rows="3" maxlength="400"></textarea></div>
      <div class="lesson-setting-links" aria-label="更多讲义设置">
       <button type="button" class="lesson-setting-link" data-setting-dialog="lesson-teaching-dialog" aria-haspopup="dialog" aria-controls="lesson-teaching-dialog"><span><strong>本次怎么讲</strong><span id="teaching-summary">45 分钟 · 新授 · 常规讲解</span></span><span class="setting-chevron" aria-hidden="true">›</span></button>
       <button type="button" class="lesson-setting-link" data-setting-dialog="lesson-advanced-dialog" aria-haspopup="dialog" aria-controls="lesson-advanced-dialog"><span><strong>高级设置</strong><span>画像与材料取用</span></span><span class="setting-chevron" aria-hidden="true">›</span></button>
+      <button type="button" class="lesson-setting-link" id="sources-link" data-setting-dialog="lesson-sources-dialog" aria-haspopup="dialog" aria-controls="lesson-sources-dialog"><span><strong>课程资料依据</strong><span id="sources-summary">读取材料后显示</span></span><span class="setting-chevron" aria-hidden="true">›</span></button>
       <button type="button" class="lesson-setting-link" data-setting-dialog="lesson-visual-dialog" aria-haspopup="dialog" aria-controls="lesson-visual-dialog"><span><strong>图片解析依据</strong><span id="visual-selection-count">未选择 · 选填，最多 4 张</span></span><span class="setting-chevron" aria-hidden="true">›</span></button>
       <button type="button" class="lesson-setting-link" id="lecture-plan-box" data-setting-dialog="lesson-plan-dialog" aria-haspopup="dialog" aria-controls="lesson-plan-dialog"><span><strong>本次讲解安排</strong><span>按知识点查看与调整讲法</span></span><span class="setting-chevron" aria-hidden="true">›</span></button>
      </div>
@@ -190,7 +191,7 @@
    <form id="edit-course-form" class="editor-form scope-edit" hidden><div class="course-fields"><div><label for="edit-course-name">课程名称</label><input id="edit-course-name" maxlength="80" required></div><div><label for="edit-course-stage">学段</label><input id="edit-course-stage" list="course-stages" maxlength="40"></div><div><label for="edit-course-subject">学科</label><select id="edit-course-subject"><option value="general">其他</option><option value="math">数学</option><option value="probability">概率统计</option></select></div></div><p class="helper">学科决定之后生成时附加的学科要求和程序检查；已生成的讲义和课堂设计不变。</p><label for="edit-course-description">课程说明</label><textarea id="edit-course-description" rows="2" maxlength="600"></textarea><div class="trace-actions"><button class="primary" type="submit">保存课程</button><button id="cancel-course-edit" class="secondary" type="button">取消</button></div></form>
    <p id="course-home-status" class="helper" role="status" aria-live="polite"></p></section>
   <div class="record-tabs" role="tablist" aria-label="课程内容"><a href="#materials" id="course-tab-lessons" role="tab" aria-selected="true" aria-controls="course-list-page">备课</a><a href="#materials/resources" id="course-tab-resources" role="tab" aria-selected="false" aria-controls="course-panel-resources" tabindex="-1">课程资料</a><a href="#materials/knowledge" id="course-tab-knowledge" role="tab" aria-selected="false" aria-controls="course-panel-knowledge" tabindex="-1">知识点库</a><a href="#materials/classes" id="course-tab-classes" role="tab" aria-selected="false" aria-controls="course-panel-classes" tabindex="-1">班级</a></div>
-  <div id="course-list-page" role="tabpanel" aria-labelledby="course-tab-lessons"><section class="panel"><div class="section-heading"><h2 id="course-list-title">我的备课</h2><a href="#materials/new" class="primary student-page-link">新建备课</a></div><div id="course-copy-list" class="student-roster"></div></section><section class="panel" id="course-example-panel"><h2>预设示例</h2><p class="helper">打开示例后可复制成自己的备课，再独立修改。</p><div id="course-example-list" class="student-roster"></div></section></div>
+  <div id="course-list-page" role="tabpanel" aria-labelledby="course-tab-lessons"><section class="panel"><div class="section-heading"><h2 id="course-list-title">我的备课</h2><div class="quick-start-actions"><button type="button" class="secondary" data-setting-dialog="quick-start-dialog" aria-haspopup="dialog" aria-controls="quick-start-dialog">一键备课</button><a href="#materials/new" class="primary student-page-link">新建备课</a></div></div><div id="course-copy-list" class="student-roster"></div></section><section class="panel" id="course-example-panel"><h2>预设示例</h2><p class="helper">打开示例后可复制成自己的备课，再独立修改。</p><div id="course-example-list" class="student-roster"></div></section></div>
   <div id="course-panel-resources" role="tabpanel" aria-labelledby="course-tab-resources" hidden><div class="resource-host" id="course-resource-host">
   <div id="resource-workspace" class="resource-workspace">
   <div class="upload-grid">
@@ -599,7 +600,7 @@
  <div class="lesson-dialog-header"><h2 id="lesson-advanced-title">高级设置</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭高级设置">×</button></div>
  <div class="dialog-body"><p class="lesson-dialog-intro">选择本次讲义的生成依据与材料取用方式。</p>
   <div class="setup-field"><label for="personalization-mode">生成依据</label><select id="personalization-mode"><option value="profile">使用学生画像</option><option value="none">无画像对照 · 通用讲义</option></select></div>
-  <div class="setup-field"><label for="retrieval-mode">材料取用方式</label><select id="retrieval-mode"><option value="sql">全部关联材料 · 精确 SQL</option><option value="vector">按目标选取片段 · 向量检索</option></select><p id="retrieval-note" class="helper" role="status" aria-live="polite">默认直接读取关联材料。</p></div>
+  <div class="setup-field"><label for="retrieval-mode">材料取用方式</label><select id="retrieval-mode"><option value="anchored" selected>本课知识点的全部资料 + 整门课补充（推荐）</option><option value="hybrid">整门课检索 · 关键词与语义融合</option><option value="sql">所选知识点的全部材料 · 精确 SQL</option><option value="vector">所选知识点内按语义选片段 · 向量检索</option></select><p id="retrieval-note" class="helper" role="status" aria-live="polite">默认提供本课知识点的全部资料，再按学情从整门课检索补充片段。</p><p class="helper">推荐方式按备课确认的知识点读取全部资料，保证本课内容完整；学生或班级有诊断错因时，从整门课（不含后面的章节）检索相关片段补充，例如前面学过的内容。资料超过 16000 字时按本课目标选取节选。整门课检索不保证读全本课资料，作对照用。片段在「课程资料依据」里确认。</p></div>
   <div class="setup-field"><label for="generation-mode">写作方式</label><select id="generation-mode"><option value="designed-v1">先做课堂设计，再按环节写（推荐）</option><option value="sectioned-v1">先列大纲，再分章节写（旧版五章节）</option><option value="single">一次写完整篇</option></select><p class="helper">课堂设计先定重点难点、各环节时间和全课的例题练习，程序核对时间与数量后再按环节写教师详案；题目只写一次，各处引用同一份。旧版分章节约 6 次模型调用，各章节有篇幅下限。</p>
    <label class="check-row" for="design-review"><input id="design-review" type="checkbox" checked> 写详案前先让我确认课堂设计</label><p class="helper">确认时可以改时间、重点和题目，或让模型按意见重做。批量生成不停下确认。</p></div>
   <div class="setup-field"><label for="lecture-format">公式与图</label><select id="lecture-format"><option value="rich-v1">LaTeX 公式、表格与程序绘制的图</option><option value="plain">纯文本公式（旧版格式）</option></select><p class="helper">图由程序按讲义里写明的数据绘制，并核对概率之和、代回检验等自身一致性；是否与正文对应仍需教师核对。</p></div>
@@ -636,6 +637,25 @@
   <div id="batch-status" class="batch-status" role="status" aria-live="polite"></div>
  </div><div class="lesson-dialog-footer"><span id="batch-summary">任务在后台排队，关闭窗口不会中断</span><button type="button" class="primary" id="batch-submit">开始生成</button></div>
 </dialog>
+<dialog id="lesson-sources-dialog" class="lesson-settings-dialog sources-dialog" aria-labelledby="lesson-sources-title">
+ <div class="lesson-dialog-header"><h2 id="lesson-sources-title">课程资料依据</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭课程资料依据">×</button></div>
+ <div class="dialog-body"><p class="lesson-dialog-intro" id="sources-intro">读取材料后显示。</p><p id="sources-note" class="helper" role="status" aria-live="polite"></p><button id="sources-reset" type="button" class="secondary" hidden>恢复自动选择</button><div id="retrieval-picks" class="retrieval-picks"></div></div>
+ <div class="lesson-dialog-footer"><span>勾选的片段用于本次生成；模型以 [M编号] 引用</span><button type="button" class="primary" data-close-setting>完成</button></div>
+</dialog>
+<dialog id="quick-start-dialog" class="lesson-settings-dialog quick-start-dialog" aria-labelledby="quick-start-title">
+ <div class="lesson-dialog-header"><h2 id="quick-start-title">一键备课</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭一键备课">×</button></div>
+ <form id="quick-start-form" class="dialog-body" novalidate><p class="lesson-dialog-intro">写下本课要讲的重点，在「<strong id="quick-course">当前课程</strong>」的全部资料里查找相关的知识点。核对勾选后创建备课，生成讲义时提供这些知识点的全部资料。</p>
+  <div class="setup-field"><label for="quick-chapter">本课在哪一章 <span>选填</span></label><select id="quick-chapter"><option value="">不限定</option></select><p class="helper">选了章节，后面章节的知识点不会被勾选；生成时也不会用后面章节的资料补充。</p></div>
+  <div class="setup-field"><label for="quick-focus">本课重点</label><textarea id="quick-focus" rows="4" maxlength="400" placeholder="例：用全概率公式和贝叶斯公式计算检验呈阳性时真正患病的概率；学生常把 P(A|B) 与 P(B|A) 弄反。"></textarea><p class="helper">写出要讲的概念、方法或题型，越具体越准；这段话也作为备课的教学目标。学生姓名不会发给检索服务。</p></div>
+  <div class="setup-field"><label for="quick-title">备课标题 <span>选填</span></label><input id="quick-title" maxlength="120" placeholder="不填则用前几个知识点的名称"></div>
+  <button type="submit" class="secondary" id="quick-suggest">查找知识点</button>
+  <p id="quick-status" class="helper" role="status" aria-live="polite"></p>
+  <div id="quick-warnings" class="quick-warnings"></div>
+  <div id="quick-points" class="quick-points"></div>
+  <div id="quick-add" class="quick-add" hidden><label for="quick-add-point">添加其他知识点</label><div class="quick-add-row"><select id="quick-add-point"></select><button type="button" class="secondary" id="quick-add-button">添加</button></div></div>
+ </form>
+ <div class="lesson-dialog-footer"><span id="quick-summary">先写下重点并查找知识点</span><button type="button" class="primary" id="quick-create" disabled>创建备课</button></div>
+</dialog>
 <dialog id="lesson-visual-dialog" class="lesson-settings-dialog" aria-labelledby="lesson-visual-title">
  <div class="lesson-dialog-header"><h2 id="lesson-visual-title">图片解析依据</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭图片解析依据">×</button></div>
  <div class="dialog-body"><p class="lesson-dialog-intro">选择与本次教学目标相关的图片解析，最多 4 条。</p><p class="helper">先在「上传资料」中解析图片，再选择用于本次讲义的解析。原图仅发送给独立视觉模型；语言模型只接收解析文字。</p><button id="refresh-visual-evidence" type="button" class="secondary">刷新图片解析</button><p id="visual-evidence-status" class="helper" role="status" aria-live="polite"></p><div id="visual-evidence-options" class="visual-options"></div></div>
@@ -647,7 +667,7 @@
  <div class="dialog-body"><p class="lesson-dialog-intro">根据学生已有诊断提供讲法建议，可逐项调整；修改仅用于本次讲义。</p><div id="lecture-plan"></div><div id="input-budget-note" class="helper"></div></div>
  <div class="lesson-dialog-footer"><span>调整会保留到本次生成</span><button type="button" class="primary" data-close-setting>完成</button></div>
 </dialog>
-<link rel="stylesheet" href="/static/lesson-settings.css"><script defer src="/static/lesson-settings.js"></script>
+<link rel="stylesheet" href="/static/lesson-settings.css"><script defer src="/static/lesson-settings.js"></script><script defer src="/static/retrieval.js"></script><script defer src="/static/quick-start.js"></script>
 <link rel="stylesheet" href="/static/usability.css"><link rel="stylesheet" href="/static/scopes.css">
 <link rel="stylesheet" href="/static/rich.css"><link rel="stylesheet" href="/static/motion.css">
 <link rel="stylesheet" href="/static/topic-nav.css">
