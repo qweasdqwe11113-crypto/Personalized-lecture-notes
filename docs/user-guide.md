@@ -21,27 +21,27 @@
 
 ### 下载与安装
 
-安装包在项目的 GitHub Releases 页面下载（文件名中的 `0.3.0` 是版本号）。只发布正式版，第一次打开时工作空间是空的，从建课程开始。
+安装包在项目的 GitHub Releases 页面下载（文件名中的 `0.4.0` 是版本号）。只发布正式版，第一次打开时工作空间是空的，从建课程开始。
 
 | 系统 | 安装包 |
 | --- | --- |
-| Windows | `zhiye-0.3.0-win-x64.exe` |
-| Linux（Ubuntu / Debian） | `zhiye-0.3.0-linux-amd64.deb` |
-| Linux（其他发行版） | `zhiye-0.3.0-linux-x86_64.AppImage` 或 `zhiye-0.3.0-linux-x64.tar.gz` |
+| Windows | `zhiye-0.4.0-win-x64.exe` |
+| Linux（Ubuntu / Debian） | `zhiye-0.4.0-linux-amd64.deb` |
+| Linux（其他发行版） | `zhiye-0.4.0-linux-x86_64.AppImage` 或 `zhiye-0.4.0-linux-x64.tar.gz` |
 
 - **Windows**：双击安装程序，按提示选择安装位置。安装包没有代码签名，第一次运行如果出现「Windows 已保护你的电脑」，点「更多信息」→「仍要运行」。安装后桌面和开始菜单都有「知页」图标。
 - **Linux（.deb，Ubuntu / Debian 推荐）**：在下载目录打开终端，运行下面的命令（会要求输入本机登录密码），装好后在应用菜单里找到「知页」：
 
   ```bash
-  sudo apt install ./zhiye-0.3.0-linux-amd64.deb
+  sudo apt install ./zhiye-0.4.0-linux-amd64.deb
   ```
 
   也可以在终端输入 `zhiye` 启动。这种安装方式在 Ubuntu 24.04 及以后也会保留浏览器沙箱（见[常见问题](#八常见问题)）。卸载用 `sudo apt remove zhiye`，数据目录同样保留。
 - **Linux（AppImage）**：下载后先赋予执行权限，再双击或在终端中运行：
 
   ```bash
-  chmod +x zhiye-0.3.0-linux-x86_64.AppImage
-  ./zhiye-0.3.0-linux-x86_64.AppImage
+  chmod +x zhiye-0.4.0-linux-x86_64.AppImage
+  ./zhiye-0.4.0-linux-x86_64.AppImage
   ```
 
 - **Linux（tar.gz）**：解压后运行其中的 `zhiye`。
