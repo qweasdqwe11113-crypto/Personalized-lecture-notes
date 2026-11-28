@@ -22,7 +22,7 @@ async function checkHealth(){
 window.generationPayload=()=>({topic:$('topic').value,goal:$('goal').value,personalization_mode:$('personalization-mode').value,retrieval_mode:$('retrieval-mode').value,teaching_options:readTeachingOptions(),visual_analysis_ids:typeof selectedVisualAnalyses==='function'?selectedVisualAnalyses():[],generation_mode:$('generation-mode').value||'designed-v1',lecture_format:$('lecture-format').value||'rich-v1',design_review:$('design-review').checked,...(typeof retrievalSelection==='function'&&retrievalSelection()?{retrieval_chunk_ids:retrievalSelection()}:{})});
 async function watchJob(id){
  if(typeof openWorkspacePage==="function")openWorkspacePage("workbench");
- const session=++watchSession;
+ const session=++watchSession;let saved=0;
  setBusy(true);error('');clearResult();$('empty').hidden=true;$('loading').hidden=false;
  window.liveLecture?.start(id);
  try{
@@ -45,7 +45,7 @@ async function watchJob(id){
      restoreLectureSettings(r);showResult(r,true,false);
      // Token counts read as a sentence; 查看生成输入 keeps the raw usage object.
      const usage=job.usage||{},parts=[usage.total_tokens!=null&&`${Number(usage.total_tokens).toLocaleString('zh-CN')} tokens`,usage.model_calls>1&&`${usage.model_calls} 次模型调用`].filter(Boolean);
-     $('progress').textContent=`已保存讲义 #${r.id} · 模型用时 ${Number(job.elapsed_seconds).toFixed(0)} 秒`+(parts.length?` · 用量 ${parts.join('，')}`:'');
+     saved=r.id;$('progress').textContent=`已保存讲义 #${r.id} · 模型用时 ${Number(job.elapsed_seconds).toFixed(0)} 秒`+(parts.length?` · 用量 ${parts.join('，')}`:'');
      await refreshHistory();break;
    }
    if(['failed','interrupted','cancelled'].includes(job.status)){
@@ -55,7 +55,7 @@ async function watchJob(id){
    await new Promise(resolve=>setTimeout(resolve,1000));
   }
  }catch(e){error(e.message+' 已提交任务可在“后台任务”重新查看，不必重复提交。');$('empty').hidden=false;}
- finally{if(session===watchSession){window.liveLecture?.stop();$('loading').hidden=true;setBusy(false);refreshJobs().catch(()=>{});}}
+ finally{if(session===watchSession){window.liveLecture?.stop();$('loading').hidden=true;setBusy(false);if(saved)window.ui?.done($('generate'),`已保存 #${saved}`);refreshJobs().catch(()=>{});}}
 }
 $('generate-form').onsubmit=async e=>{
  e.preventDefault();if(busy||!current)return;

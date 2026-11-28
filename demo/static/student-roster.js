@@ -159,7 +159,7 @@
         action:typed=>postDelete(`/api/students/${selected}/delete`,{confirm_name:typed})});
       if(!done)return;
       selected=null;record=null;window.selectedProfileStudentId=null;
-      location.hash='#profiles/students';await changed();note(`已删除学生「${p.name}」。`);
+      location.hash='#profiles/students';await changed();note(`已删除学生「${p.name}」。`);window.ui?.toast(`已删除学生「${p.name}」`);
     }catch(e){note(e.message);}
   };
   $('profile-start-lecture').onclick=()=>{
@@ -174,7 +174,7 @@
     const sid=Number($('add-existing-student').value);if(!sid)return;button.disabled=true;
     try{
       await api(`/api/classes/${scope.classId()}/students`,json({student_id:sid,move:$('add-existing-move').checked}));
-      $('add-existing-move').checked=false;await changed();note('已加入本班。');
+      $('add-existing-move').checked=false;await changed();note('已加入本班。');window.ui?.toast('已加入本班');
     }catch(e){note(e.message);}finally{button.disabled=false;drawExisting();}
   };
   $('new-student-form').onsubmit=async event=>{

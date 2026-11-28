@@ -158,6 +158,7 @@
       const d = await api(`/api/knowledge/drafts/${review_.uploadId}/confirm`, json('POST', {items, version: review_.version}));
       dialog.close();
       say(`已加入知识点库：新增 ${d.created} 个，合并到已有 ${d.reused} 个。备课勾选这些知识点后，会自动引用对应的资料片段。`);
+      window.ui?.toast(`已加入知识点库：新增 ${d.created} 个，合并 ${d.reused} 个`);
       await refresh();
     } catch (e) { $('knowledge-dialog-status').textContent = e.message; }
     finally { submit.disabled = false; }
@@ -165,7 +166,8 @@
 
   // The library tab.
   function sourceLink(m) {
-    const a = el('a', `${m.section || m.source_title} ↗`, 'knowledge-source');
+    const a = el('a', m.section || m.source_title, 'knowledge-source');
+    const go = window.ui?.icon('arrow-up-right'); if (go) a.append(go);
     a.href = sourceHref(m.source_url); a.target = '_blank'; a.rel = 'noopener noreferrer';
     return a;
   }

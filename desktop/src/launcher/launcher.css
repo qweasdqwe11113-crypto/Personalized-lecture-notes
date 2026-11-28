@@ -11,7 +11,7 @@
   --success-soft: #edf8f1;
   --danger: #b23e38;
   --danger-soft: #fff3f2;
-  font-family: Inter, "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
+  font-family: Inter, "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", sans-serif;
   color: var(--text);
   background: #f5f7fa;
 }

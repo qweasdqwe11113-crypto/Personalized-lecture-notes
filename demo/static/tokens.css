@@ -1,0 +1,99 @@
+/* Design tokens, loaded before every other stylesheet. Other files refer to these names, so a
+   change here moves the whole interface. Colours come from the brand blue #365bd6 (blue-500);
+   the greys carry a trace of its hue. Sizes follow one scale: 7 font sizes, 3 radii, 3 shadows,
+   3 durations. */
+:root {
+  /* Brand blue */
+  --blue-50: #f3f7ff;
+  --blue-100: #e5edff;
+  --blue-200: #cddcfe;
+  --blue-300: #a1bcff;
+  --blue-400: #658df9;
+  --blue-500: #365bd6;
+  --blue-600: #2b4bbe;
+  --blue-700: #203b9f;
+  --blue-800: #162b7a;
+  --blue-900: #0d1d57;
+
+  /* Neutral grey; 50 is the page background, the same as the desktop window and launcher */
+  --gray-25: #f8fafd;
+  --gray-50: #f5f7fa;
+  --gray-100: #eaeef5;
+  --gray-200: #dde3ec;
+  --gray-300: #c9d2de;
+  --gray-400: #98a6b9;
+  --gray-500: #65768d;
+  --gray-600: #485971;
+  --gray-700: #35465e;
+  --gray-800: #223249;
+  --gray-900: #132032;
+
+  /* Meaning: a strong colour for text and icons, a soft one for backgrounds */
+  --ok: #267b4c;
+  --ok-soft: #e7f9ec;
+  --warn: #845922;
+  --warn-soft: #fff6e4;
+  --bad: #af3d36;
+  --bad-soft: #fff2f0;
+
+  /* Roles */
+  --bg: var(--gray-50);
+  --surface: #fff;
+  --surface-2: var(--gray-25);
+  --fg: var(--gray-800);
+  --fg-strong: var(--gray-900);
+  --fg-2: var(--gray-700);
+  --muted: var(--gray-500);
+  --line: var(--gray-200);
+  --line-2: var(--gray-300);
+  --accent: var(--blue-500);
+  --accent-hover: var(--blue-600);
+  --accent-soft: var(--blue-100);
+  --accent-softer: var(--blue-50);
+  --on-accent: #fff;
+  --focus: var(--blue-300);
+  --scrim: rgb(19 32 50 / .34);
+  --skeleton: #e4e9f1;
+  --skeleton-hi: var(--gray-50);
+  --toast-bg: #18253a;
+  --toast-fg: #f1f5fb;
+  --toast-ok: #7fdca4;
+  --toast-link: #a9c1ff;
+  /* Older names still used by the page styles */
+  --success: var(--ok);
+  --success-soft: var(--ok-soft);
+  --warning: var(--warn);
+  --warning-soft: var(--warn-soft);
+  --danger: var(--bad);
+
+  /* Type. Chinese uses the system font: bundling one would add 10 MB or more. */
+  --font-sans: Inter, "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --fs-12: 12px;  /* notes, times */
+  --fs-13: 13px;  /* secondary text, buttons */
+  --fs-14: 14px;  /* body, forms */
+  --fs-16: 16px;  /* card titles */
+  --fs-18: 18px;  /* section titles */
+  --fs-22: 22px;  /* page titles */
+  --fs-28: 28px;  /* lecture title */
+
+  /* Shape */
+  --r-1: 6px;     /* tags, badges */
+  --r-2: 10px;    /* buttons, inputs */
+  --r-3: 14px;    /* cards, dialogs */
+  --r-pill: 999px;
+  --shadow-1: 0 1px 2px rgb(19 32 50 / .07);
+  --shadow-2: 0 1px 2px rgb(19 32 50 / .05), 0 8px 22px rgb(19 32 50 / .08);
+  --shadow-3: 0 6px 16px rgb(19 32 50 / .10), 0 22px 52px rgb(19 32 50 / .16);
+
+  /* Motion: buttons and hover 120ms, tabs and menus 200ms, dialogs and pages 320ms; only the
+     finished lecture gets 600ms. */
+  --d-1: 120ms;
+  --d-2: 200ms;
+  --d-3: 320ms;
+  --d-hero: 600ms;
+  --ease-out: cubic-bezier(.2, .8, .2, 1);    /* entering */
+  --ease-in: cubic-bezier(.4, 0, 1, 1);       /* leaving */
+  --ease-move: cubic-bezier(.65, 0, .35, 1);  /* moving between places */
+  --ease-spring: linear(0, 0.042, 0.144, 0.278, 0.42, 0.558, 0.681, 0.786, 0.871, 0.935, 0.982, 1.014, 1.033, 1.043, 1.046, 1.044, 1.04, 1.034, 1.027, 1.021, 1.015, 1.01, 1.006, 1.003, 1.001, 0.999, 0.999, 0.998, 0.998, 0.998, 0.998, 0.998, 1);
+}

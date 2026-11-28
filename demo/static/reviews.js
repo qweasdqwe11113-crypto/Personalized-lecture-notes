@@ -79,7 +79,7 @@ function drawVersionControls(){
 }
 async function loadLectureReview(result){
   const session=++reviewSession;reviewLecture=result;selectedRevision=0;lectureReviewData=null;
-  $('edit-lecture').disabled=true;$('version-controls').hidden=true;$('lecture-issues').replaceChildren(el('p','正在读取问题与版本…','helper'));
+  $('edit-lecture').disabled=true;$('version-controls').hidden=true;$('lecture-issues').replaceChildren(window.ui?.skeleton(3,'正在读取问题与版本…')||el('p','正在读取问题与版本…','helper'));
   drawQuality(result.quality_report || result.citation_check.quality_report,result.quality_report_origin || '生成时留存');
   try{
     const data=await api(`/api/lectures/${result.id}/review`);
@@ -169,7 +169,7 @@ $('revision-form').onsubmit=async e=>{
   const resolutions=[...$('revision-resolutions').querySelectorAll('.resolution-row')].filter(c=>c.querySelector('input').checked).map(c=>({issue_id:Number(c.dataset.issueId),note:c.querySelector('textarea').value}));
   try{
     const data=await api(`/api/lectures/${reviewLecture.id}/revisions`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_revision:editorData.expected_revision,base_revision:editorBase,content:$('revision-content').value,status:$('revision-status').value,recorder:$('revision-recorder').value,reason:$('revision-reason').value,review_seconds:Number($('revision-seconds').value),checklist,resolutions,confirmed:$('revision-confirmed').checked})});
-    lectureReviewData=data;editorData=data;editorBase=data.saved_revision;showReviewVersion(editorBase);drawEditor(true);$('lecture-editor-status').textContent=`已另存 R${editorBase}，原稿未改动；检查与修改位置已留存。`;
+    lectureReviewData=data;editorData=data;editorBase=data.saved_revision;showReviewVersion(editorBase);drawEditor(true);$('lecture-editor-status').textContent=`已另存 R${editorBase}，原稿未改动；检查与修改位置已留存。`;window.ui?.toast(`已另存为 R${editorBase}，原稿未改动`);
   }catch(err){editorError(err.message);$('revision-confirmed').checked=false;}finally{setEditorBusy(false);}
 };
 $('issue-form').onsubmit=async e=>{

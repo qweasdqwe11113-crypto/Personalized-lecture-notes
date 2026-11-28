@@ -27,7 +27,8 @@
     const label = collapsed ? '展开讲义设置' : '收起讲义设置';
     sidebarToggle.style.left = (collapsed ? 0 : actualWidth) + 'px';
     sidebarToggle.style.transform = 'none';
-    sidebarToggle.textContent = collapsed ? '»' : '«';
+    const use = sidebarToggle.querySelector('use');
+    if (use) use.setAttribute('href', use.getAttribute('href').replace(/#.*/, collapsed ? '#panel-left-open' : '#panel-left-close'));
     sidebarToggle.title = label;
     sidebarToggle.setAttribute('aria-label', label);
     sidebarToggle.setAttribute('aria-expanded', String(!collapsed));
@@ -92,7 +93,11 @@
   });
 
   // 折叠 / 展开：统一在这里处理，避免 app.js 与 layout.js 双重监听。
+  let settle = 0;
   sidebarToggle?.addEventListener('click', () => {
+    workspace.classList.add('is-animating');
+    clearTimeout(settle);
+    settle = setTimeout(() => workspace.classList.remove('is-animating'), 400);
     workspace.classList.toggle('settings-collapsed');
     placeToggle(Number(separator.getAttribute('aria-valuenow')) || preferred);
   });

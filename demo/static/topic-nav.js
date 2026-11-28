@@ -16,8 +16,9 @@
     const toggle = document.createElement('button');
     toggle.id = 'toc-toggle';
     toggle.className = 'toc-toggle-btn hidden';
-    toggle.innerHTML = '☰'; // 可以使用 SVG 或图标
+    toggle.append(window.ui?.icon('table-of-contents') || '☰');
     toggle.title = '查看目录';
+    toggle.setAttribute('aria-label', '查看目录');
     toggle.onclick = () => toggleSidebar(true);
     document.body.appendChild(toggle);
 
@@ -39,7 +40,9 @@
       </div>
       <div class="toc-list" id="toc-list"></div>
     `;
-    sidebar.querySelector('.toc-close-btn').onclick = () => toggleSidebar(false);
+    const close = sidebar.querySelector('.toc-close-btn');
+    close.replaceChildren(window.ui?.icon('x') || '×');
+    close.onclick = () => toggleSidebar(false);
     document.body.appendChild(sidebar);
   }
 
