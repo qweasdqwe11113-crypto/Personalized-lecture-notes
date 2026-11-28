@@ -8,13 +8,13 @@
 .paper-toolbar .download-group::before { content: '导出'; flex: 0 0 76px; font-size: var(--fs-12); font-weight: 600; color: var(--muted); }
 .paper-toolbar .download-group .download-format-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .action-group-prep { padding: 10px 12px; border-radius: var(--r-2); background: var(--accent-soft); }
-.action-group-prep .secondary { border-color: #c6d3fb; background: #fff; color: var(--accent); font-weight: 600; }
+.action-group-prep .secondary { border-color: var(--blue-200); background: var(--surface); color: var(--accent); font-weight: 600; }
 .action-group-prep .secondary:hover:not(:disabled) { background: var(--blue-50); }
-.prep-status { margin-left: auto; font-size: var(--fs-12); color: #4b5e86; }
+.prep-status { margin-left: auto; font-size: var(--fs-12); color: var(--gray-600); }
 
 /* Program checks stay visible above a long lecture. */
 .quality-jump { display: block; width: calc(100% - 50px); margin: 10px 25px 0; padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--r-2); background: var(--gray-25); color: var(--gray-700); font: inherit; font-size: var(--fs-13); text-align: left; cursor: pointer; }
-.quality-jump.has-warning { border-color: #f0d9a8; background: var(--warning-soft); color: var(--warning); }
+.quality-jump.has-warning { border-color: var(--warn-line); background: var(--warning-soft); color: var(--warning); }
 .quality-jump:hover { filter: brightness(.98); }
 
 /* Empty workbench: recent lectures are one click away. */
@@ -29,7 +29,7 @@
 .workflow-strip:not(.has-result) .workflow-step[data-step="1"] .workflow-number,
 .workflow-strip:not(.has-result) .workflow-step[data-step="2"] .workflow-number,
 .workflow-strip.has-result .workflow-step[data-step="3"] .workflow-number,
-.workflow-strip.has-result .workflow-step[data-step="4"] .workflow-number { background: var(--accent); color: #fff; }
+.workflow-strip.has-result .workflow-step[data-step="4"] .workflow-number { background: var(--accent); color: var(--on-accent); }
 .workflow-strip.has-result .workflow-step[data-step="1"], .workflow-strip.has-result .workflow-step[data-step="2"] { opacity: .65; }
 
 /* Grading: one explicit answer source. */
