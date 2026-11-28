@@ -16,7 +16,8 @@
     'profiles/students': '学生名单', 'profiles/resources': '班级资料', 'profiles/new': '新建学生', 'profiles/import': '批量导入学生资料'};
   // The desktop release has no fixed-experiment tab.
   const recordTypes = ['lectures', 'quizzes', 'grading', 'experiments'].filter(key => $('record-tab-' + key));
-  let active;
+  let active, shown;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)');
   function navigate(focus = false) {
     let hash = location.hash.slice(1);
     if (redirects[hash]) { hash = redirects[hash]; history.replaceState(null, '', '#' + hash); }
@@ -26,28 +27,36 @@
     const page = recordsRoute ? 'records' : materialRoute ? 'materials' : profileRoute ? 'profiles' : pages[hash] ? hash : aliases[hash] || 'workbench';
     if (!pages[hash] && !profileRoute && !materialRoute && !recordsRoute) history.replaceState(null, '', '#' + page);
     if (active === hash) return;
-    active = hash;
-    for (const key of Object.keys(pages)) $('page-' + key).hidden = key !== page;
-    for (const link of document.querySelectorAll('a[data-page]')) {
-      if (link.dataset.page === page) { link.setAttribute('aria-current', 'page'); if (link.scrollIntoView && link.parentElement.scrollWidth > link.parentElement.clientWidth) link.scrollIntoView({block: 'nearest', inline: 'nearest'}); }
-      else link.removeAttribute('aria-current');
-    }
-    const title = subTitles[hash] || (materialRoute ? '备课详情' : profileRoute ? '学生档案' : pages[page][0]);
-    $('page-title').textContent = title;
-    document.title = title + ' · 知页';
-    document.body.dataset.page = page;
-    const recordsTab = recordsRoute && recordTypes.includes(hash.split('/')[1]) ? hash.split('/')[1] : 'lectures';
-    for (const key of recordTypes) {
-      const selected = key === recordsTab;
-      $('record-tab-' + key).setAttribute('aria-selected', String(selected));
-      $('record-tab-' + key).tabIndex = selected ? 0 : -1;
-      $('record-panel-' + key).hidden = !selected;
-    }
-    if (page === 'records' && recordsTab === 'quizzes') window.dispatchEvent(new Event('quiz-history-open'));
-    if (page === 'records' && recordsTab === 'experiments') window.dispatchEvent(new Event('experiment-history-open'));
-    if (page === 'records' && recordsTab === 'grading') window.dispatchEvent(new Event('grading-history-open'));
-    window.scrollTo({top: 0});
-    if (focus) (recordsRoute ? $('record-tab-' + recordsTab) : $('page-title')).focus({preventScroll: true});
+    // A change of page plays a view transition: the old page fades up and out, the new one rises in
+    // (motion.css). Sub-pages and the first drawing switch at once.
+    const switching = shown !== undefined && shown !== page && document.startViewTransition && !reduce.matches;
+    active = hash; shown = page;
+    const update = () => {
+      for (const key of Object.keys(pages)) $('page-' + key).hidden = key !== page;
+      for (const link of document.querySelectorAll('a[data-page]')) {
+        if (link.dataset.page === page) { link.setAttribute('aria-current', 'page'); if (link.scrollIntoView && link.parentElement.scrollWidth > link.parentElement.clientWidth) link.scrollIntoView({block: 'nearest', inline: 'nearest'}); }
+        else link.removeAttribute('aria-current');
+      }
+      const title = subTitles[hash] || (materialRoute ? '备课详情' : profileRoute ? '学生档案' : pages[page][0]);
+      $('page-title').textContent = title;
+      document.title = title + ' · 知页';
+      document.body.dataset.page = page;
+      const recordsTab = recordsRoute && recordTypes.includes(hash.split('/')[1]) ? hash.split('/')[1] : 'lectures';
+      for (const key of recordTypes) {
+        const selected = key === recordsTab;
+        $('record-tab-' + key).setAttribute('aria-selected', String(selected));
+        $('record-tab-' + key).tabIndex = selected ? 0 : -1;
+        $('record-panel-' + key).hidden = !selected;
+      }
+      if (page === 'records' && recordsTab === 'quizzes') window.dispatchEvent(new Event('quiz-history-open'));
+      if (page === 'records' && recordsTab === 'experiments') window.dispatchEvent(new Event('experiment-history-open'));
+      if (page === 'records' && recordsTab === 'grading') window.dispatchEvent(new Event('grading-history-open'));
+      window.scrollTo({top: 0});
+      if (focus) (recordsRoute ? $('record-tab-' + recordsTab) : $('page-title')).focus({preventScroll: true});
+    };
+    if (!switching) { update(); return; }
+    document.documentElement.classList.add('page-switching');
+    document.startViewTransition(update).finished.finally(() => document.documentElement.classList.remove('page-switching'));
   }
   window.addEventListener('hashchange', () => navigate(true));
   for (const key of recordTypes) {

@@ -6,7 +6,7 @@
   const order = ['needs_support', 'partial', 'mastered', 'unknown'];
   const labels = {needs_support: '需要补充', partial: '部分掌握', mastered: '已掌握', unknown: '未诊断'};
   const tabs = {profile: ['class-tab-profile', 'class-panel-profile', 'profiles'], students: ['class-tab-students', 'class-panel-students', 'profiles/students'], resources: ['class-tab-resources', 'class-panel-resources', 'profiles/resources']};
-  let version = 0, loaded = null, recorder = '', scoped = false;
+  let version = 0, loaded = null, recorder = '', scoped = false, revealed = false;
   const status = (message, failed = false) => { $('class-edit-status').textContent = message || ''; $('class-edit-status').dataset.error = String(failed); };
   function view() {
     const hash = location.hash.slice(1);
@@ -65,10 +65,26 @@
       $('class-profile-points').replaceChildren(el('p', e.message, 'helper'));
     }
   }
-  function bar(counts, total) {
+  // The first distribution drawn in this window grows from the left, row after row, and its numbers
+  // count up while it grows (motion.css). Later redraws, and reduced motion, show it at once.
+  function countUp(box) {
+    const segs = [...box.children].map(seg => [seg, Number(seg.textContent)]), begin = performance.now();
+    const step = now => {
+      const k = Math.min(1, (now - begin) / 500), eased = 1 - (1 - k) ** 3;
+      for (const [seg, n] of segs) seg.textContent = String(Math.round(n * eased));
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+  function bar(counts, total, reveal = -1) {
     const box = el('div', undefined, 'class-bar'); box.setAttribute('role', 'img');
     box.setAttribute('aria-label', order.filter(s => counts[s]).map(s => `${labels[s]} ${counts[s]} 人`).join('，') || '暂无学生');
     for (const s of order) if (counts[s]) { const seg = el('span', String(counts[s]), 'class-bar-seg ' + s); seg.style.flexGrow = String(counts[s]); seg.title = `${labels[s]} ${counts[s]} / ${total}`; box.append(seg); }
+    if (reveal >= 0) {
+      box.classList.add('is-revealing'); box.style.setProperty('--i', String(Math.min(reveal, 8)));
+      // Starts when the page is on screen: a profile loaded behind another page waits for it.
+      box.addEventListener('animationstart', () => countUp(box), {once: true});
+    }
     return box;
   }
   const studentLink = s => { const a = el('a', s.name); a.href = '#profiles/' + s.id; return a; };
@@ -81,11 +97,12 @@
     const total = d.students.length;
     $('class-profile-summary').textContent = !total ? '班级还没有学生。' : !d.points.length ? `班内 ${total} 名学生；本课程还没有含知识点的备课。` :
       `班内 ${total} 名学生 · ${d.points.length} 个知识点 · 已有诊断 ${d.coverage.diagnosed} / ${d.coverage.cells} 项`;
-    $('class-profile-points').replaceChildren(...d.points.map(p => {
+    const reveal = !revealed && d.points.length > 0; if (reveal) revealed = true;
+    $('class-profile-points').replaceChildren(...d.points.map((p, index) => {
       const row = el('details', undefined, 'class-point');
       const head = el('summary'); const title = el('div', undefined, 'class-point-title');
       title.append(el('strong', p.name), el('span', p.label, 'badge ' + p.state));
-      head.append(title, bar(p.counts, total), el('span', p.summary, 'helper class-point-summary'));
+      head.append(title, bar(p.counts, total, reveal ? index : -1), el('span', p.summary, 'helper class-point-summary'));
       const groups = el('div', undefined, 'class-point-groups');
       for (const s of order) if (p.students[s].length) {
         const line = el('p'); line.append(el('span', labels[s] + '：', 'legend ' + s));

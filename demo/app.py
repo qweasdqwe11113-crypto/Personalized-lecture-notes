@@ -1,6 +1,7 @@
 """Local teaching workspace with separate language, vision and embedding services."""
 import json
 import math
+import mimetypes
 import os
 import re
 import statistics
@@ -56,6 +57,10 @@ from retrieval import (KEPT as KEPT_CHUNK, MODES as RETRIEVAL_MODES, RetrievalEr
 # development, the user's own folder in the desktop release.
 DATA = data_dir()
 load_dotenv(DATA / '.env')
+# Module scripts (static/lists.js and the AutoAnimate module it imports) load only when served as
+# JavaScript; on Windows the registry can map these extensions to another type.
+mimetypes.add_type('text/javascript', '.js')
+mimetypes.add_type('text/javascript', '.mjs')
 app = Flask(__name__)
 register_model_settings(app, DATA / '.env')
 app.config['MAX_CONTENT_LENGTH'] = 11 * 1024 * 1024

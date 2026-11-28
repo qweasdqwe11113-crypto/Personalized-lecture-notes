@@ -17,12 +17,15 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; }
-body {
-  min-height: 100vh;
+body { min-height: 100vh; background: #f5f7fa; }
+/* The gradient sits on its own layer so it can fade out with the card, leaving the workspace's
+   plain #f5f7fa underneath: the hand-over to the workspace page does not flash. */
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background:
     radial-gradient(60rem 40rem at 85% -10%, #e4ebff 0%, rgba(228, 235, 255, 0) 60%),
-    radial-gradient(50rem 36rem at -10% 110%, #eaf3ff 0%, rgba(234, 243, 255, 0) 55%),
-    #f5f7fa;
+    radial-gradient(50rem 36rem at -10% 110%, #eaf3ff 0%, rgba(234, 243, 255, 0) 55%);
+  transition: opacity 250ms cubic-bezier(.4, 0, 1, 1);
 }
 button { font: inherit; }
 
@@ -107,4 +110,13 @@ button:focus-visible { outline: 3px solid #9db5fa; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .progress i { transition: none; }
   .step[data-state=running] .step-icon { animation: none; border-color: var(--accent); }
+}
+
+/* Service ready: the card shrinks and fades (250 ms) before the main process opens the workspace. */
+.card, .note { transition: opacity 250ms cubic-bezier(.4, 0, 1, 1), scale 250ms cubic-bezier(.4, 0, 1, 1); }
+body[data-phase=opening]::before, body[data-phase=opening] .card, body[data-phase=opening] .note { opacity: 0; }
+body[data-phase=opening] .card { scale: .96; }
+@media (prefers-reduced-motion: reduce) {
+  .card, .note, body::before { transition-duration: 100ms; }
+  body[data-phase=opening] .card { scale: none; }
 }

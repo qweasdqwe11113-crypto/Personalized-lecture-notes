@@ -253,6 +253,7 @@ Third-party material keeps its own terms and is not relicensed:
 | --- | --- | --- |
 | KaTeX 0.16.11 | `demo/static/vendor/katex/` | MIT (license in that folder) |
 | Lucide 0.469.0 icons (only the shapes the interface uses, copied unchanged; rebuilt by `tools/build_icons.py`) | `demo/static/vendor/lucide/` | ISC, with portions from Feather under MIT (license in that folder) |
+| AutoAnimate 0.10.2 list transitions (`index.mjs` copied unchanged) | `demo/static/vendor/auto-animate/` | MIT (license in that folder) |
 | Slide templates from the LibreOffice design candidates | `assets/ppt-templates/` | CC0 and MIT, see `assets/ppt-templates/licenses/` |
 | Bundled in the desktop packages | PostgreSQL 17, CPython 3.12, Electron with Chromium, and the Python packages in `requirements.txt` | Each under its own license (PostgreSQL License, PSF License, MIT, BSD, Apache-2.0 and similar; psycopg is LGPL-3.0). The license texts ship inside the packages |
 

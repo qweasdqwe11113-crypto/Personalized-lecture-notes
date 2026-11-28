@@ -123,10 +123,11 @@
       if (m !== 'all' && window.courseKnowledge) await window.courseKnowledge.load().catch(() => {});
       const data = await api(listUrl(m));
       if (version !== listVersion) return;
-      const list = $('upload-list'); list.replaceChildren();
+      const list = $('upload-list'), rows = [];
       $('upload-library-title').textContent = m === 'class' ? `班级资料 · ${data.uploads.length} 份` : m === 'course' ? `课程资料 · ${data.uploads.length} 份` : '课程资料';
-      if (!data.uploads.length) { const empty = el('div', undefined, 'upload-library-empty'); const mark = el('span'); const glyph = window.ui?.icon('inbox'); if (glyph) mark.append(glyph); empty.append(mark, el('strong', m === 'class' ? '本班还没有专用资料' : '还没有上传资料'), el('p', m === 'class' ? '上传本班试卷、专用讲义等，收录后只用于本班。' : '从本地文件或网址开始，添加第一份教学资料。')); list.append(empty); }
-      for (const item of data.uploads) list.append(uploadRow(item, standardActions(item)));
+      if (!data.uploads.length) { const empty = el('div', undefined, 'upload-library-empty'); const mark = el('span'); const glyph = window.ui?.icon('inbox'); if (glyph) mark.append(glyph); empty.append(mark, el('strong', m === 'class' ? '本班还没有专用资料' : '还没有上传资料'), el('p', m === 'class' ? '上传本班试卷、专用讲义等，收录后只用于本班。' : '从本地文件或网址开始，添加第一份教学资料。')); rows.push(empty); }
+      for (const item of data.uploads) rows.push(uploadRow(item, standardActions(item)));
+      (window.ui?.morph || ((box, nodes) => box.replaceChildren(...nodes)))(list, rows);
       if (m === 'course') await refreshUnassigned(version);
       else $('upload-unassigned-box').hidden = true;
     } catch (e) { if (version === listVersion) $('upload-list').replaceChildren(el('p', e.message, 'helper')); }

@@ -1,7 +1,7 @@
 'use strict';
 /* 知页 desktop client: starts the bundled database and service, shows the start-up screen while
    they come up, then opens the workspace page in the same window. */
-const {app, BrowserWindow, Menu, dialog, ipcMain, net, session, shell} = require('electron');
+const {app, BrowserWindow, Menu, Notification, dialog, ipcMain, net, session, shell} = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
@@ -127,6 +127,10 @@ async function boot() {
 async function openWorkspace(url) {
   if (!win || win.isDestroyed()) return;
   publish({phase: 'opening', lead: '正在打开工作空间…'});
+  // The start-up card shrinks and fades first (launcher.css, 250 ms); the two pages have different
+  // origins, so a cross-document view transition cannot join them.
+  await new Promise(resolve => setTimeout(resolve, 260));
+  if (!win || win.isDestroyed()) return;
   await win.loadURL(url + '/').catch(error => runtime && runtime.log.line('client', `页面加载失败：${error.message}`));
 }
 
@@ -396,6 +400,33 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+// ---------------------------------------------------------------- long jobs outside the window
+
+/** Progress of a running lecture on the taskbar or dock icon: 0..1, anything else removes it. */
+function taskbarProgress(value) {
+  if (!win || win.isDestroyed()) return;
+  win.setProgressBar(typeof value === 'number' && value >= 0 && value <= 1 ? value : -1);
+}
+
+/** A finished job while the teacher works in another window: a system notice (clicking it brings
+    the window back) and, on Windows, a flashing taskbar button until the window is focused. */
+const notices = new Set();
+function notifyInBackground(title, body) {
+  if (!win || win.isDestroyed() || win.isFocused()) return false;
+  if (process.platform === 'win32') {
+    win.flashFrame(true);
+    win.once('focus', () => { if (win && !win.isDestroyed()) win.flashFrame(false); });
+  }
+  if (!Notification.isSupported()) return false;
+  const notice = new Notification({title: String(title || productName).slice(0, 80), body: String(body || '').slice(0, 200)});
+  // Held until it closes, so it is not collected while it is still on screen and can be clicked.
+  notices.add(notice);
+  notice.on('close', () => notices.delete(notice));
+  notice.on('click', () => { notices.delete(notice); if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
+  notice.show();
+  return true;
+}
+
 // ---------------------------------------------------------------- IPC from the two kinds of page
 
 function from(event, kinds) {
@@ -416,6 +447,8 @@ function registerIpc() {
   handle('desktop:open-logs', ['launcher', 'app'], () => shell.openPath(path.join(dataDir(), 'logs')));
   handle('desktop:open-data', ['launcher', 'app'], () => shell.openPath(dataDir()));
   handle('desktop:restart-service', ['app'], () => restartService());
+  handle('desktop:progress', ['app'], value => taskbarProgress(value));
+  handle('desktop:notify', ['app'], (title, body) => notifyInBackground(title, body));
   handle('launcher:state', ['launcher'], () => state);
   handle('launcher:retry', ['launcher'], () => (state && state.error && state.error.step === 'service' && runtime && runtime.postgres.port ? restartService() : boot()));
   handle('launcher:choose-data', ['launcher'], () => chooseDataDir());

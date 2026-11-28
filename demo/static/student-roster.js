@@ -70,7 +70,7 @@
     const cls=scope?.klass();if(!cls)return;
     const members=new Set(cls.student_ids),list=students.filter(s=>members.has(s.id));
     $('student-roster-title').textContent=`${cls.name} · ${list.length} 名学生`;
-    $('student-roster').replaceChildren(...list.map(s=>{
+    (window.ui?.morph||((box,nodes)=>box.replaceChildren(...nodes)))($('student-roster'),list.map(s=>{
       const card=el('div',undefined,'student-card roster-card');
       const link=el('a',undefined,'roster-card-main');link.href='#profiles/'+s.id;
       link.append(el('strong',s.name),el('span',s.subtitle,'helper'),el('p',s.profile,'evidence'),el('span','查看档案 →','student-card-action'));
