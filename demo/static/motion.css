@@ -71,7 +71,7 @@ a[data-page] { transition: background-color var(--d-1), color var(--d-1); }
 .live-dot { animation: pulse-dot 1.1s ease-in-out infinite; }
 .live-text > :last-child::after { animation: caret-blink 1s steps(1) infinite; }
 .live-chip.live-writing, .batch-row.batch-running, .batch-row.batch-queued {
-  background-image: linear-gradient(100deg, transparent 30%, #ffffffb3 50%, transparent 70%);
+  background-image: linear-gradient(100deg, transparent 30%, var(--shine) 50%, transparent 70%);
   background-size: 200% 100%; animation: shimmer 1.6s linear infinite;
 }
 .skeleton-line { animation: shimmer 1.4s linear infinite; }
@@ -91,11 +91,13 @@ html:not(.entered) #result-paper { animation: rise-in var(--d-3) var(--ease-out)
 @keyframes page-in { from { opacity: 0; transform: translateY(8px); } }
 .workspace-page:not([hidden]) { view-transition-name: page; }
 html.page-switching .workspace-page { animation: none; }
-::view-transition-old(root) { animation: none; opacity: 0; }
-::view-transition-new(root) { animation: none; }
-::view-transition-group(page) { animation-duration: var(--d-3); animation-timing-function: var(--ease-move); }
-::view-transition-old(page) { animation: page-out var(--d-2) var(--ease-in) both; }
-::view-transition-new(page) { animation: page-in var(--d-3) var(--ease-out) 60ms both; }
+html.page-switching::view-transition-old(root) { animation: none; opacity: 0; }
+html.page-switching::view-transition-new(root) { animation: none; }
+/* A theme change cross-fades the whole window (the browser's default view transition), 200 ms. */
+::view-transition-group(root) { animation-duration: var(--d-2); }
+html.page-switching::view-transition-group(page) { animation-duration: var(--d-3); animation-timing-function: var(--ease-move); }
+html.page-switching::view-transition-old(page) { animation: page-out var(--d-2) var(--ease-in) both; }
+html.page-switching::view-transition-new(page) { animation: page-in var(--d-3) var(--ease-out) 60ms both; }
 
 /* Lecture generation: the current step breathes, the bar moves on, a finished step pops its tick. */
 @keyframes breathe { 50% { opacity: .45; } }
@@ -111,10 +113,21 @@ html.page-switching .workspace-page { animation: none; }
 @keyframes bar-grow { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
 .class-bar.is-revealing { animation: bar-grow 600ms var(--ease-out) calc(var(--i, 0) * 100ms) both; }
 
+/* Drawn select lists and toolbar menus open downward out of their button and fade when closed. */
+::picker(select), .menu, .cite-card {
+  opacity: 0; translate: 0 -4px;
+  transition: opacity var(--d-1) var(--ease-in), translate var(--d-1) var(--ease-in),
+    overlay var(--d-1) allow-discrete, display var(--d-1) allow-discrete;
+}
+.menu:popover-open, .cite-card:popover-open, select:open::picker(select) { opacity: 1; translate: 0 0; transition-duration: var(--d-2); transition-timing-function: var(--ease-out); }
+@starting-style { select:open::picker(select), .menu:popover-open, .cite-card:popover-open { opacity: 0; translate: 0 -4px; } }
+.menu-chevron { transition: rotate var(--d-2) var(--ease-out); }
+.menu-button:has(+ .menu:popover-open) .menu-chevron { rotate: 180deg; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after, ::backdrop { animation: none !important; transition-duration: 0s !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
   /* Things still fade in place, briefly; nothing moves or grows. */
-  dialog, dialog::backdrop, .toast { transform: none !important; translate: none !important; transition-duration: 100ms !important; }
+  dialog, dialog::backdrop, .toast, ::picker(select), .menu, .cite-card { transform: none !important; translate: none !important; transition-duration: 100ms !important; }
   /* A spinner is the sign that work goes on, so it keeps turning. */
   .spinner, .icon.spin { animation: spin 1s linear infinite !important; }
 }

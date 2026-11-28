@@ -9,7 +9,7 @@
 .grading-question h3{font-size:var(--fs-16);margin:0 0 12px}
 .grading-question p,#grading-extraction pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:var(--fs-14)}
 .grading-question .grading-basis{font-size:var(--fs-12);color:var(--muted)}
-.grading-pending{border-color:#e6bb60;background:#fffcf3}
+.grading-pending{border-color: var(--warn-line);background: var(--gray-25)}
 #grading-history{display:grid;gap:10px}
 #grading-history button{text-align:left;padding:12px;border:1px solid var(--line);border-radius:var(--r-2);background:var(--gray-25);color:inherit;font:inherit;font-size:var(--fs-14)}
 #grading-extraction{border-top:1px solid var(--line);padding-top:16px;margin-top:20px}
@@ -20,11 +20,11 @@
 .grading-evidence-fields :is(select,input){width:100%;min-width:0}
 .grading-evidence-drafts{display:grid;gap:14px}
 .evidence-draft{border:1px solid var(--line);border-radius:var(--r-2);padding:14px 16px;background:var(--gray-25)}
-.evidence-draft.saved{background:var(--success-soft);border-color:#bfe3cf}
+.evidence-draft.saved{background:var(--success-soft);border-color: var(--ok-line)}
 .evidence-draft h3{margin:0 0 4px;font-size:var(--fs-14)}
 .evidence-draft label{display:block;font-size:var(--fs-13);font-weight:600;margin:10px 0 5px}
 .evidence-draft textarea{width:100%;font:inherit;font-size:var(--fs-13)}
 .evidence-draft-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 14px;align-items:end}
 .evidence-draft-row :is(select,input){width:100%;min-width:0}
 .evidence-draft .trace-actions{margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.grading-history-row{display:flex;gap:8px;align-items:stretch}.grading-history-row>button:first-child{flex:1;min-width:0}#grading-history .grading-history-row .delete-entry{flex:none;text-align:center;background:#fff}
+.grading-history-row{display:flex;gap:8px;align-items:stretch}.grading-history-row>button:first-child{flex:1;min-width:0}#grading-history .grading-history-row .delete-entry{flex:none;text-align:center;background: var(--surface)}

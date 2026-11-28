@@ -35,6 +35,10 @@
   --warn-soft: #fff6e4;
   --bad: #af3d36;
   --bad-soft: #fff2f0;
+  /* Borders of the tinted notes */
+  --ok-line: #bfe3cf;
+  --warn-line: #f0d9a8;
+  --bad-line: #f2c9c4;
 
   /* Roles */
   --bg: var(--gray-50);
@@ -59,6 +63,7 @@
   --toast-fg: #f1f5fb;
   --toast-ok: #7fdca4;
   --toast-link: #a9c1ff;
+  --shine: rgb(255 255 255 / .7);   /* the light sweeping over a working row */
   /* Older names still used by the page styles */
   --success: var(--ok);
   --success-soft: var(--ok-soft);
@@ -96,4 +101,54 @@
   --ease-in: cubic-bezier(.4, 0, 1, 1);       /* leaving */
   --ease-move: cubic-bezier(.65, 0, .35, 1);  /* moving between places */
   --ease-spring: linear(0, 0.042, 0.144, 0.278, 0.42, 0.558, 0.681, 0.786, 0.871, 0.935, 0.982, 1.014, 1.033, 1.043, 1.046, 1.044, 1.04, 1.034, 1.027, 1.021, 1.015, 1.01, 1.006, 1.003, 1.001, 0.999, 0.999, 0.998, 0.998, 0.998, 0.998, 0.998, 1);
+}
+
+/* Dark: the same names with dark values. theme-init.js sets data-theme on <html> before the page
+   draws, from the choice in 系统设置 (follow the system by default). The grey and blue ramps turn
+   around, so a background that used a light step gets a dark one and text gets a light one. */
+:root { color-scheme: light; }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --blue-50: #172038;
+  --blue-100: #1d2a4a;
+  --blue-200: #283a66;
+  --blue-300: #3b5291;
+  --blue-400: #5677d6;
+  --blue-500: #7b9bff;
+  --blue-600: #93adff;
+  --blue-700: #aec2ff;
+  --blue-800: #c9d6ff;
+  --blue-900: #e2e9ff;
+  --gray-25: #141b25;
+  --gray-50: #10161f;
+  --gray-100: #1d2633;
+  --gray-200: #2a3443;
+  --gray-300: #3a4657;
+  --gray-400: #5d6b7f;
+  --gray-500: #8d9bb0;
+  --gray-600: #a9b5c6;
+  --gray-700: #c3ccd9;
+  --gray-800: #dde3ec;
+  --gray-900: #f1f4f9;
+  --ok: #5fd08f;
+  --ok-soft: #132a1f;
+  --ok-line: #24503a;
+  --warn: #e6b45f;
+  --warn-soft: #2b2113;
+  --warn-line: #5a4421;
+  --bad: #ff8f86;
+  --bad-soft: #2e1716;
+  --bad-line: #5a2a27;
+  --surface: #18202b;
+  --on-accent: #0d1530;
+  --focus: #7b9bff;
+  --scrim: rgb(0 0 0 / .55);
+  --skeleton: #222c3a;
+  --skeleton-hi: #2b3647;
+  --toast-bg: #26324a;
+  --shine: rgb(255 255 255 / .08);
+  --state-unknown: #3a4657;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / .35);
+  --shadow-2: 0 1px 2px rgb(0 0 0 / .3), 0 8px 22px rgb(0 0 0 / .35);
+  --shadow-3: 0 6px 16px rgb(0 0 0 / .4), 0 22px 52px rgb(0 0 0 / .5);
 }

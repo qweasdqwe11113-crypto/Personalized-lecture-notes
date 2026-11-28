@@ -7,7 +7,7 @@
   height: 48px;
   border-radius: 50%;
   background: var(--blue-500); /* 主题蓝 */
-  color: #fff;
+  color: var(--on-accent);
   border: none;
   box-shadow: var(--shadow-2);
   cursor: pointer;
@@ -27,7 +27,7 @@
   right: -320px;
   width: 300px;
   height: 100vh;
-  background: #fff;
+  background: var(--surface);
   box-shadow: -2px 0 16px rgba(0,0,0,0.1);
   z-index: 1001;
   transition: right var(--d-3) ease;
@@ -64,7 +64,7 @@
 .toc-item {
   display: block;
   padding: 8px 20px;
-  color: #555;
+  color: var(--gray-600);
   text-decoration: none;
   font-size: var(--fs-14);
   cursor: pointer;
@@ -78,8 +78,8 @@
 /* 不同层级缩进 */
 .toc-level-1 { padding-left: 20px; font-weight: 600; font-size: var(--fs-14); }
 .toc-level-2 { padding-left: 36px; }
-.toc-level-3 { padding-left: 52px; font-size: var(--fs-13); color: #666; }
-.toc-level-4 { padding-left: 68px; font-size: var(--fs-12); color: #888; }
+.toc-level-3 { padding-left: 52px; font-size: var(--fs-13); color: var(--gray-500); }
+.toc-level-4 { padding-left: 68px; font-size: var(--fs-12); color: var(--gray-500); }
 
 /* 遮罩层（手机端点击空白关闭） */
 .toc-overlay {

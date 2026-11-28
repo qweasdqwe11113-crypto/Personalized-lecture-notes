@@ -125,8 +125,25 @@ function morph(box, nodes) {
   wanted.forEach((node, i) => { if (box.children[i] !== node) box.insertBefore(node, box.children[i] || null); });
 }
 
+// A menu (a popover of actions) closes once one of its actions is chosen.
+document.addEventListener('click', event => {
+  const item = event.target.closest?.('.menu button, .menu a');
+  if (item) item.closest('[popover]')?.hidePopover();
+});
+
 window.ui = {icon, toast, done, skeleton, tabIndicator, morph};
 document.addEventListener('DOMContentLoaded', () => {
+  // 系统设置 → 外观: follow the system, or always light or dark (theme-init.js applies it).
+  const theme = window.zhiyeTheme;
+  for (const radio of document.querySelectorAll('input[name="theme"]')) {
+    radio.checked = theme ? radio.value === theme.get() : radio.value === 'auto';
+    radio.addEventListener('change', () => {
+      if (!radio.checked || !theme) return;
+      const change = () => theme.set(radio.value);
+      if (document.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.startViewTransition(change);
+      else change();
+    });
+  }
   // The entry sequence (motion.css) plays once; after it, pages that appear later come in plainly.
   setTimeout(() => document.documentElement.classList.add('entered'), 900);
   document.querySelectorAll('.record-tabs, .upload-tabs').forEach(list => tabIndicator(list));

@@ -120,3 +120,22 @@ body[data-phase=opening] .card { scale: .96; }
   .card, .note, body::before { transition-duration: 100ms; }
   body[data-phase=opening] .card { scale: none; }
 }
+
+/* Dark system theme: the same dark colours as the workspace (tokens.css), so the hand-over still
+   does not flash. The start-up screen follows the system; the workspace may override it. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --accent: #7b9bff; --accent-hover: #93adff; --accent-soft: #1d2a4a;
+    --ink: #f1f4f9; --text: #c3ccd9; --muted: #8d9bb0; --line: #2a3443;
+    --success: #5fd08f; --success-soft: #132a1f; --danger: #ff8f86; --danger-soft: #2e1716;
+    background: #10161f;
+  }
+  body { background: #10161f; }
+  body::before { opacity: .12; }
+  .card { background: #18202b; box-shadow: 0 1px 2px rgb(0 0 0 / .35), 0 18px 48px rgb(0 0 0 / .45); }
+  .progress { background: #222c3a; }
+  .actions button { color: #c3ccd9; background: #18202b; border-color: #3a4657; }
+  .actions button:hover { background: #1d2a4a; border-color: #3b5291; }
+  .actions .primary, .actions .primary:hover { color: #0d1530; }
+}
