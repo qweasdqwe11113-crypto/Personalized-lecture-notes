@@ -1,7 +1,7 @@
 {
   "name": "zhiye-desktop",
   "productName": "知页",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "知页桌面客户端：在本机启动数据库与服务，打开教学工作空间。",
   "author": "知页项目组",
