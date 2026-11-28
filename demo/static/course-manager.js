@@ -30,7 +30,7 @@
       status('course-reference-status',d.materials.length+' 条参考资料');
       $('course-reference-list').replaceChildren(...d.materials.map(m=>{
         const box=el('details',undefined,'source');box.append(el('summary','M'+m.id+' · '+m.title),el('p',m.content));
-        const link=el('a',m.source_title+' · 查看原始资料 ↗');link.href=sourceHref(m.source_url);link.target='_blank';link.rel='noopener noreferrer';box.append(link);return box;
+        const link=el('a',m.source_title+' · 查看原始资料');const go=window.ui?.icon('arrow-up-right');if(go)link.append(go);link.href=sourceHref(m.source_url);link.target='_blank';link.rel='noopener noreferrer';box.append(link);return box;
       }));
       if(!d.materials.length)$('course-reference-list').append(el('p','尚未添加参考资料。也可以直接根据教学目标和教案生成讲义。','helper'));
     }catch(e){if(token===referenceVersion)status('course-reference-status',e.message,true);}
@@ -168,7 +168,7 @@
   };
   $('duplicate-course-task').onclick=async()=>{
     if(!editing||saving||busy)return;freezeForm(true);
-    try{const d=await api('/api/course-tasks/'+editing.key+'/copy',{method:'POST'});editing={key:d.key,...d.task};await refreshCatalog(d.key);await refreshWorkspaceCatalog();if(scope)await scope.refresh();status('course-manager-status','已复制教案、目标和参考资料，可独立修改。');}
+    try{const d=await api('/api/course-tasks/'+editing.key+'/copy',{method:'POST'});editing={key:d.key,...d.task};await refreshCatalog(d.key);await refreshWorkspaceCatalog();if(scope)await scope.refresh();status('course-manager-status','已复制教案、目标和参考资料，可独立修改。');window.ui?.toast('已复制备课');}
     catch(e){status('course-manager-status',e.message,true);}
     finally{freezeForm(false);}
   };

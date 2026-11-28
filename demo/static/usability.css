@@ -4,16 +4,16 @@
 #result-paper:not(.has-result) .paper-actions { display: none; }
 .paper-toolbar > .paper-actions { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; }
 .action-group, .paper-toolbar .download-group { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: 0; }
-.action-group-label { flex: 0 0 76px; font-size: 12px; font-weight: 600; color: var(--muted); }
-.paper-toolbar .download-group::before { content: '导出'; flex: 0 0 76px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.action-group-label { flex: 0 0 76px; font-size: var(--fs-12); font-weight: 600; color: var(--muted); }
+.paper-toolbar .download-group::before { content: '导出'; flex: 0 0 76px; font-size: var(--fs-12); font-weight: 600; color: var(--muted); }
 .paper-toolbar .download-group .download-format-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-.action-group-prep { padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); }
+.action-group-prep { padding: 10px 12px; border-radius: var(--r-2); background: var(--accent-soft); }
 .action-group-prep .secondary { border-color: #c6d3fb; background: #fff; color: var(--accent); font-weight: 600; }
-.action-group-prep .secondary:hover:not(:disabled) { background: #f6f8ff; }
-.prep-status { margin-left: auto; font-size: 12px; color: #4b5e86; }
+.action-group-prep .secondary:hover:not(:disabled) { background: var(--blue-50); }
+.prep-status { margin-left: auto; font-size: var(--fs-12); color: #4b5e86; }
 
 /* Program checks stay visible above a long lecture. */
-.quality-jump { display: block; width: calc(100% - 50px); margin: 10px 25px 0; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: #f7f9fc; color: #33435c; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.quality-jump { display: block; width: calc(100% - 50px); margin: 10px 25px 0; padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--r-2); background: var(--gray-25); color: var(--gray-700); font: inherit; font-size: var(--fs-13); text-align: left; cursor: pointer; }
 .quality-jump.has-warning { border-color: #f0d9a8; background: var(--warning-soft); color: var(--warning); }
 .quality-jump:hover { filter: brightness(.98); }
 
@@ -22,7 +22,7 @@
 .empty-recent .helper { margin: 0; }
 #empty-recent-list { display: grid; gap: 6px; width: min(420px, 100%); }
 #empty-recent-list button { justify-content: flex-start; text-align: left; white-space: normal; }
-.history-date { display: block; margin-top: 2px; font-size: 11px; font-weight: 400; color: var(--muted); }
+.history-date { display: block; margin-top: 2px; font-size: var(--fs-12); font-weight: 400; color: var(--muted); }
 
 /* Workflow strip shows where the teacher is. */
 .workflow-step { display: inline-flex; align-items: center; gap: 8px; }
@@ -33,14 +33,14 @@
 .workflow-strip.has-result .workflow-step[data-step="1"], .workflow-strip.has-result .workflow-step[data-step="2"] { opacity: .65; }
 
 /* Grading: one explicit answer source. */
-.grading-answer-source { border: 1px solid var(--line); border-radius: 9px; margin: 18px 0 4px; padding: 10px 14px 12px; display: grid; gap: 8px; }
-.grading-answer-source legend { font-size: 14px; font-weight: 600; padding: 0 4px; }
-.grading-answer-source label { display: flex !important; align-items: flex-start; gap: 10px; margin: 0 !important; padding: 6px 4px; border-radius: 7px; cursor: pointer; }
+.grading-answer-source { border: 1px solid var(--line); border-radius: var(--r-2); margin: 18px 0 4px; padding: 10px 14px 12px; display: grid; gap: 8px; }
+.grading-answer-source legend { font-size: var(--fs-14); font-weight: 600; padding: 0 4px; }
+.grading-answer-source label { display: flex !important; align-items: flex-start; gap: 10px; margin: 0 !important; padding: 6px 4px; border-radius: var(--r-1); cursor: pointer; }
 .grading-answer-source label:has(input:checked) { background: var(--accent-soft); }
 .grading-answer-source input[type=radio] { flex: none; width: auto; margin: 3px 0 0; }
 .grading-answer-source .choice { display: grid; gap: 2px; min-width: 0; }
-.grading-answer-source .choice strong { font-size: 13px; font-weight: 600; color: #233249; }
-.grading-answer-source .choice small { font-size: 12px; font-weight: 400; color: var(--muted); }
+.grading-answer-source .choice strong { font-size: var(--fs-13); font-weight: 600; color: var(--gray-800); }
+.grading-answer-source .choice small { font-size: var(--fs-12); font-weight: 400; color: var(--muted); }
 #grading-answer-quiz select { width: 100%; }
 
 @media (max-width: 760px) {
@@ -59,6 +59,6 @@
   .action-group:not(.action-group-prep) .action-group-label, .paper-toolbar .download-group::before { flex: 0 0 auto; margin-right: 2px; }
   .paper-actions .action-group .secondary, .paper-toolbar .download-group > * { flex: 0 0 auto; white-space: nowrap; }
   .quality-jump { width: calc(100% - 32px); margin-inline: 16px; }
-  .workflow-step strong { font-size: 11px; }
+  .workflow-step strong { font-size: var(--fs-12); }
 }
 @media print { .quality-jump, .empty-recent { display: none !important; } }

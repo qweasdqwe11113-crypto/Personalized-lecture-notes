@@ -59,7 +59,9 @@
     $('getting-started-fill').style.inlineSize = `${Math.round(done / list.length * 100)}%`;
     $('getting-started-steps').replaceChildren(...list.map((step, index) => {
       const item = el('li', undefined, 'start-step' + (step.done ? ' is-done' : index === current ? ' is-current' : step.blocked ? ' is-blocked' : ''));
-      const mark = el('span', step.done ? '✓' : String(index + 1), 'start-mark'); mark.setAttribute('aria-hidden', 'true');
+      const tick = step.done && window.ui?.icon('check');
+      const mark = el('span', tick ? undefined : step.done ? '✓' : String(index + 1), 'start-mark'); mark.setAttribute('aria-hidden', 'true');
+      if (tick) mark.append(tick);
       const body = el('div', undefined, 'start-body');
       const title = el('h3', step.title);
       if (step.done) title.append(el('span', '已完成', 'start-tag'));

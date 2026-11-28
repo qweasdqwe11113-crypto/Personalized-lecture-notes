@@ -6,19 +6,18 @@
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: #365bd6; /* 主题蓝 */
+  background: var(--blue-500); /* 主题蓝 */
   color: #fff;
   border: none;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: var(--shadow-2);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  font-size: 20px;
-  transition: transform 0.2s, background 0.2s;
+  transition: transform var(--d-2), background var(--d-2);
 }
-.toc-toggle-btn:hover { transform: scale(1.05); background: #2a4ab5; }
+.toc-toggle-btn:hover { transform: scale(1.05); background: var(--blue-600); }
 .toc-toggle-btn.hidden { display: none; }
 
 /* 侧边抽屉 */
@@ -31,7 +30,7 @@
   background: #fff;
   box-shadow: -2px 0 16px rgba(0,0,0,0.1);
   z-index: 1001;
-  transition: right 0.3s ease;
+  transition: right var(--d-3) ease;
   display: flex;
   flex-direction: column;
 }
@@ -39,17 +38,20 @@
 
 .toc-header {
   padding: 16px 20px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--gray-100);
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-weight: bold;
-  font-size: 16px;
+  font-size: var(--fs-16);
 }
+.toc-toggle-btn .icon { inline-size: 22px; block-size: 22px; }
 .toc-close-btn {
-  background: none; border: none; font-size: 24px; cursor: pointer; color: #888;
+  display: grid; place-items: center; inline-size: 32px; block-size: 32px; min-block-size: 0; padding: 0;
+  background: var(--gray-50); border: none; border-radius: var(--r-2); cursor: pointer; color: var(--gray-500);
 }
-.toc-close-btn:hover { color: #333; }
+.toc-close-btn:hover { background: var(--gray-200); color: var(--gray-800); }
+.toc-close-btn .icon { inline-size: 18px; block-size: 18px; }
 
 /* 目录列表区 */
 .toc-list {
@@ -64,20 +66,20 @@
   padding: 8px 20px;
   color: #555;
   text-decoration: none;
-  font-size: 14px;
+  font-size: var(--fs-14);
   cursor: pointer;
-  transition: background 0.2s, color 0.2s;
+  transition: background var(--d-2), color var(--d-2);
   border-left: 3px solid transparent;
   line-height: 1.5;
 }
-.toc-item:hover { background: #f0f4ff; color: #365bd6; }
-.toc-item.active { color: #365bd6; font-weight: bold; background: #f7f9ff; border-left-color: #365bd6; }
+.toc-item:hover { background: var(--blue-50); color: var(--blue-500); }
+.toc-item.active { color: var(--blue-500); font-weight: bold; background: var(--gray-25); border-left-color: var(--blue-500); }
 
 /* 不同层级缩进 */
-.toc-level-1 { padding-left: 20px; font-weight: 600; font-size: 15px; }
+.toc-level-1 { padding-left: 20px; font-weight: 600; font-size: var(--fs-14); }
 .toc-level-2 { padding-left: 36px; }
-.toc-level-3 { padding-left: 52px; font-size: 13px; color: #666; }
-.toc-level-4 { padding-left: 68px; font-size: 12px; color: #888; }
+.toc-level-3 { padding-left: 52px; font-size: var(--fs-13); color: #666; }
+.toc-level-4 { padding-left: 68px; font-size: var(--fs-12); color: #888; }
 
 /* 遮罩层（手机端点击空白关闭） */
 .toc-overlay {
@@ -85,7 +87,7 @@
   background: rgba(0,0,0,0.2);
   z-index: 1000;
   opacity: 0; pointer-events: none;
-  transition: opacity 0.3s;
+  transition: opacity var(--d-3);
 }
 .toc-overlay.open { opacity: 1; pointer-events: auto; }
 

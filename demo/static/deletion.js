@@ -44,6 +44,7 @@
         action: () => postDelete(`/api/lectures/${lecture.id}/delete`)});
       if (!done) return;
       clearResult();
+      window.ui?.toast(`已删除讲义 #${lecture.id}`);
       if (typeof refreshHistory === 'function') refreshHistory().catch(() => {});
     } catch (e) { error(e.message); }
   };

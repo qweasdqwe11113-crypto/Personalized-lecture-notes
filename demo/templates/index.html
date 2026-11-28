@@ -1,28 +1,28 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>知页 · 教学工作空间</title><meta name="theme-color" content="#365bd6"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icons/icon-192.png"><link rel="apple-touch-icon" href="/static/icons/icon-192.png"><link rel="stylesheet" href="/static/vendor/katex/katex.min.css"><script defer src="/static/vendor/katex/katex.min.js"></script><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/layout.css"><script defer src="/static/app.js"></script><script defer src="/static/context.js"></script><script defer src="/static/profiles.js"></script><script defer src="/static/traces.js"></script><script defer src="/static/reviews.js"></script><script defer src="/static/jobs.js"></script><script defer src="/static/profile-comparison.js"></script><script defer src="/static/lecture-comparison.js"></script><script defer src="/static/layout.js"></script><script defer src="/static/navigation.js"></script><link rel="stylesheet" href="/static/workspace.css"><script defer src="/static/uploads.js"></script><script defer src="/static/vision.js"></script><link rel="stylesheet" href="/static/vision.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>知页 · 教学工作空间</title><meta name="theme-color" content="#365bd6"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icons/icon-192.png"><link rel="apple-touch-icon" href="/static/icons/icon-192.png"><link rel="stylesheet" href="/static/tokens.css"><link rel="stylesheet" href="/static/vendor/katex/katex.min.css"><script defer src="/static/vendor/katex/katex.min.js"></script><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/layout.css"><script defer src="/static/ui.js"></script><script defer src="/static/app.js"></script><script defer src="/static/context.js"></script><script defer src="/static/profiles.js"></script><script defer src="/static/traces.js"></script><script defer src="/static/reviews.js"></script><script defer src="/static/jobs.js"></script><script defer src="/static/profile-comparison.js"></script><script defer src="/static/lecture-comparison.js"></script><script defer src="/static/layout.js"></script><script defer src="/static/navigation.js"></script><link rel="stylesheet" href="/static/workspace.css"><script defer src="/static/uploads.js"></script><script defer src="/static/vision.js"></script><link rel="stylesheet" href="/static/vision.css"></head>
 <body>
 <aside class="app-sidebar" aria-label="主导航">
  <a class="brand" href="#workbench"><span class="brand-icon">知</span><div><strong>知页</strong><span>教学工作空间</span></div></a>
  <div class="workspace-label">教学管理</div>
  <nav class="app-nav" aria-label="页面导航">
-  <a href="#workbench" data-page="workbench" aria-current="page"><span class="nav-icon" aria-hidden="true">▦</span>讲义工作台</a>
-  <a href="#quizzes" data-page="quizzes"><span class="nav-icon" aria-hidden="true">✎</span>出题</a>
-  <a href="#grading" data-page="grading"><span class="nav-icon" aria-hidden="true">✓</span>阅卷</a>
-  <a href="#materials" data-page="materials"><span class="nav-icon" aria-hidden="true">▤</span>课程</a>
-  <a href="#profiles" data-page="profiles"><span class="nav-icon" aria-hidden="true">◎</span>班级与画像</a>
-  <a href="#records" data-page="records"><span class="nav-icon" aria-hidden="true">◷</span>生成记录</a>
-  <a href="#settings" data-page="settings"><span class="nav-icon" aria-hidden="true">⚙</span>系统设置</a>
+  <a href="#workbench" data-page="workbench" aria-current="page"><svg class="icon nav-icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#notebook-pen"></use></svg>讲义工作台</a>
+  <a href="#quizzes" data-page="quizzes"><svg class="icon nav-icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#pencil-line"></use></svg>出题</a>
+  <a href="#grading" data-page="grading"><svg class="icon nav-icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#clipboard-check"></use></svg>阅卷</a>
+  <a href="#materials" data-page="materials"><svg class="icon nav-icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#book-open"></use></svg>课程</a>
+  <a href="#profiles" data-page="profiles"><svg class="icon nav-icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#users"></use></svg>班级与画像</a>
+  <a href="#records" data-page="records"><svg class="icon nav-icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#history"></use></svg>生成记录</a>
+  <a href="#settings" data-page="settings"><svg class="icon nav-icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#settings"></use></svg>系统设置</a>
  </nav>
- <button type="button" id="tour-open" class="sidebar-tour"><span aria-hidden="true">?</span>新手引导</button>
+ <button type="button" id="tour-open" class="sidebar-tour"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#circle-help"></use></svg>新手引导</button>
  <div class="sidebar-note"><span class="status-dot"></span>本地工作空间<p>学生画像驱动的个性化教学</p></div>
  <div class="sidebar-user"><span class="user-avatar">教</span><div><strong>教师工作空间</strong><span>{{ "本机工作空间" if release else "本地演示环境" }}</span></div></div>
 </aside>
 <main>
  <div class="context-bar" id="context-bar" role="group" aria-label="当前课程与班级">
-  <label class="context-pick" for="ctx-course"><span class="context-pick-label"><span aria-hidden="true">▤</span>课程</span><select id="ctx-course" disabled><option>正在读取…</option></select></label>
-  <span class="context-sep" aria-hidden="true">›</span>
-  <label class="context-pick" for="ctx-class"><span class="context-pick-label"><span aria-hidden="true">◎</span>班级</span><select id="ctx-class" disabled></select></label>
+  <label class="context-pick" for="ctx-course"><span class="context-pick-label"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#book-open"></use></svg>课程</span><select id="ctx-course" disabled><option>正在读取…</option></select></label>
+  <svg class="icon context-sep" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#chevron-right"></use></svg>
+  <label class="context-pick" for="ctx-class"><span class="context-pick-label"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#users"></use></svg>班级</span><select id="ctx-class" disabled></select></label>
   <a class="context-all" href="#courses">全部课程</a>
  </div>
  <h1 id="page-title" class="visually-hidden" tabindex="-1">讲义工作台</h1>
@@ -37,11 +37,11 @@
    <span class="workflow-step" data-step="2"><span class="workflow-number">02</span><strong>设置并生成讲义</strong></span><span class="workflow-line"></span>
    <span class="workflow-step" data-step="3"><span class="workflow-number">03</span><strong>审核修订</strong></span><span class="workflow-line"></span>
    <span class="workflow-step" data-step="4"><span class="workflow-number">04</span><strong>配套出题、课件与授课包</strong></span>
-   <a href="#materials">管理课程备课 ↗</a>
+   <a href="#materials">管理课程备课<svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#arrow-up-right"></use></svg></a>
    
  </div>
   <div class="workspace" id="workspace">
-  <button type="button" id="sidebar-toggle" class="sidebar-toggle" aria-controls="settings-column" aria-expanded="true" aria-label="收起讲义设置" title="收起讲义设置">«</button>
+  <button type="button" id="sidebar-toggle" class="sidebar-toggle" aria-controls="settings-column" aria-expanded="true" aria-label="收起讲义设置" title="收起讲义设置"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#panel-left-close"></use></svg></button>
 
   <aside id="settings-column" aria-label="讲义设置与状态">
     <section class="panel setup">
@@ -49,18 +49,18 @@
         <div><h2>讲义设置</h2></div>
       </div>
     <form id="generate-form">
-     <div class="setup-field"><label for="topic">选择备课</label><select id="topic" disabled></select><button type="button" class="link-button quick-start-link" data-setting-dialog="quick-start-dialog" aria-haspopup="dialog" aria-controls="quick-start-dialog">＋ 一键备课：写下本课重点，自动找知识点</button><p id="task-level" class="helper"></p><details id="preparation-preview" hidden><summary>查看副本目标与教案</summary><p id="preparation-preview-goal" class="helper"></p><p id="preparation-preview-plan" class="current-summary"></p></details></div>
+     <div class="setup-field"><label for="topic">选择备课</label><select id="topic" disabled></select><button type="button" class="link-button quick-start-link" data-setting-dialog="quick-start-dialog" aria-haspopup="dialog" aria-controls="quick-start-dialog"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#plus"></use></svg>一键备课：写下本课重点，自动找知识点</button><p id="task-level" class="helper"></p><details id="preparation-preview" hidden><summary>查看副本目标与教案</summary><p id="preparation-preview-goal" class="helper"></p><p id="preparation-preview-plan" class="current-summary"></p></details></div>
      <div class="setup-field"><label for="student" id="student-label">选择学生</label><select id="student" disabled></select><div id="student-profile" class="profile"></div></div>
      <div class="setup-field setup-goal"><label for="goal">本次教学目标</label><textarea id="goal" rows="3" maxlength="400"></textarea></div>
      <div class="lesson-setting-links" aria-label="更多讲义设置">
-      <button type="button" class="lesson-setting-link" data-setting-dialog="lesson-teaching-dialog" aria-haspopup="dialog" aria-controls="lesson-teaching-dialog"><span><strong>本次怎么讲</strong><span id="teaching-summary">45 分钟 · 新授 · 常规讲解</span></span><span class="setting-chevron" aria-hidden="true">›</span></button>
-      <button type="button" class="lesson-setting-link" data-setting-dialog="lesson-advanced-dialog" aria-haspopup="dialog" aria-controls="lesson-advanced-dialog"><span><strong>高级设置</strong><span>画像与材料取用</span></span><span class="setting-chevron" aria-hidden="true">›</span></button>
-      <button type="button" class="lesson-setting-link" id="sources-link" data-setting-dialog="lesson-sources-dialog" aria-haspopup="dialog" aria-controls="lesson-sources-dialog"><span><strong>课程资料依据</strong><span id="sources-summary">读取材料后显示</span></span><span class="setting-chevron" aria-hidden="true">›</span></button>
-      <button type="button" class="lesson-setting-link" data-setting-dialog="lesson-visual-dialog" aria-haspopup="dialog" aria-controls="lesson-visual-dialog"><span><strong>图片解析依据</strong><span id="visual-selection-count">未选择 · 选填，最多 4 张</span></span><span class="setting-chevron" aria-hidden="true">›</span></button>
-      <button type="button" class="lesson-setting-link" id="lecture-plan-box" data-setting-dialog="lesson-plan-dialog" aria-haspopup="dialog" aria-controls="lesson-plan-dialog"><span><strong>本次讲解安排</strong><span>按知识点查看与调整讲法</span></span><span class="setting-chevron" aria-hidden="true">›</span></button>
+      <button type="button" class="lesson-setting-link" data-setting-dialog="lesson-teaching-dialog" aria-haspopup="dialog" aria-controls="lesson-teaching-dialog"><span><strong>本次怎么讲</strong><span id="teaching-summary">45 分钟 · 新授 · 常规讲解</span></span><svg class="icon setting-chevron" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#chevron-right"></use></svg></button>
+      <button type="button" class="lesson-setting-link" data-setting-dialog="lesson-advanced-dialog" aria-haspopup="dialog" aria-controls="lesson-advanced-dialog"><span><strong>高级设置</strong><span>画像与材料取用</span></span><svg class="icon setting-chevron" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#chevron-right"></use></svg></button>
+      <button type="button" class="lesson-setting-link" id="sources-link" data-setting-dialog="lesson-sources-dialog" aria-haspopup="dialog" aria-controls="lesson-sources-dialog"><span><strong>课程资料依据</strong><span id="sources-summary">读取材料后显示</span></span><svg class="icon setting-chevron" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#chevron-right"></use></svg></button>
+      <button type="button" class="lesson-setting-link" data-setting-dialog="lesson-visual-dialog" aria-haspopup="dialog" aria-controls="lesson-visual-dialog"><span><strong>图片解析依据</strong><span id="visual-selection-count">未选择 · 选填，最多 4 张</span></span><svg class="icon setting-chevron" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#chevron-right"></use></svg></button>
+      <button type="button" class="lesson-setting-link" id="lecture-plan-box" data-setting-dialog="lesson-plan-dialog" aria-haspopup="dialog" aria-controls="lesson-plan-dialog"><span><strong>本次讲解安排</strong><span>按知识点查看与调整讲法</span></span><svg class="icon setting-chevron" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#chevron-right"></use></svg></button>
      </div>
      <div class="setup-field setup-goal"><label for="teaching-requirements">备注 <span>选填</span></label><textarea id="teaching-requirements" rows="3" maxlength="2000" placeholder="无"></textarea><p class="helper">默认无，按需填写。仅用于本次讲义，随生成输入保存。</p></div>
-     <button class="primary" id="generate" type="submit" disabled>生成个性化讲义 <span>↗</span></button>
+     <button class="primary" id="generate" type="submit" disabled><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#sparkles"></use></svg>生成个性化讲义</button>
      <button class="secondary batch-open" id="batch-open" type="button" data-setting-dialog="batch-dialog" aria-haspopup="dialog" aria-controls="batch-dialog">为班内学生逐个生成…</button>
      <p id="progress" class="helper" role="status" aria-live="polite">读取学生状态与课程证据后生成。</p>
     </form>
@@ -72,7 +72,7 @@
    <section class="paper" id="result-paper"><div class="paper-toolbar"><div><span class="paper-dot"></span><strong id="result-label">讲义预览</strong></div><div class="paper-actions"><div class="action-group action-group-prep" id="lecture-prep-actions" role="group" aria-labelledby="prep-actions-label"><span class="action-group-label" id="prep-actions-label">授课准备</span><span id="lecture-prep-status" class="prep-status" role="status" aria-live="polite"></span></div><div class="action-group" role="group" aria-labelledby="review-actions-label"><span class="action-group-label" id="review-actions-label">审核与追溯</span><button id="edit-lecture" type="button" class="secondary" disabled>编辑与审核</button><button id="adjust-section" type="button" class="secondary" title="展开、简化或更换例题，预览后另存版本。" disabled>按章节调整</button><button id="view-input" type="button" class="secondary" disabled>查看生成输入</button><button id="compare-profile" type="button" class="secondary" disabled>画像对照</button><button id="compare-lectures" type="button" class="secondary" disabled>讲义比较</button><button id="delete-lecture" type="button" class="secondary delete-entry" disabled>删除讲义…</button></div><div class="download-group" role="group" aria-label="下载与打印"><label class="download-format-label" for="download-format">下载格式</label><select id="download-format" disabled><option value="md">Markdown (.md)</option><option value="txt">纯文本 (.txt)</option><option value="html">网页 (.html)</option><option value="docx">Word 文档 (.docx)</option></select><button id="download" class="secondary" disabled>下载原稿 Markdown</button><button id="print-lecture" class="secondary" type="button" disabled>打印 / PDF</button></div></div></div>
     <div id="version-controls" class="version-controls" hidden><label for="lecture-version">阅读版本</label><select id="lecture-version"></select><p id="version-status" class="helper" role="status"></p></div>
     <p id="input-trace-note" class="input-trace-note" hidden></p>
-    <div id="empty" class="empty"><div class="page-symbol">Aa<span>＋</span></div><h2>从学生的起点出发</h2><p>选择一名学生，查看知识状态，<br>生成针对当前学习需要的讲义。</p><div class="steps"><span>学生状态</span><i>→</i><span>课程证据</span><i>→</i><span>专属讲义</span></div><div id="empty-recent" class="empty-recent" hidden><p class="helper">或继续最近的讲义</p><div id="empty-recent-list"></div></div></div>
+    <div id="empty" class="empty"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true"><rect class="art-back" x="54" y="6" width="58" height="74" rx="8"/><rect class="art-sheet" x="44" y="14" width="58" height="74" rx="8"/><path class="art-line" d="M56 32h30M56 42h22M56 62h26M56 72h14"/><path class="art-line art-accent" d="M56 52h34"/><circle class="art-person" cx="20" cy="44" r="7"/><path class="art-person" d="M8 74a12 12 0 0 1 24 0"/><path class="art-flow" d="M30 34q6-8 14-6"/><path class="art-spark" d="M110 13l2 5.5 5.5 2-5.5 2-2 5.5-2-5.5-5.5-2 5.5-2z"/></svg><h2>从学生的起点出发</h2><p>选择一名学生，查看知识状态，<br>生成针对当前学习需要的讲义。</p><div class="steps"><span>学生状态</span><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#arrow-right"></use></svg><span>课程证据</span><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#arrow-right"></use></svg><span>专属讲义</span></div><div id="empty-recent" class="empty-recent" hidden><p class="helper">或继续最近的讲义</p><div id="empty-recent-list"></div></div></div>
     <div id="loading" class="empty" hidden><div class="spinner"></div><h2>正在组织这份讲义</h2><p>模型正在结合学生状态与课程材料生成。<br>完成后会自动保存到本地数据库。</p></div>
     <div id="live-preview" class="live-preview" hidden><div class="live-head"><span class="live-dot" aria-hidden="true"></span><strong id="live-stage">模型写作中</strong><span id="live-count" class="helper"></span></div><div id="live-sections" class="live-sections"></div><article id="live-text" class="lecture live-text"></article><p class="helper live-note">这是模型正在写的内容，尚未保存；完成后以通过程序检查并保存的版本为准。</p></div>
     <div id="lecture-meta" class="lecture-meta" hidden></div><button id="quality-jump" type="button" class="quality-jump" hidden></button><details id="result-plan" class="result-plan" hidden><summary>查看本份讲义的安排与定位</summary><div id="result-plan-content"></div></details><article id="lecture" class="lecture" hidden></article>
@@ -91,7 +91,7 @@
      <p class="helper">自动检查不能证明数学正确性。问题记录指向明确的已保存版本；处理说明是修订记录者的判断。</p>
     </details>
    </section>
-   <div class="evidence-link"><div><strong>每一份讲义，都有课程依据</strong><p>查阅当前任务的材料与知识点来源。</p></div><a href="#materials" class="secondary">查看课程材料 ↗</a></div>
+   <div class="evidence-link"><div><strong>每一份讲义，都有课程依据</strong><p>查阅当前任务的材料与知识点来源。</p></div><a href="#materials" class="secondary">查看课程材料<svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#arrow-up-right"></use></svg></a></div>
   </div>
  </div>
  </section>
@@ -123,7 +123,7 @@
   </div>
  </section>
  <section class="workspace-page" id="page-profiles" hidden>
-  <div id="class-empty" class="panel scope-empty" hidden><span class="intro-icon" aria-hidden="true">◎</span><div><h2 id="class-empty-title">这门课程还没有班级</h2><p id="class-empty-text" class="helper">先在课程中新建班级，再添加学生；班级画像由班内学生的诊断汇总而成。</p><a id="class-empty-action" class="primary" href="#materials/classes">前往新建班级</a></div></div>
+  <div id="class-empty" class="panel scope-empty" hidden><span class="intro-icon" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#users"></use></svg></span><div><h2 id="class-empty-title">这门课程还没有班级</h2><p id="class-empty-text" class="helper">先在课程中新建班级，再添加学生；班级画像由班内学生的诊断汇总而成。</p><a id="class-empty-action" class="primary" href="#materials/classes">前往新建班级</a></div></div>
   <div id="class-home-page" hidden>
   <section class="panel scope-header"><div class="scope-header-main"><span class="scope-kicker" id="class-home-course">课程</span><h2 id="class-home-name">班级</h2><p id="class-home-meta" class="helper"></p><p id="class-home-profile" class="current-summary"></p></div>
    <div class="trace-actions"><button id="edit-class" class="secondary" type="button">编辑班级画像</button><button id="class-start-lecture" class="primary" type="button">为全班生成讲义</button></div>
@@ -137,7 +137,7 @@
   <div id="class-panel-profile" role="tabpanel" aria-labelledby="class-tab-profile">
    <section class="panel"><div class="section-heading"><div><h2>知识点掌握分布</h2><p class="helper" id="class-profile-summary">汇总班内每位学生经教师确认的掌握状态。</p></div><div class="class-topic-filter"><label for="class-profile-topic">范围</label><select id="class-profile-topic"><option value="">本课程全部备课</option></select></div></div>
     <div class="state-legend" aria-hidden="true"><span class="legend needs_support">需要补充</span><span class="legend partial">部分掌握</span><span class="legend mastered">已掌握</span><span class="legend unknown">未诊断</span></div>
-    <div id="class-profile-points" class="class-points"><p class="helper">正在读取…</p></div>
+    <div id="class-profile-points" class="class-points"><div class="skeleton" role="status"><span class="visually-hidden">正在读取…</span><span class="skeleton-line"></span><span class="skeleton-line"></span><span class="skeleton-line"></span></div></div>
     <p id="class-profile-rule" class="footnote"></p></section>
    <section class="panel"><div class="section-heading"><h2 id="class-focus-title">需要重点关注</h2></div><div id="class-focus-list" class="class-focus"></div></section>
    <section class="panel"><details id="class-history-box"><summary>班级画像修改历史</summary><div id="class-history"></div></details></section>
@@ -165,7 +165,7 @@
    <label class="roster-import-check"><input id="roster-import-confirmed" type="checkbox"><span>我已逐行核对。学生名单只新增，不覆盖同名档案；学习证据按每行的判断写入画像，与逐条录入相同。</span></label>
    <button id="roster-import-submit" class="primary" type="button" disabled>确认导入</button></div>
   </section></div>
-  <div id="student-detail-page" hidden><div class="section-heading"><a href="#profiles/students" class="student-page-link">← 返回学生名单</a><div class="trace-actions"><button class="secondary" id="view-current-profile" type="button">读取最新档案</button><button class="primary" id="profile-start-lecture" type="button">为该学生备课</button><button class="secondary delete-entry" id="delete-student" type="button">删除学生…</button></div></div>
+  <div id="student-detail-page" hidden><div class="section-heading"><a href="#profiles/students" class="student-page-link"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#arrow-left"></use></svg>返回学生名单</a><div class="trace-actions"><button class="secondary" id="view-current-profile" type="button">读取最新档案</button><button class="primary" id="profile-start-lecture" type="button">为该学生备课</button><button class="secondary delete-entry" id="delete-student" type="button">删除学生…</button></div></div>
   <section class="panel scope-header"><div class="scope-header-main"><span class="scope-kicker">学生画像</span><h2 id="roster-student-name">学生信息</h2><p id="roster-student-subtitle" class="helper"></p><p id="roster-student-profile" class="current-summary"></p><p id="roster-student-classes" class="helper"></p></div>
    <div class="trace-actions"><button id="edit-student" class="secondary" type="button" aria-expanded="false" aria-controls="edit-student-form" disabled>编辑学生画像</button></div>
    <form id="edit-student-form" class="editor-form scope-edit" hidden>
@@ -176,11 +176,11 @@
     <p class="helper">原内容保留在修改历史中；已生成的讲义仍按生成时的画像记录。</p>
    </form><p id="student-edit-status" class="helper" role="status" aria-live="polite"></p>
    <details id="student-history-box" class="scope-edit"><summary id="student-history-title">修改历史</summary><div id="student-history"></div></details></section>
-<section class="panel"><div class="section-heading"><h2 id="student-states-title">知识点掌握情况</h2><button id="edit-profile" type="button" class="secondary" disabled>记录诊断证据</button></div><p id="profile-view-note" class="helper"></p><div id="states" class="states"><p class="helper">正在读取…</p></div><p class="footnote">预置档案包含虚拟演示数据。新增同学的信息由你维护；生成讲义和本次备注不会自动改变长期状态。</p></section>
+<section class="panel"><div class="section-heading"><h2 id="student-states-title">知识点掌握情况</h2><button id="edit-profile" type="button" class="secondary" disabled>记录诊断证据</button></div><p id="profile-view-note" class="helper"></p><div id="states" class="states"><div class="skeleton" role="status"><span class="visually-hidden">正在读取…</span><span class="skeleton-line"></span><span class="skeleton-line"></span><span class="skeleton-line"></span></div></div><p class="footnote">预置档案包含虚拟演示数据。新增同学的信息由你维护；生成讲义和本次备注不会自动改变长期状态。</p></section>
   </div><p id="student-roster-status" class="helper" role="status"></p>
  </section>
  <section class="workspace-page" id="page-materials" hidden>
-  <div id="course-all-page" hidden><div class="page-intro"><span class="intro-icon">▤</span><div><h2>全部课程</h2><p>每门课程有自己的备课、资料和班级。选择一门课程进入，或新建课程。</p></div></div>
+  <div id="course-all-page" hidden><div class="page-intro"><span class="intro-icon" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#book-open"></use></svg></span><div><h2>全部课程</h2><p>每门课程有自己的备课、资料和班级。选择一门课程进入，或新建课程。</p></div></div>
    <section class="panel"><div class="section-heading"><h2 id="course-all-title">我的课程</h2><button id="toggle-new-course" class="primary" type="button" aria-expanded="false" aria-controls="new-course-form">新建课程</button></div>
     <form id="new-course-form" class="editor-form scope-edit" hidden><div class="course-fields"><div><label for="new-course-name">课程名称</label><input id="new-course-name" maxlength="80" required placeholder="例如：高中物理、大学英语"></div><div><label for="new-course-stage">学段</label><input id="new-course-stage" list="course-stages" maxlength="40" placeholder="选择或填写学段"></div><div><label for="new-course-subject">学科</label><select id="new-course-subject"><option value="general">其他</option><option value="math">数学</option><option value="probability">概率统计</option></select></div></div><p class="helper">学科决定生成时附加的学科要求和程序检查：数学写明每步依据和前提并验算，概率统计核对概率范围和公式条件。其他学科只用通用要求。</p><label for="new-course-description">课程说明 <span class="helper">选填</span></label><textarea id="new-course-description" rows="2" maxlength="600" placeholder="教材版本、课时安排等"></textarea><div class="trace-actions"><button class="primary" type="submit">创建课程</button></div></form>
     <p id="course-all-status" class="helper" role="status" aria-live="polite"></p>
@@ -200,21 +200,21 @@
     <div class="upload-tabs" role="tablist" aria-label="资料上传模式"><button id="upload-file-tab" role="tab" aria-selected="true" aria-controls="upload-file-pane" type="button">本地上传</button><button id="upload-url-tab" role="tab" aria-selected="false" aria-controls="upload-url-pane" tabindex="-1" type="button">网址上传</button></div>
     <form id="upload-file-pane" role="tabpanel" aria-labelledby="upload-file-tab">
      <label for="upload-file-title">资料名称 <span>选填，默认使用文件名</span></label><input id="upload-file-title" maxlength="120" placeholder="例如：一元一次方程教学参考">
-     <label class="upload-dropzone" id="upload-dropzone" for="upload-file"><span class="upload-symbol" aria-hidden="true">↥</span><strong>点击选择文件，或拖拽到这里</strong><span>支持 TXT、MD、PDF、DOCX 和图片 · 单个文件不超过 10 MB，最多提取 128 张插图；超出不影响正文保存</span><input id="upload-file" type="file" accept=".txt,.md,.pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp,.gif,.tif,.tiff" required></label>
+     <label class="upload-dropzone" id="upload-dropzone" for="upload-file"><span class="upload-symbol" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#upload"></use></svg></span><strong>点击选择文件，或拖拽到这里</strong><span>支持 TXT、MD、PDF、DOCX 和图片 · 单个文件不超过 10 MB，最多提取 128 张插图；超出不影响正文保存</span><input id="upload-file" type="file" accept=".txt,.md,.pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp,.gif,.tif,.tiff" required></label>
      <p id="upload-file-selection" class="helper" role="status">尚未选择文件</p>
-     <button id="upload-file-submit" type="submit" class="primary">上传并解析资料 <span>↗</span></button>
+     <button id="upload-file-submit" type="submit" class="primary"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#upload"></use></svg>上传并解析资料</button>
     </form>
     <form id="upload-url-pane" role="tabpanel" aria-labelledby="upload-url-tab" hidden>
      <label for="upload-url-title">资料名称 <span>选填，默认使用网页标题</span></label><input id="upload-url-title" maxlength="120" placeholder="例如：课程参考资料">
      <label for="upload-url">资料网址</label><input id="upload-url" type="url" maxlength="2048" required placeholder="https://example.com/article">
-     <div class="url-import-hint"><span aria-hidden="true">↗</span><div><strong>通过链接导入网页正文</strong><p>支持公开网页、文本、PDF 和 Word 文档直链。需要登录或动态加载的页面可能无法读取。</p></div></div>
-     <button id="upload-url-submit" type="submit" class="primary">导入网址资料 <span>↗</span></button>
+     <div class="url-import-hint"><span aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#link"></use></svg></span><div><strong>通过链接导入网页正文</strong><p>支持公开网页、文本、PDF 和 Word 文档直链。需要登录或动态加载的页面可能无法读取。</p></div></div>
+     <button id="upload-url-submit" type="submit" class="primary"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#link"></use></svg>导入网址资料</button>
     </form>
     <p id="upload-status" class="upload-status" role="status" aria-live="polite" hidden></p>
    </section>
-   <aside class="panel upload-guide"><span class="intro-icon" aria-hidden="true">▤</span><h2>资料怎样进入讲义</h2><p>上传后保存原文件，提取正文与插图，并自动识别知识点：先按章节标题切分，再由模型细分。教师在「审核并确认」中改名、合并、删除或新增后，知识点连同对应资料片段加入「知识点库」，备课勾选即引用。「收录到备课」可把整份资料补充给某个备课。</p><ul><li><strong>课程资料</strong>：所有班级共用的教材、参考文章</li><li><strong>班级资料</strong>：本班试卷、专用讲义；收录后只在为该班或班内学生生成时使用</li><li>图片与扫描件点「图片识读」解析，在讲义工作台的「图片解析依据」中选用；识读结果需核对公式、数值与单位</li></ul></aside>
+   <aside class="panel upload-guide"><span class="intro-icon" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#file-text"></use></svg></span><h2>资料怎样进入讲义</h2><p>上传后保存原文件，提取正文与插图，并自动识别知识点：先按章节标题切分，再由模型细分。教师在「审核并确认」中改名、合并、删除或新增后，知识点连同对应资料片段加入「知识点库」，备课勾选即引用。「收录到备课」可把整份资料补充给某个备课。</p><ul><li><strong>课程资料</strong>：所有班级共用的教材、参考文章</li><li><strong>班级资料</strong>：本班试卷、专用讲义；收录后只在为该班或班内学生生成时使用</li><li>图片与扫描件点「图片识读」解析，在讲义工作台的「图片解析依据」中选用；识读结果需核对公式、数值与单位</li></ul></aside>
   </div>
-  <section class="panel upload-library"><div class="section-heading"><div><h2 id="upload-library-title">课程资料</h2><p class="helper" id="upload-library-note">最近 100 条 · 保存原文件与提取正文</p></div><button id="refresh-uploads" type="button" class="secondary">刷新列表</button></div><div id="upload-list"><p class="helper">正在读取资料…</p></div>
+  <section class="panel upload-library"><div class="section-heading"><div><h2 id="upload-library-title">课程资料</h2><p class="helper" id="upload-library-note">最近 100 条 · 保存原文件与提取正文</p></div><button id="refresh-uploads" type="button" class="secondary">刷新列表</button></div><div id="upload-list"><div class="skeleton" role="status"><span class="visually-hidden">正在读取资料…</span><span class="skeleton-line"></span><span class="skeleton-line"></span><span class="skeleton-line"></span></div></div>
    <details id="upload-unassigned-box" class="upload-unassigned" hidden><summary id="upload-unassigned-title">未归类的旧资料</summary><p class="helper">这些资料上传于课程划分之前，归入课程后才会出现在资料列表中。</p><div id="upload-unassigned-list"></div></details></section>
   </div>
   </div></div>
@@ -224,14 +224,14 @@
    <datalist id="knowledge-chapters"></datalist>
    <p id="knowledge-page-status" class="helper" role="status" aria-live="polite"></p>
    <div id="knowledge-drafts" class="knowledge-drafts"></div>
-   <div id="knowledge-groups" class="knowledge-groups"><p class="helper">正在读取知识点库…</p></div>
+   <div id="knowledge-groups" class="knowledge-groups"><div class="skeleton" role="status"><span class="visually-hidden">正在读取知识点库…</span><span class="skeleton-line"></span><span class="skeleton-line"></span><span class="skeleton-line"></span></div></div>
    <details id="knowledge-archived-box" class="knowledge-archived" hidden><summary id="knowledge-archived-title">已归档</summary><p class="helper">归档的知识点不出现在备课的勾选列表中；已使用它的备课、诊断与历史讲义保持不变。</p><div id="knowledge-archived"></div></details>
   </section></div>
   <div id="course-panel-classes" role="tabpanel" aria-labelledby="course-tab-classes" hidden><section class="panel"><div class="section-heading"><h2 id="course-classes-title">班级</h2><button id="toggle-new-class" class="primary" type="button" aria-expanded="false" aria-controls="new-class-form">新建班级</button></div>
    <form id="new-class-form" class="editor-form scope-edit" hidden><div class="course-fields"><div><label for="new-class-name">班级名称</label><input id="new-class-name" maxlength="80" required placeholder="例如：初二（3）班"></div></div><label for="new-class-profile">班级特点 <span class="helper">选填，之后可在班级画像中修改</span></label><textarea id="new-class-profile" rows="2" maxlength="1200"></textarea><div class="trace-actions"><button class="primary" type="submit">创建班级</button></div></form>
    <p id="course-classes-status" class="helper" role="status" aria-live="polite"></p><div id="course-class-cards" class="student-roster"></div></section></div>
   </div>
-  <div id="course-editor-page" hidden><div class="section-heading"><a href="#materials" class="student-page-link">← 返回备课列表</a><h2 id="course-editor-heading">新建备课</h2></div>
+  <div id="course-editor-page" hidden><div class="section-heading"><a href="#materials" class="student-page-link"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#arrow-left"></use></svg>返回备课列表</a><h2 id="course-editor-heading">新建备课</h2></div>
   <section class="panel" id="course-manager">
    <div hidden><button id="new-course-task" type="button">新建备课副本</button><select id="managed-course-task"><option value="">新建副本</option></select></div>
    <div class="trace-actions" id="course-saved-actions" hidden><button id="duplicate-course-task" type="button" class="secondary" disabled>复制为新备课</button><button id="use-course-task" type="button" class="secondary" disabled>用此备课生成讲义</button></div>
@@ -321,7 +321,7 @@
   <div class="record-tabs" role="tablist" aria-label="生成记录类型"><a href="#records/lectures" id="record-tab-lectures" role="tab" aria-selected="true" aria-controls="record-panel-lectures">讲义记录</a><a href="#records/quizzes" id="record-tab-quizzes" role="tab" aria-selected="false" aria-controls="record-panel-quizzes" tabindex="-1">出题记录</a><a href="#records/grading" id="record-tab-grading" role="tab" aria-selected="false" aria-controls="record-panel-grading" tabindex="-1">阅卷记录</a>{% if not release %}<a href="#records/experiments" id="record-tab-experiments" role="tab" aria-selected="false" aria-controls="record-panel-experiments" tabindex="-1">固定对照</a>{% endif %}</div>
   <div id="record-panel-lectures" role="tabpanel" aria-labelledby="record-tab-lectures">
   <div class="records-grid"><section class="panel"><div class="section-heading"><h2>最近生成</h2></div><div id="history" class="history"><p class="helper">暂无已保存讲义</p></div></section><section class="panel"><div class="section-heading"><h2>后台任务</h2><button id="refresh-jobs" class="secondary" type="button">刷新任务</button></div><p class="helper">1 个任务处理，最多 3 个等待；仅本机单进程。提交时固定输入，刷新页面后可从任务恢复查看。</p><div id="jobs-list" class="history"></div></section></div>
-<section class="panel"><div class="section-heading"><h2>讲义生成记录</h2><div class="trace-actions"><button id="retry-interrupted" type="button" class="secondary" hidden>重试全部中断的任务</button><button id="refresh-runs" type="button" class="secondary">刷新</button></div></div><p class="helper">最近 10 次请求 · 包含失败记录</p><p id="retry-interrupted-note" class="helper" role="status" aria-live="polite" hidden></p><div id="generation-runs" class="history"><p class="helper">正在读取…</p></div></section>
+<section class="panel"><div class="section-heading"><h2>讲义生成记录</h2><div class="trace-actions"><button id="retry-interrupted" type="button" class="secondary" hidden>重试全部中断的任务</button><button id="refresh-runs" type="button" class="secondary">刷新</button></div></div><p class="helper">最近 10 次请求 · 包含失败记录</p><p id="retry-interrupted-note" class="helper" role="status" aria-live="polite" hidden></p><div id="generation-runs" class="history"><div class="skeleton" role="status"><span class="visually-hidden">正在读取…</span><span class="skeleton-line"></span><span class="skeleton-line"></span><span class="skeleton-line"></span></div></div></section>
   </div><div id="record-panel-quizzes" role="tabpanel" aria-labelledby="record-tab-quizzes" hidden><section class="panel"><div class="section-heading"><h2>出题记录</h2><div class="quiz-actions"><a href="#quizzes" class="secondary">前往出题</a><button id="quiz-refresh-history" type="button" class="secondary">刷新记录</button></div></div><p class="helper">保存提交时的备课副本、学生依据和设置；点击记录可返回出题页查看题目与答案解析。</p><p id="quiz-history-error" class="error" role="alert" hidden></p><div id="quiz-history" class="quiz-history"></div></section></div>
   {% if not release %}<div id="record-panel-experiments" role="tabpanel" aria-labelledby="record-tab-experiments" hidden><section class="panel"><div class="section-heading"><h2>当前版本固定对照</h2><button id="prepare-experiment" class="secondary" type="button">冻结新一轮12份输入</button></div><p class="helper">大学概率专题、三类虚拟画像，有／无画像各两次。冻结时不调用模型；开始后顺序执行12次真实调用。成功与失败均保留，已有结果不替换。评审通过讲义的“编辑与审核”逐份记录；助手草稿不计教师批准。</p><div id="experiment-history" class="history"></div><p id="experiment-status" class="helper" role="status"></p><button id="run-experiment" type="button" class="primary" hidden>开始本轮真实生成</button><div id="experiment-detail"></div></section></div>{% endif %}
   <div id="record-panel-grading" role="tabpanel" aria-labelledby="record-tab-grading" hidden>
@@ -334,7 +334,7 @@
   </div>
  </section>
  <section class="workspace-page" id="page-settings" hidden>
-  <div class="page-intro"><span class="intro-icon">⚙</span><div><h2>模型与服务配置</h2><p>为文字生成、图片理解和资料检索分别选择模型。</p></div></div>
+  <div class="page-intro"><span class="intro-icon" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#settings"></use></svg></span><div><h2>模型与服务配置</h2><p>为文字生成、图片理解和资料检索分别选择模型。</p></div></div>
   <form id="model-settings-form">
    <div class="model-settings-toolbar"><div><strong>模型连接</strong><p class="helper">支持 OpenAI 兼容接口，包括本机 Ollama 的 /v1 地址。</p></div><button id="save-model-settings" class="primary" type="submit" disabled>保存配置</button></div>
    <p id="model-settings-status" class="model-settings-status helper" role="status" aria-live="polite">正在读取已保存的模型配置…</p>
@@ -585,7 +585,7 @@
 </dialog>
 <link rel="stylesheet" href="/static/packages.css"><script defer src="/static/packages.js"></script>
 <dialog id="lesson-teaching-dialog" class="lesson-settings-dialog" aria-labelledby="lesson-teaching-title">
- <div class="lesson-dialog-header"><h2 id="lesson-teaching-title">本次怎么讲</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭本次怎么讲">×</button></div>
+ <div class="lesson-dialog-header"><h2 id="lesson-teaching-title">本次怎么讲</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭本次怎么讲"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#x"></use></svg></button></div>
  <div class="dialog-body"><fieldset class="teaching-controls"><legend>本次怎么讲</legend><div class="teaching-grid">
       <div><label for="lesson-duration">授课时长（分钟）</label><input form="generate-form" id="lesson-duration" type="number" min="5" max="180" step="1" value="45" required></div>
       <div><label for="lesson-type">授课类型</label><select form="generate-form" id="lesson-type"><option value="new">新授</option><option value="practice">巩固</option><option value="correction">纠错</option><option value="review">复习</option></select></div>
@@ -597,7 +597,7 @@
  <div class="lesson-dialog-footer"><span>设置会保留到本次生成</span><button type="button" class="primary" data-close-setting>完成</button></div>
 </dialog>
 <dialog id="lesson-advanced-dialog" class="lesson-settings-dialog" aria-labelledby="lesson-advanced-title">
- <div class="lesson-dialog-header"><h2 id="lesson-advanced-title">高级设置</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭高级设置">×</button></div>
+ <div class="lesson-dialog-header"><h2 id="lesson-advanced-title">高级设置</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭高级设置"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#x"></use></svg></button></div>
  <div class="dialog-body"><p class="lesson-dialog-intro">选择本次讲义的生成依据与材料取用方式。</p>
   <div class="setup-field"><label for="personalization-mode">生成依据</label><select id="personalization-mode"><option value="profile">使用学生画像</option><option value="none">无画像对照 · 通用讲义</option></select></div>
   <div class="setup-field"><label for="retrieval-mode">材料取用方式</label><select id="retrieval-mode"><option value="anchored" selected>本课知识点的全部资料 + 整门课补充（推荐）</option><option value="hybrid">整门课检索 · 关键词与语义融合</option><option value="sql">所选知识点的全部材料 · 精确 SQL</option><option value="vector">所选知识点内按语义选片段 · 向量检索</option></select><p id="retrieval-note" class="helper" role="status" aria-live="polite">默认提供本课知识点的全部资料，再按学情从整门课检索补充片段。</p><p class="helper">推荐方式按备课确认的知识点读取全部资料，保证本课内容完整；学生或班级有诊断错因时，从整门课（不含后面的章节）检索相关片段补充，例如前面学过的内容。资料超过 16000 字时按本课目标选取节选。整门课检索不保证读全本课资料，作对照用。片段在「课程资料依据」里确认。</p></div>
@@ -607,7 +607,7 @@
  </div><div class="lesson-dialog-footer"><span>设置用于本次生成</span><button type="button" class="primary" data-close-setting>完成</button></div>
 </dialog>
 <dialog id="attach-dialog" class="lesson-settings-dialog attach-dialog" aria-labelledby="attach-dialog-title">
- <div class="lesson-dialog-header"><h2 id="attach-dialog-title">收录到备课</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭收录窗口">×</button></div>
+ <div class="lesson-dialog-header"><h2 id="attach-dialog-title">收录到备课</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭收录窗口"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#x"></use></svg></button></div>
  <form id="attach-dialog-form" class="dialog-body editor-form"><p class="lesson-dialog-intro" id="attach-dialog-meta"></p>
   <label for="attach-dialog-topic">备课</label><select id="attach-dialog-topic" required></select>
   <label for="attach-dialog-knowledge">知识点</label><select id="attach-dialog-knowledge" required></select>
@@ -616,7 +616,7 @@
  </form><div class="lesson-dialog-footer"><span class="helper">收录后生成讲义时以 [M编号] 引用</span><button type="submit" form="attach-dialog-form" class="primary" id="attach-dialog-submit">收录</button></div>
 </dialog>
 <dialog id="knowledge-dialog" class="lesson-settings-dialog knowledge-dialog" aria-labelledby="knowledge-dialog-title">
- <div class="lesson-dialog-header"><h2 id="knowledge-dialog-title">确认知识点</h2><button type="button" class="lesson-dialog-close" id="knowledge-dialog-close" aria-label="关闭知识点确认窗口">×</button></div>
+ <div class="lesson-dialog-header"><h2 id="knowledge-dialog-title">确认知识点</h2><button type="button" class="lesson-dialog-close" id="knowledge-dialog-close" aria-label="关闭知识点确认窗口"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#x"></use></svg></button></div>
  <form id="knowledge-dialog-form" class="dialog-body editor-form"><p class="lesson-dialog-intro" id="knowledge-dialog-meta"></p>
   <p class="check-warning" id="knowledge-dialog-notice" hidden></p>
   <label for="knowledge-dialog-chapter">章节</label><input id="knowledge-dialog-chapter" maxlength="100" list="knowledge-chapters">
@@ -627,7 +627,7 @@
  </form><div class="lesson-dialog-footer"><span class="helper" id="knowledge-dialog-summary"></span><button type="submit" form="knowledge-dialog-form" class="primary" id="knowledge-dialog-submit">确认加入知识点库</button></div>
 </dialog>
 <dialog id="batch-dialog" class="lesson-settings-dialog batch-dialog" aria-labelledby="batch-title">
- <div class="lesson-dialog-header"><h2 id="batch-title">为班内学生逐个生成</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭批量生成">×</button></div>
+ <div class="lesson-dialog-header"><h2 id="batch-title">为班内学生逐个生成</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭批量生成"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#x"></use></svg></button></div>
  <div class="dialog-body"><p class="lesson-dialog-intro" id="batch-note"></p>
   <p class="helper">使用左侧当前的备课、教学目标、授课设置和高级设置；每名学生按各自画像的默认讲解安排单独生成、单独保存。需要一份面向全班的讲义时，请在「讲义对象」中选择「全班」。「本次讲解安排」里的手动修改只对单个学生生效，批量时不使用。</p>
   <div class="batch-tools"><button type="button" class="secondary" id="batch-all">全选</button><button type="button" class="secondary" id="batch-none">全不选</button><span id="batch-selected" class="helper"></span></div>
@@ -638,12 +638,12 @@
  </div><div class="lesson-dialog-footer"><span id="batch-summary">任务在后台排队，关闭窗口不会中断</span><button type="button" class="primary" id="batch-submit">开始生成</button></div>
 </dialog>
 <dialog id="lesson-sources-dialog" class="lesson-settings-dialog sources-dialog" aria-labelledby="lesson-sources-title">
- <div class="lesson-dialog-header"><h2 id="lesson-sources-title">课程资料依据</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭课程资料依据">×</button></div>
+ <div class="lesson-dialog-header"><h2 id="lesson-sources-title">课程资料依据</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭课程资料依据"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#x"></use></svg></button></div>
  <div class="dialog-body"><p class="lesson-dialog-intro" id="sources-intro">读取材料后显示。</p><p id="sources-note" class="helper" role="status" aria-live="polite"></p><button id="sources-reset" type="button" class="secondary" hidden>恢复自动选择</button><div id="retrieval-picks" class="retrieval-picks"></div></div>
  <div class="lesson-dialog-footer"><span>勾选的片段用于本次生成；模型以 [M编号] 引用</span><button type="button" class="primary" data-close-setting>完成</button></div>
 </dialog>
 <dialog id="quick-start-dialog" class="lesson-settings-dialog quick-start-dialog" aria-labelledby="quick-start-title">
- <div class="lesson-dialog-header"><h2 id="quick-start-title">一键备课</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭一键备课">×</button></div>
+ <div class="lesson-dialog-header"><h2 id="quick-start-title">一键备课</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭一键备课"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#x"></use></svg></button></div>
  <form id="quick-start-form" class="dialog-body" novalidate><p class="lesson-dialog-intro">写下本课要讲的重点，在「<strong id="quick-course">当前课程</strong>」的全部资料里查找相关的知识点。核对勾选后创建备课，生成讲义时提供这些知识点的全部资料。</p>
   <div class="setup-field"><label for="quick-chapter">本课在哪一章 <span>选填</span></label><select id="quick-chapter"><option value="">不限定</option></select><p class="helper">选了章节，后面章节的知识点不会被勾选；生成时也不会用后面章节的资料补充。</p></div>
   <div class="setup-field"><label for="quick-focus">本课重点</label><textarea id="quick-focus" rows="4" maxlength="400" placeholder="例：用全概率公式和贝叶斯公式计算检验呈阳性时真正患病的概率；学生常把 P(A|B) 与 P(B|A) 弄反。"></textarea><p class="helper">写出要讲的概念、方法或题型，越具体越准；这段话也作为备课的教学目标。学生姓名不会发给检索服务。</p></div>
@@ -657,13 +657,13 @@
  <div class="lesson-dialog-footer"><span id="quick-summary">先写下重点并查找知识点</span><button type="button" class="primary" id="quick-create" disabled>创建备课</button></div>
 </dialog>
 <dialog id="lesson-visual-dialog" class="lesson-settings-dialog" aria-labelledby="lesson-visual-title">
- <div class="lesson-dialog-header"><h2 id="lesson-visual-title">图片解析依据</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭图片解析依据">×</button></div>
+ <div class="lesson-dialog-header"><h2 id="lesson-visual-title">图片解析依据</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭图片解析依据"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#x"></use></svg></button></div>
  <div class="dialog-body"><p class="lesson-dialog-intro">选择与本次教学目标相关的图片解析，最多 4 条。</p><p class="helper">先在「上传资料」中解析图片，再选择用于本次讲义的解析。原图仅发送给独立视觉模型；语言模型只接收解析文字。</p><button id="refresh-visual-evidence" type="button" class="secondary">刷新图片解析</button><p id="visual-evidence-status" class="helper" role="status" aria-live="polite"></p><div id="visual-evidence-options" class="visual-options"></div></div>
  <div class="lesson-dialog-footer"><span>选择会保留到本次生成</span><button type="button" class="primary" data-close-setting>完成</button></div>
 </dialog>
 
 <dialog id="lesson-plan-dialog" class="lesson-settings-dialog" aria-labelledby="lesson-plan-title">
- <div class="lesson-dialog-header"><h2 id="lesson-plan-title">本次讲解安排</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭本次讲解安排">×</button></div>
+ <div class="lesson-dialog-header"><h2 id="lesson-plan-title">本次讲解安排</h2><button type="button" class="lesson-dialog-close" data-close-setting aria-label="关闭本次讲解安排"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#x"></use></svg></button></div>
  <div class="dialog-body"><p class="lesson-dialog-intro">根据学生已有诊断提供讲法建议，可逐项调整；修改仅用于本次讲义。</p><div id="lecture-plan"></div><div id="input-budget-note" class="helper"></div></div>
  <div class="lesson-dialog-footer"><span>调整会保留到本次生成</span><button type="button" class="primary" data-close-setting>完成</button></div>
 </dialog>
@@ -677,7 +677,7 @@
 <script defer src="/static/live.js"></script><script defer src="/static/batch.js"></script><script defer src="/static/pwa.js"></script>
 
 <dialog id="delete-dialog" class="lesson-settings-dialog delete-dialog" aria-labelledby="delete-dialog-title">
- <div class="lesson-dialog-header"><h2 id="delete-dialog-title">删除</h2><button type="button" class="lesson-dialog-close" id="delete-dialog-close" aria-label="关闭删除确认">×</button></div>
+ <div class="lesson-dialog-header"><h2 id="delete-dialog-title">删除</h2><button type="button" class="lesson-dialog-close" id="delete-dialog-close" aria-label="关闭删除确认"><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#x"></use></svg></button></div>
  <div class="dialog-body"><p class="lesson-dialog-intro">将删除：</p><ul id="delete-dialog-lines" class="delete-dialog-lines"></ul>
   <p class="check-warning">删除后不能恢复。需要留底的，请先备份数据（桌面客户端：服务 → 备份数据…）。</p>
   <div id="delete-dialog-name-field" hidden><label id="delete-dialog-name-label" for="delete-dialog-name"></label><input id="delete-dialog-name" autocomplete="off" maxlength="80"></div>
@@ -689,7 +689,7 @@
 <dialog id="image-lightbox" class="lightbox" aria-label="放大查看">
   <div class="lightbox-overlay"></div>
   <div class="lightbox-content" id="lightbox-content"></div>
-  <button id="lightbox-close" class="lightbox-close" type="button" aria-label="关闭放大查看" autofocus>×</button>
+  <button id="lightbox-close" class="lightbox-close" type="button" aria-label="关闭放大查看" autofocus><svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide/icons.svg#x"></use></svg></button>
 </dialog>
 
 </body>

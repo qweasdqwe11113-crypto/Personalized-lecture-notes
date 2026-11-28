@@ -1,39 +1,86 @@
-/* Motion, loaded last. Short and functional: it shows where content came from and
-   that work is in progress. Everything here is switched off for reduced-motion users. */
+/* Motion, loaded after the page styles. Each movement answers one question: where something came
+   from, where it went, whether work is going on, or that it is done. Times and curves come from
+   tokens.css; only transform and opacity move, except the disclosure and column widths.
+   Reduced motion keeps short fades, spinners and progress, and drops movement, scaling and blinking. */
 @keyframes rise-in { from { opacity: 0; transform: translateY(8px); } }
 @keyframes fade-in { from { opacity: 0; } }
-@keyframes pop-in { from { opacity: 0; transform: translateY(12px) scale(.985); } }
 @keyframes pulse-dot { 50% { opacity: .35; transform: scale(.8); } }
 @keyframes caret-blink { 50% { opacity: 0; } }
 @keyframes shimmer { to { background-position: -200% 0; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pop { from { opacity: 0; transform: scale(.4); } }
 
-.workspace-page:not([hidden]) { animation: rise-in .22s ease-out both; }
-[role="tabpanel"]:not([hidden]) { animation: fade-in .18s ease-out both; }
-dialog[open] { animation: pop-in .2s cubic-bezier(.2, .8, .3, 1) both; }
-dialog[open]::backdrop { animation: fade-in .2s ease-out both; }
-#lecture:not([hidden]) > *, .live-chip, .batch-row, .figure-block img { animation: rise-in .28s ease-out both; }
-#lecture:not([hidden]) > :nth-child(2) { animation-delay: .03s; }
-#lecture:not([hidden]) > :nth-child(3) { animation-delay: .06s; }
-#lecture:not([hidden]) > :nth-child(4) { animation-delay: .09s; }
-#lecture:not([hidden]) > :nth-child(n+5) { animation-delay: .12s; }
+/* Pages and tab panels arrive in place. */
+.workspace-page:not([hidden]) { animation: rise-in var(--d-2) var(--ease-out) both; }
+[role="tabpanel"]:not([hidden]) { animation: fade-in var(--d-2) var(--ease-out) both; }
 
-.panel, .paper, .source, .lesson-setting-link, .batch-student, .live-chip { transition: border-color .15s, box-shadow .15s, background-color .15s; }
-.primary, .secondary { transition: background-color .15s, border-color .15s, color .15s, transform .08s; }
+/* Dialogs rise out of the page and sink back when closed; the backdrop fades with them.
+   display and overlay keep a closing dialog on screen until its transition ends. */
+dialog {
+  opacity: 0;
+  transition: opacity var(--d-2) var(--ease-in), transform var(--d-2) var(--ease-in),
+    overlay var(--d-2) allow-discrete, display var(--d-2) allow-discrete;
+}
+dialog:not(.lightbox) { transform: translateY(10px) scale(.98); }
+dialog[open] { opacity: 1; transform: none; transition-duration: var(--d-3); transition-timing-function: var(--ease-out); }
+@starting-style {
+  dialog[open] { opacity: 0; }
+  dialog[open]:not(.lightbox) { transform: translateY(10px) scale(.98); }
+}
+dialog::backdrop {
+  opacity: 0;
+  transition: opacity var(--d-2) var(--ease-in), overlay var(--d-2) allow-discrete, display var(--d-2) allow-discrete;
+}
+dialog[open]::backdrop { opacity: 1; transition-duration: var(--d-3); transition-timing-function: var(--ease-out); }
+@starting-style { dialog[open]::backdrop { opacity: 0; } }
+
+/* Toast: rises from the bottom edge, fades out faster than it came. */
+.toast {
+  opacity: 0; translate: 0 10px;
+  transition: opacity var(--d-1) var(--ease-in), translate var(--d-1) var(--ease-in),
+    overlay var(--d-1) allow-discrete, display var(--d-1) allow-discrete;
+}
+.toast:popover-open { opacity: 1; translate: 0 0; transition-duration: var(--d-2); transition-timing-function: var(--ease-out); }
+@starting-style { .toast:popover-open { opacity: 0; translate: 0 10px; } }
+
+/* Tab lists: the highlight slides to the selected tab (ui.js places it). */
+.tab-indicator { transition: transform var(--d-2) var(--ease-move), inline-size var(--d-2) var(--ease-move), block-size var(--d-2) var(--ease-move); }
+.tab-indicator.instant { transition: none; }
+
+/* The finished lecture is the one longer moment: its parts arrive one after another. */
+#lecture:not([hidden]) > *, .live-chip, .batch-row, .figure-block img { animation: rise-in var(--d-3) var(--ease-out) both; }
+#lecture:not([hidden]) > :nth-child(2) { animation-delay: 40ms; }
+#lecture:not([hidden]) > :nth-child(3) { animation-delay: 80ms; }
+#lecture:not([hidden]) > :nth-child(4) { animation-delay: 120ms; }
+#lecture:not([hidden]) > :nth-child(5) { animation-delay: 160ms; }
+#lecture:not([hidden]) > :nth-child(6) { animation-delay: 200ms; }
+#lecture:not([hidden]) > :nth-child(n+7) { animation-delay: 240ms; }
+
+/* Hover, press and selection. */
+.panel, .paper, .source, .lesson-setting-link, .batch-student, .live-chip { transition: border-color var(--d-1), box-shadow var(--d-1), background-color var(--d-1); }
+.primary, .secondary { transition: background-color var(--d-1), border-color var(--d-1), color var(--d-1), transform var(--d-1) var(--ease-out); }
 .primary:active:not(:disabled), .secondary:active:not(:disabled) { transform: scale(.98); }
-a[data-page] { transition: background-color .15s, color .15s; }
-.workflow-number { transition: background-color .25s, color .25s; }
-.workflow-step { transition: opacity .25s; }
+a[data-page] { transition: background-color var(--d-1), color var(--d-1); }
+.workflow-number { transition: background-color var(--d-2), color var(--d-2); }
+.workflow-step { transition: opacity var(--d-2); }
 
+/* Work in progress, and work done. */
+.icon.spin { animation: spin .9s linear infinite; }
+.is-done .icon-pop { animation: pop var(--d-hero) var(--ease-spring) both; }
 .live-dot { animation: pulse-dot 1.1s ease-in-out infinite; }
 .live-text > :last-child::after { animation: caret-blink 1s steps(1) infinite; }
 .live-chip.live-writing, .batch-row.batch-running, .batch-row.batch-queued {
   background-image: linear-gradient(100deg, transparent 30%, #ffffffb3 50%, transparent 70%);
   background-size: 200% 100%; animation: shimmer 1.6s linear infinite;
 }
-#generate:disabled span:empty::after { content: ''; display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin-busy .8s linear infinite; }
-@keyframes spin-busy { to { transform: rotate(360deg); } }
+.skeleton-line { animation: shimmer 1.4s linear infinite; }
+#generate::after { transition: transform var(--d-3) var(--ease-out); }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  *, *::before, *::after, ::backdrop { animation: none !important; transition-duration: 0s !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
+  /* Things still fade in place, briefly; nothing moves or grows. */
+  dialog, dialog::backdrop, .toast { transform: none !important; translate: none !important; transition-duration: 100ms !important; }
+  /* A spinner is the sign that work goes on, so it keeps turning. */
+  .spinner, .icon.spin { animation: spin 1s linear infinite !important; }
 }
-@media print { *, *::before, *::after { animation: none !important; } }
+@media print { *, *::before, *::after { animation: none !important; transition: none !important; } }

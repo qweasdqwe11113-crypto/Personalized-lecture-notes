@@ -322,6 +322,7 @@ async function decideEdit(action) {
       if(token !== editToken) return;
       drawDeck(data, candidate.page); $('ppt-edit-instruction').value = '';
       editStatus(`已保存为课件 #${data.id}，仅第 ${candidate.page} 页更新，原版 #${candidate.parent_run_id} 保留。`);
+      window.ui?.toast(`已保存为课件 #${data.id}`);
       refreshList(source.id, session).catch(() => {});
     } else { clearCandidate(); $('ppt-trace').onclick = () => openTrace(currentDeck.id); editStatus('已放弃这次修改，原课件保持不变。'); }
   } catch(e) { if(token === editToken) editStatus(e.message); }

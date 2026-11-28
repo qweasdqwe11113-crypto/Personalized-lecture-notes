@@ -63,7 +63,8 @@
   const className = id => scope?.course()?.classes.find(k => k.id === id)?.name || '班级';
   function uploadRow(item, actions) {
     const row = el('div', undefined, 'upload-row');
-    const icon = el('span', item.kind === 'url' ? '↗' : '▤', 'upload-row-icon'); icon.setAttribute('aria-hidden', 'true');
+    const icon = el('span', undefined, 'upload-row-icon'); icon.setAttribute('aria-hidden', 'true');
+    const glyph = window.ui?.icon(item.kind === 'url' ? 'link' : 'file-text'); if (glyph) icon.append(glyph);
     const info = el('div', undefined, 'upload-row-info');
     const preview = el('button', item.title, 'upload-preview-button'); preview.type = 'button';
     preview.onclick = async () => {
@@ -110,7 +111,7 @@
           p.knowledge_draft ? '这份资料的知识点识别草稿（已加入知识点库的知识点保留）' : '',
           p.lectures_citing ? `有 ${p.lectures_citing} 份讲义用过它：讲义里保留当时的材料文字，来源链接会显示「原资料已删除」` : ''],
           action: () => postDelete('/api/uploads/' + encodeURIComponent(item.id) + '/delete', {with_materials: true})});
-        if (done) { status(`已删除「${p.title}」。`); await refreshUploads(); }
+        if (done) { status(`已删除「${p.title}」。`); window.ui?.toast(`已删除资料「${p.title}」`); await refreshUploads(); }
       } catch (e) { status(e.message, true); }
     };
     return button;
@@ -124,7 +125,7 @@
       if (version !== listVersion) return;
       const list = $('upload-list'); list.replaceChildren();
       $('upload-library-title').textContent = m === 'class' ? `班级资料 · ${data.uploads.length} 份` : m === 'course' ? `课程资料 · ${data.uploads.length} 份` : '课程资料';
-      if (!data.uploads.length) { const empty = el('div', undefined, 'upload-library-empty'); empty.append(el('span', '▤'), el('strong', m === 'class' ? '本班还没有专用资料' : '还没有上传资料'), el('p', m === 'class' ? '上传本班试卷、专用讲义等，收录后只用于本班。' : '从本地文件或网址开始，添加第一份教学资料。')); list.append(empty); }
+      if (!data.uploads.length) { const empty = el('div', undefined, 'upload-library-empty'); const mark = el('span'); const glyph = window.ui?.icon('inbox'); if (glyph) mark.append(glyph); empty.append(mark, el('strong', m === 'class' ? '本班还没有专用资料' : '还没有上传资料'), el('p', m === 'class' ? '上传本班试卷、专用讲义等，收录后只用于本班。' : '从本地文件或网址开始，添加第一份教学资料。')); list.append(empty); }
       for (const item of data.uploads) list.append(uploadRow(item, standardActions(item)));
       if (m === 'course') await refreshUnassigned(version);
       else $('upload-unassigned-box').hidden = true;

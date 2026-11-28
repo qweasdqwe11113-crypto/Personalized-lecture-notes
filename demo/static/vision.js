@@ -32,7 +32,7 @@ async function refreshVisualEvidence() {
 async function showUploadImages(uploadId) {
   const version = ++uploadImagesVersion;
   const container = $('upload-preview-images');
-  container.replaceChildren(el('p', '正在读取插图…', 'helper'));
+  container.replaceChildren(window.ui?.skeleton(2, '正在读取插图…') || el('p', '正在读取插图…', 'helper'));
   const data = await api('/api/uploads/' + uploadId + '/images');
   if (version !== uploadImagesVersion) return;
   container.replaceChildren();

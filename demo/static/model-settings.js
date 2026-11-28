@@ -177,7 +177,7 @@
   const all=controls();
   const previous=all.map(c=>c.disabled);all.forEach(c=>c.disabled=true);
   status.textContent='正在保存配置…';
-  try{const data=await request('/api/model-settings',payload);render(data);status.textContent=desktop?.restartBackend?'已保存。点击「立即重启服务」后生效；正在运行的任务会中断。':data.message;offerRestart(data.restart_required);}
+  try{const data=await request('/api/model-settings',payload);render(data);status.textContent=desktop?.restartBackend?'已保存。点击「立即重启服务」后生效；正在运行的任务会中断。':data.message;window.ui?.toast('模型设置已保存');offerRestart(data.restart_required);}
   catch(e){failure.textContent=e.message;failure.hidden=false;status.textContent='保存失败，修改尚未生效。';}
   finally{saving=false;all.forEach((c,i)=>c.disabled=previous[i]);save.disabled=false;}
  });

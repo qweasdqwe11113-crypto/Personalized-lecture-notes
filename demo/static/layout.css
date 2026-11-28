@@ -66,7 +66,7 @@ aside, .result-column, .panel, .paper, .setup-field { min-inline-size: 0; }
   top: 24px;
   inline-size: 16px;
   block-size: 88px;
-  border-radius: 8px;
+  border-radius: var(--r-2);
   cursor: col-resize;
   touch-action: none;
   display: grid;
@@ -76,10 +76,10 @@ aside, .result-column, .panel, .paper, .setup-field { min-inline-size: 0; }
   content: "";
   inline-size: 4px;
   block-size: 44px;
-  border-radius: 3px;
+  border-radius: var(--r-1);
   background: #c3cddf;
 }
-.layout-resizer:hover, .layout-resizer:focus-visible, .is-resizing .layout-resizer { background: #e4ecff; }
+.layout-resizer:hover, .layout-resizer:focus-visible, .is-resizing .layout-resizer { background: var(--blue-100); }
 .layout-resizer:focus-visible { outline: 3px solid #bfd0ff; outline-offset: 2px; }
 .layout-resizer:hover::before, .is-resizing .layout-resizer::before { background: var(--accent); }
 .workspace.is-resizing { cursor: col-resize; user-select: none; }
@@ -94,7 +94,7 @@ aside, .result-column, .panel, .paper, .setup-field { min-inline-size: 0; }
 .input-trace-note { margin: 16px var(--paper-padding) 0; }
 .lecture-meta { padding: 20px var(--paper-padding) 0; overflow-wrap: anywhere; }
 .lecture { max-inline-size: 56rem; margin-inline: auto; padding: 12px var(--paper-padding) 32px; }
-.lecture h1 { font-size: clamp(22px, 2vw, 28px); }
+.lecture h1 { font-size: var(--fs-28); }
 .review-note { margin: 0 var(--paper-padding) 24px; }
 .math-line { max-inline-size: 100%; min-inline-size: 0; font-size: 1em; padding: 12px clamp(10px, 1.8vw, 18px); }
 #quality-panel .section-heading .helper { margin: 0; }
@@ -167,8 +167,8 @@ dialog .editor-top {
 @media (max-width: 39.999rem) {
   .topbar { gap: 10px; padding-block: 12px; }
   .brand div > span { display: none; }
-  .brand strong { font-size: 20px; }
-  .demo-tag { max-inline-size: 9rem; font-size: 11px; }
+  .brand strong { font-size: var(--fs-18); }
+  .demo-tag { max-inline-size: 9rem; font-size: var(--fs-12); }
   .page-heading { gap: 12px; }
   .workspace, #generate-form, .workspace .support-modules { grid-template-columns: minmax(0, 1fr); }
   #generate-form > .setup-goal { grid-row: auto; }
@@ -180,7 +180,7 @@ dialog .editor-top {
   }
   .paper-actions > :last-child:nth-child(odd) { grid-column: 1 / -1; }
   .empty { min-block-size: 300px; padding: 32px 16px; }
-  .empty h2 { font-size: 20px; }
+  .empty h2 { font-size: var(--fs-18); }
   .steps { gap: 6px; flex-wrap: wrap; justify-content: center; }
   .steps span { padding: 5px 7px; }
   .sources-panel .section-heading { flex-wrap: wrap; }
@@ -188,7 +188,7 @@ dialog .editor-top {
   .trace-metadata { grid-template-columns: minmax(0, 1fr); gap: 3px; }
   .trace-metadata dd { margin-block-end: 12px; }
   .trace-text { padding: 12px; }
-  select, textarea, .editor-form input:not([type="checkbox"]), #revision-content { font-size: 16px; }
+  select, textarea, .editor-form input:not([type="checkbox"]), #revision-content { font-size: var(--fs-16); }
 }
 @media (max-height: 28rem) {
   dialog { block-size: calc(100dvh - 16px); max-block-size: calc(100dvh - 16px); }
@@ -204,30 +204,30 @@ dialog .editor-top {
 }
 
 .comparison-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.comparison-controls label { font-size: 13px; color: var(--muted); }
+.comparison-controls label { font-size: var(--fs-13); color: var(--muted); }
 .comparison-controls select { width: auto; flex: 0 1 14rem; }
 .comparison-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-.comparison-side { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcff; }
-.comparison-side h4 { margin: 0 0 10px; font-size: 14px; color: var(--accent); }
-.comparison-text { font-size: 13px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.comparison-side { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: var(--r-2); background: var(--gray-25); }
+.comparison-side h4 { margin: 0 0 10px; font-size: var(--fs-14); color: var(--accent); }
+.comparison-text { font-size: var(--fs-13); line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
 .comparison-card { padding: 16px 0; border-bottom: 1px solid var(--line); }
 .comparison-card-heading { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
-.comparison-card-heading h4 { margin: 0; font-size: 16px; }
+.comparison-card-heading h4 { margin: 0; font-size: var(--fs-16); }
 .comparison-badges { display: flex; flex-wrap: wrap; gap: 6px; }
-.comparison-changed { color: #2854bf; background: #eaf0ff; }
+.comparison-changed { color: #2854bf; background: var(--blue-100); }
 .comparison-evidence { margin-top: 14px; }
-.comparison-evidence > summary { cursor: pointer; font-size: 13px; min-height: 44px; }
+.comparison-evidence > summary { cursor: pointer; font-size: var(--fs-13); min-height: 44px; }
 .comparison-added { margin-top: 12px; }
 .lecture-compare-settings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .lecture-compare-settings > div { min-width: 0; }
-.lecture-compare-settings label { display: block; font-size: 13px; margin-bottom: 7px; color: var(--muted); }
+.lecture-compare-settings label { display: block; font-size: var(--fs-13); margin-bottom: 7px; color: var(--muted); }
 .lecture-compare-actions { margin-top: 16px; }
 .lecture-compare-check { display: flex; align-items: center; gap: 8px; }
-.lecture-comparison-markdown { max-inline-size: none; padding: 0; font-size: 15px; line-height: 1.9; }
-.lecture-comparison-markdown h1 { font-size: 20px; }
-.lecture-comparison-markdown h2 { font-size: 17px; margin-top: 14px; }
+.lecture-comparison-markdown { max-inline-size: none; padding: 0; font-size: var(--fs-16); line-height: 1.9; }
+.lecture-comparison-markdown h1 { font-size: var(--fs-22); }
+.lecture-comparison-markdown h2 { font-size: var(--fs-18); margin-top: 14px; }
 .lecture-compare-excerpts { margin-top: 12px; }
-#lecture-comparison-sections .comparison-card-heading h3 { font-size: 17px; margin: 0; }
+#lecture-comparison-sections .comparison-card-heading h3 { font-size: var(--fs-16); margin: 0; }
 #lecture-comparison-controls { margin-top: 14px; }
 @media (max-width: 47.5rem) {
   .comparison-pair, .lecture-compare-settings { grid-template-columns: minmax(0, 1fr); }
