@@ -23,15 +23,16 @@ function showFailedTrace(runId) {
 }
 async function refreshRuns() {
   const data = await api('/api/generation-runs');
-  $('generation-runs').replaceChildren(...data.runs.map(run => {
+  const rows = data.runs.map(run => {
     const button = el('button', undefined, 'run-history-item');
     button.type = 'button';
     button.append(el('span', `#${run.id} ${run.name} · ${run.ppt_generation?(run.status==='succeeded'?'PPT 已生成':'PPT · '+runLabels[run.status]):run.section_rewrite?(run.status==='succeeded'?'章节候选已生成':runLabels[run.status]):run.design_review?(run.status==='succeeded'?'课堂设计待确认':'课堂设计 · '+runLabels[run.status]):runLabels[run.status]}`, 'run-' + run.status),
                   el('span', run.topic, 'helper'));
     button.onclick = () => openTrace(run.id);
     return button;
-  }));
-  if (!data.runs.length) $('generation-runs').append(el('p', '尚无保存完整输入的新请求。既有讲义在“最近生成”查看。', 'helper'));
+  });
+  if (!rows.length) rows.push(el('p', '尚无保存完整输入的新请求。既有讲义在“最近生成”查看。', 'helper'));
+  (window.ui?.morph || ((box, nodes) => box.replaceChildren(...nodes)))($('generation-runs'), rows);
   $('retry-interrupted').hidden = !data.interrupted;
   $('retry-interrupted').textContent = `重试全部中断的任务（${data.interrupted || 0}）`;
 }

@@ -3,12 +3,13 @@ const labels={queued:'排队中',running:'生成中',succeeded:'已保存',faile
 let watchSession=0;
 async function refreshJobs(){
  const data=await api('/api/jobs');
- $('jobs-list').replaceChildren(...data.jobs.map(job=>{
+ const rows=data.jobs.map(job=>{
    const b=el('button',`${job.ppt_generation?'授课 PPT · ':job.section_rewrite?'章节调整 · ':job.design_review?'课堂设计 · ':''}${job.status==='succeeded'&&job.ppt_generation?'课件已生成':job.status==='succeeded'&&job.section_rewrite?'章节候选已生成':job.status==='succeeded'&&job.design_review?'待确认':labels[job.status]} · ${job.name} · ${job.topic}`);
    b.append(el('span',`${new Date(job.created_at).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}${job.lecture_id?' · 讲义 #'+job.lecture_id:''}`,'history-date'));
    b.type='button';b.onclick=()=>{if(busy)return;watchJob(job.id);};const row=el('div',undefined,'job-row');row.append(b);if(job.status==='queued'){const cancel=el('button','取消排队','secondary');cancel.type='button';cancel.onclick=async()=>{cancel.disabled=true;try{await api('/api/jobs/'+job.id+'/cancel',{method:'POST'});await refreshJobs();}catch(e){error(e.message);cancel.disabled=false;}};row.append(cancel);}return row;
- }));
- if(!data.jobs.length)$('jobs-list').append(el('p','尚无后台任务。','helper'));
+ });
+ if(!rows.length)rows.push(el('p','尚无后台任务。','helper'));
+ (window.ui?.morph||((box,nodes)=>box.replaceChildren(...nodes)))($('jobs-list'),rows);
 }
 async function checkHealth(){
  try{
@@ -37,7 +38,7 @@ async function watchJob(id){
    if(job.status==='succeeded'&&job.design_review){
      // A design is not a lecture yet: the teacher confirms or edits it, and that starts the writing job.
      window.liveLecture?.stop();$('loading').hidden=true;$('empty').hidden=false;
-     $('progress').textContent=`课堂设计已生成 · 记录 #${job.run_id} · 确认后再写教师详案`;
+     $('progress').textContent=`课堂设计已生成 · 记录 #${job.run_id} · 确认后再写教师详案`;window.zhiyeDesktop?.notify?.('课堂设计已生成',`${job.topic} · 确认后再写教师详案`);
      await window.openDesignReview(job.run_id);break;
    }
    if(job.status==='succeeded'){
@@ -46,10 +47,11 @@ async function watchJob(id){
      // Token counts read as a sentence; 查看生成输入 keeps the raw usage object.
      const usage=job.usage||{},parts=[usage.total_tokens!=null&&`${Number(usage.total_tokens).toLocaleString('zh-CN')} tokens`,usage.model_calls>1&&`${usage.model_calls} 次模型调用`].filter(Boolean);
      saved=r.id;$('progress').textContent=`已保存讲义 #${r.id} · 模型用时 ${Number(job.elapsed_seconds).toFixed(0)} 秒`+(parts.length?` · 用量 ${parts.join('，')}`:'');
+     window.zhiyeDesktop?.notify?.('讲义已生成',`讲义 #${r.id} · ${job.topic}`);
      await refreshHistory();break;
    }
    if(['failed','interrupted','cancelled'].includes(job.status)){
-     error(job.error_message||'任务未完成，请核查生成记录。');$('empty').hidden=false;
+     error(job.error_message||'任务未完成，请核查生成记录。');$('empty').hidden=false;window.zhiyeDesktop?.notify?.('讲义没有生成完成',job.error_message||'请回到知页查看生成记录。');
      showFailedTrace(job.run_id);await refreshRuns();break;
    }
    await new Promise(resolve=>setTimeout(resolve,1000));

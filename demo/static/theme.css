@@ -148,6 +148,32 @@ details[open]::details-content { block-size: auto; }
   transform: translate(var(--x, 0), var(--y, 0)); border-radius: var(--r-1); background: #fff; box-shadow: var(--shadow-1); pointer-events: none;
 }
 
+/* The page navigation uses the same sliding highlight (ui.js). */
+.app-nav.has-indicator > a { position: relative; z-index: 1; }
+.app-nav.has-indicator > a[aria-current="page"], .app-nav.has-indicator > a[aria-current="page"]:hover { background: transparent; }
+.app-nav > .tab-indicator { background: var(--accent-soft); box-shadow: none; border-radius: var(--r-2); }
+
+/* Generation steps above the paper (live.js): done, current, waiting, and a thin bar that advances
+   by stage and by finished section. */
+.gen-steps { position: relative; display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 18px var(--paper-padding, 28px) 4px; padding: 0 0 12px; list-style: none; font-size: var(--fs-13); color: var(--muted); }
+.gen-steps::before, .gen-steps::after { content: ''; position: absolute; inset: auto 0 0; block-size: 3px; border-radius: var(--r-pill); background: var(--line); }
+.gen-steps::after { background: var(--accent); transform-origin: left; transform: scaleX(var(--gen, 0)); }
+.gen-step { display: flex; align-items: center; gap: 6px; }
+.gen-mark { display: grid; place-items: center; inline-size: 16px; block-size: 16px; border: 1.5px solid var(--line-2); border-radius: 50%; background: var(--surface); }
+.gen-mark .icon { inline-size: 11px; block-size: 11px; stroke-width: 3; vertical-align: 0; }
+.gen-done { color: var(--fg-2); }
+.gen-done .gen-mark { border-color: var(--ok); background: var(--ok); color: var(--on-accent); }
+.gen-current { color: var(--fg-strong); font-weight: 600; }
+.gen-current .gen-mark { border-color: var(--accent); background: radial-gradient(circle, var(--accent) 0 3px, transparent 3.5px); }
+.live-chip .icon { inline-size: 13px; block-size: 13px; margin-inline-end: 3px; stroke-width: 2.5; }
+
+/* Waiting for the first words: grey bars in the shape of a lecture instead of a spinner. */
+.loading-paper { max-inline-size: 56rem; margin-inline: auto; padding: 14px var(--paper-padding, 28px) 24px; }
+.skeleton-paper { gap: 12px; }
+.skeleton-paper .skeleton-title { inline-size: 52%; block-size: 22px; margin-block-end: 6px; }
+.skeleton-paper .skeleton-heading { inline-size: 30%; block-size: 16px; margin-block-start: 12px; }
+.loading-paper > .helper { margin-block-start: 18px; }
+
 /* While a lecture is written section by section, the generate button fills from the left (live.js). */
 #generate { position: relative; overflow: hidden; }
 #generate::after { content: ''; position: absolute; inset: auto 0 0; block-size: 3px; background: var(--accent); transform-origin: left; transform: scaleX(var(--progress, 0)); }

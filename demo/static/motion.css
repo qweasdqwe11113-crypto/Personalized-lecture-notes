@@ -1,6 +1,7 @@
 /* Motion, loaded after the page styles. Each movement answers one question: where something came
    from, where it went, whether work is going on, or that it is done. Times and curves come from
-   tokens.css; only transform and opacity move, except the disclosure and column widths.
+   tokens.css; only transform and opacity move, except the disclosure and column widths and the
+   clip that reveals the class mastery bars.
    Reduced motion keeps short fades, spinners and progress, and drops movement, scaling and blinking. */
 @keyframes rise-in { from { opacity: 0; transform: translateY(8px); } }
 @keyframes fade-in { from { opacity: 0; } }
@@ -75,6 +76,40 @@ a[data-page] { transition: background-color var(--d-1), color var(--d-1); }
 }
 .skeleton-line { animation: shimmer 1.4s linear infinite; }
 #generate::after { transition: transform var(--d-3) var(--ease-out); }
+
+/* First entry, once per load: sidebar, context bar, workflow strip, settings and paper come in one
+   after another. ui.js marks the page entered afterwards, so later visits to a page do not replay it. */
+html:not(.entered) .app-sidebar { animation: fade-in var(--d-3) var(--ease-out) both; }
+html:not(.entered) .context-bar { animation: rise-in var(--d-3) var(--ease-out) 60ms both; }
+html:not(.entered) #workflow-strip { animation: rise-in var(--d-3) var(--ease-out) 120ms both; }
+html:not(.entered) #settings-column { animation: rise-in var(--d-3) var(--ease-out) 180ms both; }
+html:not(.entered) #result-paper { animation: rise-in var(--d-3) var(--ease-out) 240ms both; }
+
+/* Page changes (navigation.js): a view transition moves only the page content; the sidebar and
+   header switch at once while the navigation highlight slides. */
+@keyframes page-out { to { opacity: 0; transform: translateY(-8px); } }
+@keyframes page-in { from { opacity: 0; transform: translateY(8px); } }
+.workspace-page:not([hidden]) { view-transition-name: page; }
+html.page-switching .workspace-page { animation: none; }
+::view-transition-old(root) { animation: none; opacity: 0; }
+::view-transition-new(root) { animation: none; }
+::view-transition-group(page) { animation-duration: var(--d-3); animation-timing-function: var(--ease-move); }
+::view-transition-old(page) { animation: page-out var(--d-2) var(--ease-in) both; }
+::view-transition-new(page) { animation: page-in var(--d-3) var(--ease-out) 60ms both; }
+
+/* Lecture generation: the current step breathes, the bar moves on, a finished step pops its tick. */
+@keyframes breathe { 50% { opacity: .45; } }
+.gen-current .gen-mark { animation: breathe 1.4s ease-in-out infinite; }
+.gen-done .gen-mark .icon { animation: pop var(--d-2) var(--ease-spring) both; }
+.gen-steps::after { transition: transform var(--d-3) var(--ease-out); }
+/* The finished lecture's next steps arrive one after another. */
+#result-paper.has-result .paper-actions > * { animation: rise-in var(--d-3) var(--ease-out) 120ms both; }
+#result-paper.has-result .paper-actions > :nth-child(2) { animation-delay: 200ms; }
+#result-paper.has-result .paper-actions > :nth-child(3) { animation-delay: 280ms; }
+
+/* Class mastery bars grow from the left, row after row, the first time they are drawn (class-page.js). */
+@keyframes bar-grow { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
+.class-bar.is-revealing { animation: bar-grow 600ms var(--ease-out) calc(var(--i, 0) * 100ms) both; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after, ::backdrop { animation: none !important; transition-duration: 0s !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
